@@ -1,3 +1,4 @@
+
 import {
   type ChangeEvent,
   useCallback,
@@ -9,18 +10,34 @@ import Charts from "./components/Charts";
 import Filters from "./components/Filters";
 import ResultsList from "./components/ResultsList";
 import SearchBar from "./components/SearchBar";
-import {
-  type AnalyticsCategory,
-  type SearchResultRecord,
-  getAnalyticsSummary,
-  searchProjects,
-} from "./api";
+
+type SearchResult = {
+  _id?: string;
+  id?: string;
+  title?: string;
+  project_title?: string;
+  abstract?: string;
+  category?: string;
+  [key: string]: unknown;
+};
+
+type AnalyticsPoint = {
+  label: string;
+  value: number;
+};
+
+const API_BASE_URL = "http://localhost:8000";
 
 export default function App() {
   const [query, setQuery] = useState("");
-  const [results, setResults] = useState<SearchResultRecord[]>([]);
+  const [results, setResults] = useState<SearchResult[]>([]);
   const [selectedCategory, setSelectedCategory] = useState("");
-  const [chartData, setChartData] = useState<AnalyticsCategory[]>([]);
+  const [chartData, setChartData] = useState<AnalyticsPoint[]>([]);
+
+  const [resultsPerPage, setResultsPerPage] = useState(10);
+  const [currentPage, setCurrentPage] = useState(1);
+  const [total, setTotal] = useState(0);
+  const [hasSearched, setHasSearched] = useState(false);
 
   const [resultsPerPage, setResultsPerPage] = useState(25);
   const [currentPage, setCurrentPage] = useState(1);
