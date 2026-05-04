@@ -1,7 +1,31 @@
+# Local env (keep .env.example committed)
+.env
+.env.local
+.env.*.local
+
+# Data (large; obtain separately or use symlink)
 2025_ProjectData.csv
+
+# Node / frontend
+node_modules/
+dist/
+.vite/
+
+# Python
 __pycache__/
 **/__pycache__/
 *.py[cod]
+*$py.class
 .venv/
 venv/
+*.egg-info/
+.eggs/
+.pytest_cache/
+.mypy_cache/
+.ruff_cache/
+.coverage
+htmlcov/
 
+# OS / editor
+.DS_Store
+.idea/
