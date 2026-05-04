@@ -50,13 +50,24 @@ export interface HealthStatus {
   opensearch: string;
 }
 
+export type SearchProjectsOptions = {
+  limit?: number;
+  page?: number;
+  category?: string;
+};
+
 export async function searchProjects(
   query: string,
-  limit: number = 25,
+  options: SearchProjectsOptions = {},
 ): Promise<SearchResponse> {
+  const { limit = 25, page = 1, category = "" } = options;
   const url = new URL(`${API_BASE_URL}/search/`);
   url.searchParams.set("q", query);
   url.searchParams.set("limit", String(limit));
+  url.searchParams.set("page", String(page));
+  if (category) {
+    url.searchParams.set("category", category);
+  }
   const response = await fetch(url.toString());
   if (!response.ok) {
     throw new Error(`Search request failed: ${response.status}`);

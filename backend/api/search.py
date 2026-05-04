@@ -14,10 +14,25 @@ INDEX_NAME = "project_data"
 def search(
     q: str = Query(default="", description="Search query"),
     limit: int = Query(default=10, ge=1, le=100),
+    page: int = Query(default=1, ge=1, description="1-based page index"),
+    category: str = Query(default="", description="Filter by category (category.keyword)"),
 ) -> dict[str, object]:
     client = get_client()
-    query = {"match_all": {}} if not q else {"multi_match": {"query": q, "fields": ["*"]}}
-    response = client.search(index=INDEX_NAME, body={"size": limit, "query": query})
+    must: list[dict[str, object]] = []
+    if q:
+        must.append({"multi_match": {"query": q, "fields": ["*"]}})
+    else:
+        must.append({"match_all": {}})
+    if category:
+        must.append({"term": {"category.keyword": category}})
+    os_query: dict[str, object] = (
+        must[0] if len(must) == 1 else {"bool": {"must": must}}
+    )
+    from_ = (page - 1) * limit
+    response = client.search(
+        index=INDEX_NAME,
+        body={"from": from_, "size": limit, "query": os_query},
+    )
 
     hits = response.get("hits", {}).get("hits", [])
     results = []

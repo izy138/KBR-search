@@ -1,4 +1,11 @@
-import { useEffect, useMemo, useState } from "react";
+
+import {
+  type ChangeEvent,
+  useCallback,
+  useEffect,
+  useMemo,
+  useState,
+} from "react";
 import Charts from "./components/Charts";
 import Filters from "./components/Filters";
 import ResultsList from "./components/ResultsList";
@@ -32,6 +39,10 @@ export default function App() {
   const [total, setTotal] = useState(0);
   const [hasSearched, setHasSearched] = useState(false);
 
+  const [resultsPerPage, setResultsPerPage] = useState(25);
+  const [currentPage, setCurrentPage] = useState(1);
+  const [total, setTotal] = useState(0);
+
   const categories = useMemo(() => {
     const source = chartData.length ? chartData : [];
     return source.map((point) => point.label);
@@ -40,71 +51,45 @@ export default function App() {
   const totalPages = Math.max(1, Math.ceil(total / resultsPerPage));
 
   const loadAnalytics = async () => {
-    const response = await fetch(`${API_BASE_URL}/analytics/summary`);
-    const payload = await response.json();
+    const payload = await getAnalyticsSummary();
     setChartData(payload.by_category ?? []);
   };
 
-  const runSearch = async (
-    nextQuery: string,
-    page: number = 1,
-    category: string = selectedCategory,
-    limit: number = resultsPerPage
-  ) => {
-    const url = new URL(`${API_BASE_URL}/search/`);
-    url.searchParams.set("q", nextQuery);
-    url.searchParams.set("page", String(page));
-    url.searchParams.set("limit", String(limit));
-    if (category) {
-      url.searchParams.set("category", category);
-    }
-
-    const response = await fetch(url);
-    const payload = await response.json();
-
-    setResults(payload.results ?? []);
-    setTotal(payload.total ?? 0);
-  };
+  const runSearch = useCallback(
+    async (nextQuery: string, page: number, category: string, limit: number) => {
+      const payload = await searchProjects(nextQuery, {
+        page,
+        limit,
+        category,
+      });
+      setResults(payload.results ?? []);
+      setTotal(payload.total ?? 0);
+    },
+    [],
+  );
 
   const handleSearch = (nextQuery: string) => {
-    const trimmed = nextQuery.trim();
-    if (trimmed === "") {
-      setHasSearched(false);
-      setQuery("");
-      setCurrentPage(1);
-      setResults([]);
-      setTotal(0);
-      return;
-    }
-
-    setHasSearched(true);
-    setQuery(trimmed);
+    setQuery(nextQuery);
     setCurrentPage(1);
   };
 
   useEffect(() => {
-    if (!hasSearched) {
-      return;
-    }
-    runSearch(query, currentPage, selectedCategory, resultsPerPage);
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [hasSearched, query, currentPage, selectedCategory, resultsPerPage]);
+    void runSearch(query, currentPage, selectedCategory, resultsPerPage);
+  }, [query, currentPage, selectedCategory, resultsPerPage, runSearch]);
 
   const handleCategoryChange = (category: string) => {
     setSelectedCategory(category);
     setCurrentPage(1);
   };
 
-  const handleResultsPerPageChange = (
-    event: React.ChangeEvent<HTMLSelectElement>
-  ) => {
+  const handleResultsPerPageChange = (event: ChangeEvent<HTMLSelectElement>) => {
     setResultsPerPage(Number(event.target.value));
     setCurrentPage(1);
   };
 
   const getPageNumbers = (
     page: number,
-    totalPageCount: number
+    totalPageCount: number,
   ): Array<number | "..."> => {
     if (totalPageCount <= 7) {
       return Array.from({ length: totalPageCount }, (_, i) => i + 1);
@@ -140,7 +125,7 @@ export default function App() {
 
       <SearchBar onSearch={handleSearch} />
 
-      <button onClick={loadAnalytics} type="button">
+      <button onClick={() => void loadAnalytics()} type="button">
         Load Analytics
       </button>
 
@@ -163,85 +148,74 @@ export default function App() {
 
       <Charts data={chartData} />
 
-      {!hasSearched ? (
-        <p style={{ marginTop: "1rem", color: "#6b7280" }}>
-          Enter a search and press Search to see results.
-        </p>
-      ) : (
-        <>
-          <h2>Results for: {query}</h2>
-          <p>
-            Showing page {currentPage} of {totalPages} ({total} total results)
-          </p>
+      <h2>Results for: {query || "all records"}</h2>
+      <p>
+        Showing page {currentPage} of {totalPages} ({total} total results)
+      </p>
 
-          <ResultsList
-            results={results.map((item, index) => ({
-              id: item._id ?? item.id ?? String(index),
-              title:
-                typeof item.title === "string"
-                  ? item.title
-                  : typeof item.project_title === "string"
-                    ? item.project_title
-                    : "Untitled",
-              snippet:
-                typeof item.abstract === "string"
-                  ? item.abstract.slice(0, 200)
-                  : "No abstract available",
-            }))}
-          />
+      <ResultsList
+        results={results.map((item, index) => ({
+          id: item._id ?? item.id ?? String(index),
+          title:
+            typeof item.title === "string"
+              ? item.title
+              : typeof item.project_title === "string"
+                ? item.project_title
+                : "Untitled",
+          snippet:
+            typeof item.abstract === "string"
+              ? item.abstract.slice(0, 200)
+              : "No abstract available",
+        }))}
+      />
 
-          <div
-            style={{
-              display: "flex",
-              gap: "0.5rem",
-              marginTop: "1rem",
-              flexWrap: "wrap",
-              alignItems: "center",
-            }}
-          >
+      <div
+        style={{
+          display: "flex",
+          gap: "0.5rem",
+          marginTop: "1rem",
+          flexWrap: "wrap",
+          alignItems: "center",
+        }}
+      >
+        <button
+          type="button"
+          onClick={() => setCurrentPage((p) => Math.max(1, p - 1))}
+          disabled={currentPage === 1}
+        >
+          Previous
+        </button>
+
+        {pageNumbers.map((item, index) =>
+          item === "..." ? (
+            <span key={`ellipsis-${index}`} style={{ padding: "0.5rem 0.25rem" }}>
+              ...
+            </span>
+          ) : (
             <button
+              key={item}
               type="button"
-              onClick={() => setCurrentPage((p) => Math.max(1, p - 1))}
-              disabled={currentPage === 1}
+              onClick={() => setCurrentPage(item)}
+              disabled={item === currentPage}
+              style={
+                item === currentPage
+                  ? { background: "#1f2937", borderColor: "#1f2937" }
+                  : undefined
+              }
             >
-              Previous
+              {item}
             </button>
+          ),
+        )}
 
-            {pageNumbers.map((item, index) =>
-              item === "..." ? (
-                <span
-                  key={`ellipsis-${index}`}
-                  style={{ padding: "0.5rem 0.25rem" }}
-                >
-                  ...
-                </span>
-              ) : (
-                <button
-                  key={item}
-                  type="button"
-                  onClick={() => setCurrentPage(item)}
-                  disabled={item === currentPage}
-                  style={
-                    item === currentPage
-                      ? { background: "#1f2937", borderColor: "#1f2937" }
-                      : undefined
-                  }
-                >
-                  {item}
-                </button>
-              )
-            )}
-
-            <button
-              type="button"
-              onClick={() => setCurrentPage((p) => Math.min(totalPages, p + 1))}
-              disabled={currentPage >= totalPages}
-            >
-              Next
-            </button>
-          </div>
-        </>
-      )}
+        <button
+          type="button"
+          onClick={() => setCurrentPage((p) => Math.min(totalPages, p + 1))}
+          disabled={currentPage >= totalPages}
+        >
+          Next
+        </button>
+      </div>
     </main>
   );
 }
