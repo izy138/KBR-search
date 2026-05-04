@@ -1,0 +1,6 @@
+fastapi
+uvicorn[standard]
+pandas
+openpyxl
+opensearch-py
+python-dotenv
