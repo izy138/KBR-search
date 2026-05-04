@@ -341,6 +341,23 @@ The Full Order Summary
 7. Add filters, charts, detail view, export
 Each step proves the previous one works before moving on. Never skip ahead — if React isn't showing data, you need to know if the problem is in React, FastAPI, or OpenSearch.
 
+## Changing the Index Mapping
+
+When you add, rename, or remove a field from the CSV or change the indexer logic:
+
+1. **Rebuild the index** (wipes and re-indexes everything):
+   ```bash
+   docker compose exec backend python indexer/reindex.py
+   ```
+2. If query fields changed, update `backend/api/search.py` and/or `backend/api/analytics.py`.
+3. If response shapes changed, update the interfaces in `frontend/src/api.ts`.
+4. Verify the new mapping:
+   ```bash
+   curl http://localhost:9200/project_data/_mapping
+   ```
+
+---
+
 You said: Questions about open search and docker, I am in a group of 3, is there anything to know about running opensearch through docker and indexing when there are 3 ppl using it locally?
 Claude responded: Great question — this is something that trips up a lot of teams.
 Great question — this is something that trips up a lot of teams. Here's what you need to know:

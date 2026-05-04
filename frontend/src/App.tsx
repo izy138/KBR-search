@@ -3,29 +3,18 @@ import Charts from "./components/Charts";
 import Filters from "./components/Filters";
 import ResultsList from "./components/ResultsList";
 import SearchBar from "./components/SearchBar";
-
-type SearchResult = {
-  _id?: string;
-  id?: string;
-  title?: string;
-  project_title?: string;
-  abstract?: string;
-  category?: string;
-  [key: string]: unknown;
-};
-
-type AnalyticsPoint = {
-  label: string;
-  value: number;
-};
-
-const API_BASE_URL = "http://localhost:8000";
+import {
+  type AnalyticsCategory,
+  type SearchResultRecord,
+  getAnalyticsSummary,
+  searchProjects,
+} from "./api";
 
 export default function App() {
   const [query, setQuery] = useState("");
-  const [results, setResults] = useState<SearchResult[]>([]);
+  const [results, setResults] = useState<SearchResultRecord[]>([]);
   const [selectedCategory, setSelectedCategory] = useState("");
-  const [chartData, setChartData] = useState<AnalyticsPoint[]>([]);
+  const [chartData, setChartData] = useState<AnalyticsCategory[]>([]);
 
   const categories = useMemo(() => {
     const source = chartData.length ? chartData : [];
@@ -33,20 +22,14 @@ export default function App() {
   }, [chartData]);
 
   const loadAnalytics = async () => {
-    const response = await fetch(`${API_BASE_URL}/analytics/summary`);
-    const payload = await response.json();
-    setChartData(payload.by_category ?? []);
+    const payload = await getAnalyticsSummary();
+    setChartData(payload.by_category);
   };
 
   const runSearch = async (nextQuery: string) => {
     setQuery(nextQuery);
-    const url = new URL(`${API_BASE_URL}/search/`);
-    url.searchParams.set("q", nextQuery);
-    url.searchParams.set("limit", "25");
-
-    const response = await fetch(url);
-    const payload = await response.json();
-    setResults(payload.results ?? []);
+    const payload = await searchProjects(nextQuery, 25);
+    setResults(payload.results);
   };
 
   const visibleResults = useMemo(() => {
