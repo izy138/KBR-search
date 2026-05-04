@@ -1,12 +1,11 @@
-version: "3.8"
-
 services:
   opensearch:
     image: opensearchproject/opensearch:2.14.0
     container_name: opensearch
     environment:
       - discovery.type=single-node
-      - plugins.security.disabled=true
+      - DISABLE_SECURITY_PLUGIN=true
+      - DISABLE_INSTALL_DEMO_CONFIG=true
       - OPENSEARCH_JAVA_OPTS=-Xms512m -Xmx512m
     ulimits:
       memlock:
@@ -17,6 +16,40 @@ services:
       - "9600:9600"
     volumes:
       - opensearch-data:/usr/share/opensearch/data
+    healthcheck:
+      test: ["CMD-SHELL", "curl -s http://localhost:9200 >/dev/null || exit 1"]
+      interval: 10s
+      timeout: 5s
+      retries: 15
+
+  backend:
+    build:
+      context: ./backend
+    container_name: kbr-backend
+    environment:
+      - OPENSEARCH_HOST=opensearch
+      - OPENSEARCH_PORT=9200
+      - OPENSEARCH_INDEX=project_data
+    ports:
+      - "8000:8000"
+    volumes:
+      - ./backend:/app
+      - ./2025_ProjectData.csv:/app/2025_ProjectData.csv:ro
+    depends_on:
+      opensearch:
+        condition: service_healthy
+
+  frontend:
+    build:
+      context: ./frontend
+    container_name: kbr-frontend
+    ports:
+      - "5173:5173"
+    volumes:
+      - ./frontend:/app
+      - /app/node_modules
+    depends_on:
+      - backend
 
 volumes:
   opensearch-data:

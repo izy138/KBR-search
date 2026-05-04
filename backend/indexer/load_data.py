@@ -1,4 +1,4 @@
-"""Utilities for loading tabular data from Excel files."""
+"""Utilities for loading tabular data files."""
 
 from __future__ import annotations
 
@@ -15,10 +15,17 @@ def load_excel(file_path: str | Path, sheet_name: str | int = 0) -> list[dict[st
     return dataframe.to_dict(orient="records")
 
 
+def load_csv(file_path: str | Path) -> list[dict[str, Any]]:
+    """Load CSV rows as dictionaries."""
+    path = Path(file_path)
+    dataframe = pd.read_csv(path)
+    return dataframe.to_dict(orient="records")
+
+
 if __name__ == "__main__":
-    sample_path = Path("data/sample.xlsx")
+    sample_path = Path("2025_ProjectData.csv")
     if not sample_path.exists():
-        print(f"Excel file not found: {sample_path}")
+        print(f"Data file not found: {sample_path}")
     else:
-        rows = load_excel(sample_path)
+        rows = load_csv(sample_path)
         print(f"Loaded {len(rows)} rows from {sample_path}")

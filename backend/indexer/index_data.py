@@ -5,7 +5,11 @@ from __future__ import annotations
 import os
 from typing import Any
 
+import pandas as pd
 from opensearchpy import OpenSearch
+from opensearchpy.helpers import bulk
+
+from load_data import load_csv
 
 
 def get_client() -> OpenSearch:
@@ -20,15 +24,38 @@ def get_client() -> OpenSearch:
     )
 
 
-def index_records(index_name: str, records: list[dict[str, Any]]) -> None:
-    """Index records one by one for simplicity."""
+def create_index(index_name: str) -> None:
+    """Create index when missing."""
     client = get_client()
-    for record in records:
-        client.index(index=index_name, body=record)
+    if client.indices.exists(index=index_name):
+        return
+    client.indices.create(index=index_name)
+
+
+def index_records(index_name: str, records: list[dict[str, Any]]) -> None:
+    """Bulk index records."""
+    client = get_client()
+
+    def sanitize_value(value: Any) -> Any:
+        # OpenSearch cannot parse NaN/NaT tokens; convert them to JSON null.
+        if pd.isna(value):
+            return None
+        return value
+
+    def sanitize_record(record: dict[str, Any]) -> dict[str, Any]:
+        return {key: sanitize_value(value) for key, value in record.items()}
+
+    def actions() -> list[dict[str, Any]]:
+        for record in records:
+            yield {"_index": index_name, "_source": sanitize_record(record)}
+
+    bulk(client, actions())
 
 
 if __name__ == "__main__":
-    # Placeholder usage for local smoke-testing.
-    demo_records = [{"title": "Example", "category": "demo"}]
-    index_records("documents", demo_records)
-    print("Indexed demo records to OpenSearch.")
+    index_name = os.getenv("OPENSEARCH_INDEX", "project_data")
+    data_file = os.getenv("DATA_FILE", "2025_ProjectData.csv")
+    records = load_csv(data_file)
+    create_index(index_name)
+    index_records(index_name, records)
+    print(f"Indexed {len(records)} records into '{index_name}' from {data_file}.")

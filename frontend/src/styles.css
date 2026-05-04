@@ -1,0 +1,39 @@
+body {
+  margin: 0;
+  font-family: Arial, sans-serif;
+  background: #f4f5f7;
+  color: #1f2937;
+}
+
+.container {
+  max-width: 900px;
+  margin: 0 auto;
+  padding: 2rem 1rem;
+}
+
+form,
+label {
+  display: flex;
+  gap: 0.5rem;
+  margin-bottom: 1rem;
+  align-items: center;
+}
+
+input,
+select,
+button {
+  padding: 0.5rem 0.75rem;
+  border-radius: 6px;
+  border: 1px solid #d0d5dd;
+}
+
+button {
+  cursor: pointer;
+  background: #0b5fff;
+  border-color: #0b5fff;
+  color: #fff;
+}
+
+ul {
+  padding-left: 1rem;
+}
