@@ -23,6 +23,26 @@
   --shadow-md: 0 4px 12px rgba(0,0,0,0.07), 0 1px 3px rgba(0,0,0,0.05);
 }
 
+:root[data-theme="dark"] {
+  --bg: #0f1218;
+  --surface: #171b24;
+  --surface-hover: #202532;
+  --border: #2e3442;
+  --border-strong: #465065;
+  --text-primary: #eef1f7;
+  --text-secondary: #c3cad8;
+  --text-muted: #9099ab;
+  --accent: #7aa8ff;
+  --accent-light: #1b2945;
+  --accent-text: #c8dcff;
+  --green: #6ee7b7;
+  --green-light: #163a35;
+  --tag-bg: #2a3140;
+  --tag-text: #dbe3f4;
+  --shadow-sm: 0 1px 3px rgba(0,0,0,0.35), 0 1px 2px rgba(0,0,0,0.25);
+  --shadow-md: 0 4px 12px rgba(0,0,0,0.4), 0 1px 3px rgba(0,0,0,0.28);
+}
+
 * {
   box-sizing: border-box;
   margin: 0;
@@ -111,6 +131,34 @@ body {
   height: 10px;
   border-radius: 50%;
   background: var(--accent);
+}
+
+.theme-toggle {
+  margin-left: auto;
+  display: inline-flex;
+  align-items: center;
+  gap: 0.4rem;
+  border: 1px solid var(--border);
+  background: var(--surface);
+  color: var(--text-secondary);
+  border-radius: var(--radius-sm);
+  padding: 0.35rem 0.7rem;
+  font-family: 'DM Sans', sans-serif;
+  font-size: 13px;
+  font-weight: 500;
+  cursor: pointer;
+  transition: all 0.15s;
+}
+
+.theme-toggle:hover {
+  border-color: var(--border-strong);
+  color: var(--text-primary);
+  background: var(--surface-hover);
+}
+
+.theme-toggle-icon {
+  font-size: 0.95rem;
+  line-height: 1;
 }
 
 .header-search {
@@ -525,6 +573,30 @@ body {
   padding: 0 0.25rem;
 }
 
+.scroll-top-btn {
+  position: fixed;
+  right: 2rem;
+  bottom: 1.5rem;
+  border: 1px solid var(--accent);
+  background: var(--accent);
+  color: #ffffff;
+  border-radius: var(--radius-sm);
+  padding: 0.5rem 0.8rem;
+  font-family: 'DM Sans', sans-serif;
+  font-size: 13px;
+  font-weight: 600;
+  cursor: pointer;
+  box-shadow: var(--shadow-md);
+  z-index: 200;
+  transition: transform 0.15s, background 0.15s, border-color 0.15s;
+}
+
+.scroll-top-btn:hover {
+  transform: translateY(-1px);
+  background: #1447c4;
+  border-color: #1447c4;
+}
+
 /* Analytics placeholder */
 .analytics-placeholder {
   background: var(--surface);
@@ -578,5 +650,10 @@ body {
 
   .results-controls {
     width: 100%;
+  }
+
+  .scroll-top-btn {
+    right: 1rem;
+    bottom: 1rem;
   }
 }
