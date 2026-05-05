@@ -704,7 +704,198 @@ body {
   100% { background-position: -200% 0; }
 }
 
-/* Responsive */
+/* ─── Results table layout ──────────────────────────────────────────────────── */
+
+/*
+ * Column proportions (6 columns):
+ *   Author 22% | University 22% | Institution 16% | Activity 12% | FY 8% | Date 14%
+ * The remaining ~6% is shared gap space.
+ */
+.results-table-header,
+.result-row-cols {
+  display: grid;
+  grid-template-columns: 22% 22% 16% 12% 8% 14%;
+  gap: 0 0.5rem;
+  align-items: center;
+}
+
+/* Sticky sort header */
+.results-table-header {
+  position: sticky;
+  top: 0;
+  z-index: 10;
+  background: var(--bg);
+  border-bottom: 2px solid var(--border-strong);
+  padding: 0.5rem 1.5rem;
+}
+
+.results-table-th {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  background: none;
+  border: none;
+  padding: 0.35rem 0.25rem;
+  cursor: pointer;
+  font-family: 'DM Sans', sans-serif;
+  font-size: 11px;
+  font-weight: 600;
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
+  color: var(--text-muted);
+  border-radius: var(--radius-sm);
+  transition: color 0.15s, background 0.15s;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  min-width: 0;
+}
+
+.results-table-th:hover {
+  color: var(--text-secondary);
+  background: var(--surface-hover);
+}
+
+.results-table-th:focus-visible {
+  outline: 2px solid var(--accent);
+  outline-offset: 1px;
+}
+
+.results-table-th--active {
+  color: var(--accent-text);
+}
+
+.results-table-th-label {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+/* Chevron icons */
+.sort-chevron {
+  flex-shrink: 0;
+  transition: color 0.15s;
+}
+
+.sort-chevron--active {
+  color: var(--accent);
+}
+
+.sort-chevron--neutral {
+  color: var(--text-muted);
+  opacity: 0.6;
+}
+
+/* Result rows */
+.result-row {
+  background: var(--surface);
+  padding: 0.75rem 1.5rem 1rem;
+  cursor: pointer;
+  transition: background 0.1s;
+  border-bottom: 1px solid var(--border);
+}
+
+.result-row:last-child {
+  border-bottom: none;
+}
+
+.result-row:hover {
+  background: var(--surface-hover);
+}
+
+.result-row:focus-visible {
+  outline: 2px solid var(--accent);
+  outline-offset: -2px;
+}
+
+/* Column-aligned metadata strip */
+.result-row-cols {
+  margin-bottom: 0.5rem;
+}
+
+.result-row-cell {
+  overflow: hidden;
+}
+
+.result-row-cell-value {
+  display: block;
+  font-size: 12px;
+  color: var(--text-secondary);
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  line-height: 1.3;
+}
+
+.result-row-cell-value--activity {
+  display: inline-block;
+  background: var(--accent-light);
+  color: var(--accent-text);
+  border-radius: 100px;
+  padding: 0.15rem 0.5rem;
+  font-size: 11px;
+  font-weight: 500;
+  letter-spacing: 0.01em;
+}
+
+.result-row-cell-value--fy {
+  display: inline-block;
+  background: var(--green-light);
+  color: var(--green);
+  border-radius: 100px;
+  padding: 0.15rem 0.5rem;
+  font-size: 11px;
+  font-weight: 500;
+}
+
+/* Second line: title + cost */
+.result-row-bottom {
+  display: flex;
+  align-items: baseline;
+  justify-content: space-between;
+  gap: 1rem;
+}
+
+.result-row-bottom .result-title {
+  flex: 1;
+  min-width: 0;
+  font-size: 14px;
+  font-weight: 500;
+  color: var(--text-primary);
+  line-height: 1.4;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  margin-bottom: 0;
+}
+
+.result-row:hover .result-row-bottom .result-title {
+  color: var(--accent);
+}
+
+.result-row-cost {
+  flex-shrink: 0;
+  text-align: right;
+  display: flex;
+  flex-direction: column;
+  align-items: flex-end;
+}
+
+/* Skeleton rows */
+.result-row--skeleton {
+  cursor: default;
+  pointer-events: none;
+}
+
+.result-row--skeleton .result-row-cols {
+  margin-bottom: 0.6rem;
+}
+
+.result-row--skeleton .result-row-bottom {
+  align-items: center;
+}
+
+/* ─── Responsive ─────────────────────────────────────────────────────────────── */
 @media (max-width: 900px) {
   .app-main {
     padding: 1rem;
@@ -712,7 +903,7 @@ body {
 
   .search-row {
     padding: 0.75rem 1rem 0;
-    
+
   }
 
   .app-sidebar {
@@ -731,5 +922,30 @@ body {
   .scroll-top-btn {
     right: 1rem;
     bottom: 1rem;
+  }
+
+  /* Collapse to 3-column grid on narrow viewports */
+  .results-table-header,
+  .result-row-cols {
+    grid-template-columns: 1fr 1fr 1fr;
+  }
+
+  /* Hide Institution, Activity, FY columns on mobile (3rd, 4th, 5th children) */
+  .results-table-header > :nth-child(3),
+  .results-table-header > :nth-child(4),
+  .results-table-header > :nth-child(5),
+  .result-row-cols .result-row-cell:nth-child(3),
+  .result-row-cols .result-row-cell:nth-child(4),
+  .result-row-cols .result-row-cell:nth-child(5) {
+    display: none;
+  }
+
+  .results-table-header {
+    padding: 0.5rem 1rem;
+    top: 0;
+  }
+
+  .result-row {
+    padding: 0.75rem 1rem 0.875rem;
   }
 }
