@@ -3,6 +3,7 @@ import {
   useCallback,
   useEffect,
   useMemo,
+  useRef,
   useState,
 } from "react";
 import Filters from "./components/Filters";
@@ -30,6 +31,7 @@ function getPageNumbers(page: number, totalPageCount: number): Array<number | ".
 
 export default function App() {
   type SortOption = "alphaAsc" | "alphaDesc" | "dateDesc" | "dateAsc";
+  type Theme = "light" | "dark";
 
   const [query, setQuery] = useState("");
   const [results, setResults] = useState<SearchResultRecord[]>([]);
@@ -50,9 +52,19 @@ export default function App() {
   const [total, setTotal] = useState(0);
   const [sortOption, setSortOption] = useState<SortOption>("dateDesc");
   const [selectedProject, setSelectedProject] = useState<SearchResultRecord | null>(null);
+  const [showScrollTop, setShowScrollTop] = useState(false);
+  const [theme, setTheme] = useState<Theme>(() => {
+    if (typeof window === "undefined") return "light";
+    const storedTheme = window.localStorage.getItem("theme");
+    if (storedTheme === "light" || storedTheme === "dark") {
+      return storedTheme;
+    }
+    return window.matchMedia("(prefers-color-scheme: dark)").matches ? "dark" : "light";
+  });
 
   const totalPages = Math.max(1, Math.ceil(total / resultsPerPage));
   const pageNumbers = getPageNumbers(currentPage, totalPages);
+  const mainRef = useRef<HTMLElement | null>(null);
 
   // Derive filter options from loaded results (simple approach — can be replaced with API aggs)
   const icNames = useMemo(() => {
@@ -106,6 +118,30 @@ export default function App() {
   useEffect(() => {
     void runSearch(query, currentPage, resultsPerPage);
   }, [query, currentPage, resultsPerPage, runSearch]);
+
+  useEffect(() => {
+    document.documentElement.setAttribute("data-theme", theme);
+    window.localStorage.setItem("theme", theme);
+  }, [theme]);
+
+  useEffect(() => {
+    const mainElement = mainRef.current;
+
+    const handleScroll = () => {
+      const windowOffset = window.scrollY || document.documentElement.scrollTop || 0;
+      const mainOffset = mainElement?.scrollTop ?? 0;
+      setShowScrollTop(Math.max(windowOffset, mainOffset) > 550);
+    };
+
+    handleScroll();
+    window.addEventListener("scroll", handleScroll, { passive: true });
+    mainElement?.addEventListener("scroll", handleScroll, { passive: true });
+
+    return () => {
+      window.removeEventListener("scroll", handleScroll);
+      mainElement?.removeEventListener("scroll", handleScroll);
+    };
+  }, []);
 
   const handleSearch = (nextQuery: string) => {
     setQuery(nextQuery);
@@ -187,6 +223,21 @@ export default function App() {
     );
   }
 
+  const handleThemeToggle = () => {
+    setTheme((prev) => (prev === "light" ? "dark" : "light"));
+  };
+
+  const handleScrollToTop = () => {
+    window.scrollTo({
+      top: 0,
+      behavior: "smooth",
+    });
+    mainRef.current?.scrollTo({
+      top: 0,
+      behavior: "smooth",
+    });
+  };
+
   return (
     <div className="app-shell">
       {/* Header */}
@@ -195,10 +246,21 @@ export default function App() {
           <div className="header-logo-dot" />
           NIH Project Search
         </div>
+        <button
+          className="theme-toggle"
+          type="button"
+          onClick={handleThemeToggle}
+          aria-label={`Switch to ${theme === "light" ? "dark" : "light"} mode`}
+        >
+          {theme === "light" ? "Dark mode" : "Light mode"}
+          <span className="theme-toggle-icon" aria-hidden="true">
+            {theme === "light" ? "🌙" : "☀️"}
+          </span>
+        </button>
       </header>
 
       {/* Main content */}
-      <main className="app-main">
+      <main className="app-main" ref={mainRef}>
         <Filters
           icNames={icNames}
           activityCodes={activityCodes}
@@ -291,6 +353,17 @@ export default function App() {
               →
             </button>
           </div>
+        )}
+
+        {showScrollTop && (
+          <button
+            type="button"
+            className="scroll-top-btn"
+            onClick={handleScrollToTop}
+            aria-label="Scroll back to top"
+          >
+            ↑
+          </button>
         )}
       </main>
     </div>
