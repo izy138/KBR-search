@@ -81,7 +81,7 @@ const Filters: React.FC<FiltersProps> = ({
   };
 
   return (
-    <aside className="app-sidebar">
+    <section className="app-sidebar">
       <div className="sidebar-section">
         <div className="sidebar-label">NIH Institute / Center</div>
         <select
@@ -123,8 +123,6 @@ const Filters: React.FC<FiltersProps> = ({
           ))}
         </select>
       </div>
-
-      <div className="sidebar-divider" />
 
       <div className="sidebar-section">
         <div className="sidebar-label">Fiscal Year</div>
@@ -168,16 +166,18 @@ const Filters: React.FC<FiltersProps> = ({
         </div>
       </div>
 
-      <button className="btn-apply" onClick={handleApply}>
-        Apply Filters
-      </button>
-
-      {hasFilters && (
-        <button className="btn-clear" onClick={handleClear}>
-          Clear All
+      <div className="filters-actions">
+        <button className="btn-apply" onClick={handleApply}>
+          Apply Filters
         </button>
-      )}
-    </aside>
+
+        {hasFilters && (
+          <button className="btn-clear" onClick={handleClear}>
+            Clear All
+          </button>
+        )}
+      </div>
+    </section>
   );
 };
 

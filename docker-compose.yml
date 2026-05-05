@@ -1,4 +1,4 @@
-@services:
+services:
   opensearch:
     image: opensearchproject/opensearch:2.14.0
     container_name: opensearch
@@ -34,7 +34,8 @@
       - "8000:8000"
     volumes:
       - ./backend:/app
-      - ./2025_ProjectData.csv:/app/2025_ProjectData.csv:ro
+
+      - ./backend/2025_ProjectData.csv:/app/2025_ProjectData.csv:ro
     depends_on:
       opensearch:
         condition: service_healthy
