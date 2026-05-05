@@ -81,14 +81,24 @@ export default function App() {
     async (q: string, page: number, limit: number) => {
       setLoading(true);
       try {
-        const payload = await searchProjects(q, { page, limit });
+        const payload = await searchProjects(q, {
+          page,
+          limit,
+          ic: selectedIC,
+          activity: selectedActivity,
+          state: selectedState,
+          fyMin,
+          fyMax,
+          costMin,
+          costMax,
+        });
         setResults(payload.results ?? []);
         setTotal(payload.total ?? 0);
       } finally {
         setLoading(false);
       }
     },
-    [],
+    [selectedIC, selectedActivity, selectedState, fyMin, fyMax, costMin, costMax],
   );
 
   useEffect(() => {
@@ -130,20 +140,6 @@ export default function App() {
     setCurrentPage(1);
   };
 
-  // Client-side filtering for activity/state/fy/cost (supplement server search)
-  const filteredResults = useMemo(() => {
-    return results.filter((r) => {
-      if (selectedIC && r.IC_NAME !== selectedIC) return false;
-      if (selectedActivity && r.ACTIVITY !== selectedActivity) return false;
-      if (selectedState && r.ORG_STATE !== selectedState) return false;
-      if (fyMin && r.FY != null && Number(r.FY) < Number(fyMin)) return false;
-      if (fyMax && r.FY != null && Number(r.FY) > Number(fyMax)) return false;
-      if (costMin && r.TOTAL_COST != null && Number(r.TOTAL_COST) < Number(costMin)) return false;
-      if (costMax && r.TOTAL_COST != null && Number(r.TOTAL_COST) > Number(costMax)) return false;
-      return true;
-    });
-  }, [results, selectedIC, selectedActivity, selectedState, fyMin, fyMax, costMin, costMax]);
-
   const sortedResults = useMemo(() => {
     const collator = new Intl.Collator(undefined, { sensitivity: "base", numeric: true });
 
@@ -157,7 +153,7 @@ export default function App() {
       return Number.isNaN(parsed) ? Number.NEGATIVE_INFINITY : parsed;
     };
 
-    return [...filteredResults].sort((a, b) => {
+    return [...results].sort((a, b) => {
       if (sortOption === "alphaAsc") {
         return collator.compare(getTitle(a), getTitle(b));
       }
@@ -169,7 +165,7 @@ export default function App() {
       }
       return getDateTimestamp(b) - getDateTimestamp(a);
     });
-  }, [filteredResults, sortOption]);
+  }, [results, sortOption]);
 
   const handlePerPageChange = (e: ChangeEvent<HTMLSelectElement>) => {
     setResultsPerPage(Number(e.target.value));
