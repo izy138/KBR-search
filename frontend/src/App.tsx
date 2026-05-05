@@ -6,6 +6,7 @@ import {
   useState,
 } from "react";
 import Filters from "./components/Filters";
+import ProjectDetailsPage from "./components/ProjectDetailsPage";
 import ResultsList from "./components/ResultsList";
 import SearchBar from "./components/SearchBar";
 import {
@@ -48,6 +49,7 @@ export default function App() {
   const [currentPage, setCurrentPage] = useState(1);
   const [total, setTotal] = useState(0);
   const [sortOption, setSortOption] = useState<SortOption>("dateDesc");
+  const [selectedProject, setSelectedProject] = useState<SearchResultRecord | null>(null);
 
   const totalPages = Math.max(1, Math.ceil(total / resultsPerPage));
   const pageNumbers = getPageNumbers(currentPage, totalPages);
@@ -172,6 +174,19 @@ export default function App() {
     setCurrentPage(1);
   };
 
+  const handleOpenDetails = (item: SearchResultRecord): void => {
+    setSelectedProject(item);
+  };
+
+  if (selectedProject) {
+    return (
+      <ProjectDetailsPage
+        item={selectedProject}
+        onBack={() => setSelectedProject(null)}
+      />
+    );
+  }
+
   return (
     <div className="app-shell">
       {/* Header */}
@@ -240,7 +255,7 @@ export default function App() {
           </div>
         </div>
 
-        <ResultsList results={sortedResults} loading={loading} />
+        <ResultsList results={sortedResults} loading={loading} onOpenDetails={handleOpenDetails} />
 
         {/* Pagination */}
         {totalPages > 1 && (
