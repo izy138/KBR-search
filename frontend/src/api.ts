@@ -11,6 +11,8 @@ export interface SearchResultRecord {
   ORG_NAME?: string;
   ORG_STATE?: string;
   ORG_CITY?: string;
+  ORG_ZIPCODE?: string;
+  ORG_COUNTRY?: string;
   FY?: number;
   TOTAL_COST?: number;
   DIRECT_COST_AMT?: number;
@@ -19,6 +21,7 @@ export interface SearchResultRecord {
   STUDY_SECTION_NAME?: string;
   PROJECT_START?: string;
   PROJECT_END?: string;
+  PROJECT_TERMS?: string;
   // Lowercase aliases accessed by display logic in App.tsx
   title?: string;
   project_title?: string;

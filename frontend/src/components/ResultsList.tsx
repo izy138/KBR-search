@@ -1,9 +1,10 @@
-import React, { useState } from "react";
+import React from "react";
 import type { SearchResultRecord } from "../api";
 
 type ResultsListProps = {
   results: SearchResultRecord[];
   loading?: boolean;
+  onOpenDetails?: (item: SearchResultRecord) => void;
 };
 
 function formatCost(value: number | undefined): string {
@@ -21,9 +22,10 @@ const SkeletonCard: React.FC = () => (
   </div>
 );
 
-const ResultCard: React.FC<{ item: SearchResultRecord }> = ({ item }) => {
-  const [expanded, setExpanded] = useState(false);
-
+const ResultCard: React.FC<{
+  item: SearchResultRecord;
+  onOpenDetails?: (item: SearchResultRecord) => void;
+}> = ({ item, onOpenDetails }) => {
   const title = item.PROJECT_TITLE ?? item.title ?? item.project_title ?? "Untitled Project";
   const pi = item.PI_NAMEs ?? "";
   const org = item.ORG_NAME ?? "";
@@ -34,16 +36,23 @@ const ResultCard: React.FC<{ item: SearchResultRecord }> = ({ item }) => {
   const fy = item.FY;
   const activity = item.ACTIVITY ?? "";
   const totalCost = item.TOTAL_COST as number | undefined;
-  const abstract = item.PHR ?? (item as Record<string, unknown>)["ABSTRACT_TEXT"] as string | undefined ?? item.abstract ?? "";
 
   return (
     <div
-      className={`result-card${expanded ? " expanded" : ""}`}
-      onClick={() => setExpanded((v) => !v)}
+      className="result-card"
+      onClick={() => onOpenDetails?.(item)}
+      role="button"
+      tabIndex={0}
+      onKeyDown={(event) => {
+        if (event.key === "Enter" || event.key === " ") {
+          event.preventDefault();
+          onOpenDetails?.(item);
+        }
+      }}
     >
       {/* Left column */}
       <div>
-        <div className="result-title">{title}</div>
+        <h3 className="result-title">{title}</h3>
 
         <div className="result-meta-row">
           {pi && (
@@ -86,25 +95,11 @@ const ResultCard: React.FC<{ item: SearchResultRecord }> = ({ item }) => {
         <span className="result-cost">{formatCost(totalCost)}</span>
         <span className="result-cost-label">total cost</span>
       </div>
-
-      {/* Expanded abstract */}
-      {expanded && abstract && (
-        <div className="result-abstract">
-          <div className="result-abstract-label">Abstract</div>
-          <p>{abstract}</p>
-        </div>
-      )}
-
-      {expanded && !abstract && (
-        <div className="result-abstract">
-          <p style={{ color: "var(--text-muted)", fontStyle: "italic", fontSize: 13 }}>No abstract available for this record.</p>
-        </div>
-      )}
     </div>
   );
 };
 
-const ResultsList: React.FC<ResultsListProps> = ({ results, loading }) => {
+const ResultsList: React.FC<ResultsListProps> = ({ results, loading, onOpenDetails }) => {
   if (loading) {
     return (
       <div className="results-list">
@@ -130,7 +125,7 @@ const ResultsList: React.FC<ResultsListProps> = ({ results, loading }) => {
   return (
     <div className="results-list">
       {results.map((item, index) => (
-        <ResultCard key={item._id ?? String(index)} item={item} />
+        <ResultCard key={item._id ?? String(index)} item={item} onOpenDetails={onOpenDetails} />
       ))}
     </div>
   );
