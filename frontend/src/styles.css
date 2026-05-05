@@ -33,7 +33,7 @@ body {
   font-family: 'DM Sans', sans-serif;
   background: var(--bg);
   color: var(--text-primary);
-  font-size: 15px;
+  font-size: 16px;
   line-height: 1.6;
   -webkit-font-smoothing: antialiased;
 }
@@ -66,6 +66,7 @@ body {
   border-radius: var(--radius-lg);
   padding: 1rem;
   margin-bottom: 1rem;
+  margin-top: -0.25rem;
   display: grid;
   grid-template-columns: repeat(auto-fit, minmax(190px, 1fr));
   gap: 0.75rem 1rem;
@@ -81,7 +82,7 @@ body {
 .search-row {
   display: flex;
   justify-content: center;
-  padding: 1rem 2rem 0;
+  padding: 0.5rem 2rem 0;
 }
 
 .search-row-inner {
@@ -95,7 +96,7 @@ body {
 
 /* Header */
 .header-logo {
-  font-size: 15px;
+  font-size: 16px;
   font-weight: 600;
   color: var(--text-primary);
   letter-spacing: -0.01em;
@@ -106,8 +107,8 @@ body {
 }
 
 .header-logo-dot {
-  width: 8px;
-  height: 8px;
+  width: 10px;
+  height: 10px;
   border-radius: 50%;
   background: var(--accent);
 }
@@ -295,13 +296,17 @@ body {
   display: flex;
   align-items: center;
   justify-content: space-between;
-  margin-bottom: 1.25rem;
+  padding-top: 0.75rem;
+  padding-left: 0.25rem;
+  /* margin-bottom: 0.5rem; */
   gap: 1rem;
 }
 
 .results-meta {
   font-size: 13px;
   color: var(--text-secondary);
+  font-size: 16px;
+  padding-top: 0.5rem;
 }
 
 .results-meta strong {
@@ -313,6 +318,7 @@ body {
   display: flex;
   align-items: center;
   gap: 0.75rem;
+  padding-bottom: 0.25rem;
 }
 
 .per-page-select {
@@ -325,6 +331,7 @@ body {
   color: var(--text-secondary);
   cursor: pointer;
   outline: none;
+  font-size: 16px;
 }
 
 /* Result cards */
@@ -358,7 +365,7 @@ body {
 }
 
 .result-title {
-  font-size: 15px;
+  font-size: 16px;
   font-weight: 500;
   color: var(--text-primary);
   line-height: 1.4;

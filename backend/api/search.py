@@ -16,18 +16,51 @@ def search(
     limit: int = Query(default=10, ge=1, le=100),
     page: int = Query(default=1, ge=1, description="1-based page index"),
     category: str = Query(default="", description="Filter by category (category.keyword)"),
+    ic: str = Query(default="", description="Filter by IC_NAME"),
+    activity: str = Query(default="", description="Filter by ACTIVITY"),
+    state: str = Query(default="", description="Filter by ORG_STATE"),
+    fy_min: int | None = Query(default=None, description="Minimum fiscal year"),
+    fy_max: int | None = Query(default=None, description="Maximum fiscal year"),
+    cost_min: float | None = Query(default=None, description="Minimum TOTAL_COST"),
+    cost_max: float | None = Query(default=None, description="Maximum TOTAL_COST"),
 ) -> dict[str, object]:
     client = get_client()
     must: list[dict[str, object]] = []
+    filters: list[dict[str, object]] = []
     if q:
         must.append({"multi_match": {"query": q, "fields": ["*"]}})
     else:
         must.append({"match_all": {}})
     if category:
         must.append({"term": {"category.keyword": category}})
-    os_query: dict[str, object] = (
-        must[0] if len(must) == 1 else {"bool": {"must": must}}
-    )
+    if ic:
+        filters.append({"term": {"IC_NAME.keyword": ic}})
+    if activity:
+        filters.append({"term": {"ACTIVITY.keyword": activity}})
+    if state:
+        filters.append({"term": {"ORG_STATE.keyword": state}})
+    if fy_min is not None or fy_max is not None:
+        range_clause: dict[str, int] = {}
+        if fy_min is not None:
+            range_clause["gte"] = fy_min
+        if fy_max is not None:
+            range_clause["lte"] = fy_max
+        filters.append({"range": {"FY": range_clause}})
+    if cost_min is not None or cost_max is not None:
+        range_clause_cost: dict[str, float] = {}
+        if cost_min is not None:
+            range_clause_cost["gte"] = cost_min
+        if cost_max is not None:
+            range_clause_cost["lte"] = cost_max
+        filters.append({"range": {"TOTAL_COST": range_clause_cost}})
+
+    if len(must) == 1 and not filters:
+        os_query: dict[str, object] = must[0]
+    else:
+        bool_query: dict[str, object] = {"must": must}
+        if filters:
+            bool_query["filter"] = filters
+        os_query = {"bool": bool_query}
     from_ = (page - 1) * limit
     response = client.search(
         index=INDEX_NAME,

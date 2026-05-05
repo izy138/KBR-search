@@ -54,13 +54,31 @@ export type SearchProjectsOptions = {
   limit?: number;
   page?: number;
   category?: string;
+  ic?: string;
+  activity?: string;
+  state?: string;
+  fyMin?: string;
+  fyMax?: string;
+  costMin?: string;
+  costMax?: string;
 };
 
 export async function searchProjects(
   query: string,
   options: SearchProjectsOptions = {},
 ): Promise<SearchResponse> {
-  const { limit = 25, page = 1, category = "" } = options;
+  const {
+    limit = 25,
+    page = 1,
+    category = "",
+    ic = "",
+    activity = "",
+    state = "",
+    fyMin = "",
+    fyMax = "",
+    costMin = "",
+    costMax = "",
+  } = options;
   const url = new URL(`${API_BASE_URL}/search/`);
   url.searchParams.set("q", query);
   url.searchParams.set("limit", String(limit));
@@ -68,6 +86,13 @@ export async function searchProjects(
   if (category) {
     url.searchParams.set("category", category);
   }
+  if (ic) url.searchParams.set("ic", ic);
+  if (activity) url.searchParams.set("activity", activity);
+  if (state) url.searchParams.set("state", state);
+  if (fyMin) url.searchParams.set("fy_min", fyMin);
+  if (fyMax) url.searchParams.set("fy_max", fyMax);
+  if (costMin) url.searchParams.set("cost_min", costMin);
+  if (costMax) url.searchParams.set("cost_max", costMax);
   const response = await fetch(url.toString());
   if (!response.ok) {
     throw new Error(`Search request failed: ${response.status}`);
