@@ -23,6 +23,29 @@ type FiltersProps = {
   onClear: () => void;
 };
 
+const formatDropdownLabel = (value: string): string => {
+  const titleCase = value
+    .trim()
+    .toLowerCase()
+    .replace(/\b\w/g, (char) => char.toUpperCase());
+
+  if (titleCase.startsWith("National Institute Of")) {
+    return titleCase.replace("National Institute Of", "Nat. Inst. of");
+  }
+
+  if (titleCase.startsWith("National Institute")) {
+    return titleCase.replace("National Institute", "Nat. Inst.");
+  }
+
+  if (titleCase.startsWith("National")) {
+    return titleCase.replace("National", "Nat.");
+  }
+
+  return titleCase;
+};
+
+const formatAllCapsLabel = (value: string): string => value.trim().toUpperCase();
+
 const Filters: React.FC<FiltersProps> = ({
   icNames,
   activityCodes,
@@ -91,7 +114,7 @@ const Filters: React.FC<FiltersProps> = ({
         >
           <option value="">All Institutes</option>
           {icNames.map((ic) => (
-            <option key={ic} value={ic}>{ic}</option>
+            <option key={ic} value={ic}>{formatDropdownLabel(ic)}</option>
           ))}
         </select>
       </div>
@@ -105,7 +128,7 @@ const Filters: React.FC<FiltersProps> = ({
         >
           <option value="">All Codes</option>
           {activityCodes.map((code) => (
-            <option key={code} value={code}>{code}</option>
+            <option key={code} value={code}>{formatAllCapsLabel(code)}</option>
           ))}
         </select>
       </div>
@@ -119,7 +142,7 @@ const Filters: React.FC<FiltersProps> = ({
         >
           <option value="">All States</option>
           {states.map((s) => (
-            <option key={s} value={s}>{s}</option>
+            <option key={s} value={s}>{formatAllCapsLabel(s)}</option>
           ))}
         </select>
       </div>
