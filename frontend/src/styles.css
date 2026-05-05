@@ -70,11 +70,27 @@ body {
   grid-template-columns: repeat(auto-fit, minmax(190px, 1fr));
   gap: 0.75rem 1rem;
   align-items: end;
+  font-size: 16px;
 }
 
 .app-main {
   padding: 1.75rem 2rem;
   overflow-y: auto;
+}
+
+.search-row {
+  display: flex;
+  justify-content: center;
+  padding: 1rem 2rem 0;
+}
+
+.search-row-inner {
+  width: min(100%, 900px);
+}
+
+.search-row .header-search {
+  width: 100%;
+  
 }
 
 /* Header */
@@ -98,7 +114,7 @@ body {
 
 .header-search {
   flex: 1;
-  max-width: 580px;
+  max-width: 660px;
 }
 
 .header-search {
@@ -122,7 +138,7 @@ body {
   flex: 1;
   border: none;
   background: transparent;
-  padding: 0.6rem 0;
+  padding: 0.72rem 0;
   font-family: 'DM Sans', sans-serif;
   font-size: 14px;
   color: var(--text-primary);
@@ -145,7 +161,7 @@ body {
   color: white;
   border: none;
   border-radius: var(--radius-sm);
-  padding: 0.35rem 0.875rem;
+  padding: 0.45rem 1rem;
   font-family: 'DM Sans', sans-serif;
   font-size: 13px;
   font-weight: 500;
@@ -161,10 +177,11 @@ body {
 /* Filters */
 .sidebar-section {
   margin-bottom: 0;
+  
 }
 
 .sidebar-label {
-  font-size: 11px;
+  font-size: 14px;
   font-weight: 600;
   letter-spacing: 0.06em;
   text-transform: uppercase;
@@ -179,7 +196,7 @@ body {
   border-radius: var(--radius-sm);
   background: var(--bg);
   font-family: 'DM Sans', sans-serif;
-  font-size: 13px;
+  font-size: 16px;
   color: var(--text-primary);
   cursor: pointer;
   outline: none;
@@ -211,7 +228,7 @@ body {
   border-radius: var(--radius-sm);
   background: var(--bg);
   font-family: 'DM Mono', monospace;
-  font-size: 12px;
+  font-size: 16px;
   color: var(--text-primary);
   outline: none;
   transition: border-color 0.15s;
@@ -238,7 +255,7 @@ body {
   border: none;
   border-radius: var(--radius-sm);
   font-family: 'DM Sans', sans-serif;
-  font-size: 13px;
+  font-size: 16px;
   font-weight: 500;
   cursor: pointer;
   transition: background 0.15s;
@@ -536,6 +553,11 @@ body {
 @media (max-width: 900px) {
   .app-main {
     padding: 1rem;
+  }
+
+  .search-row {
+    padding: 0.75rem 1rem 0;
+    
   }
 
   .app-sidebar {

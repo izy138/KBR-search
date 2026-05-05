@@ -184,7 +184,6 @@ export default function App() {
           <div className="header-logo-dot" />
           NIH Project Search
         </div>
-        <SearchBar onSearch={handleSearch} initialQuery={query} />
       </header>
 
       {/* Main content */}
@@ -203,6 +202,12 @@ export default function App() {
           onApply={handleApplyFilters}
           onClear={handleClearFilters}
         />
+
+        <div className="search-row">
+          <div className="search-row-inner">
+            <SearchBar onSearch={handleSearch} initialQuery={query} />
+          </div>
+        </div>
 
         <div className="results-header">
           <div className="results-meta">
