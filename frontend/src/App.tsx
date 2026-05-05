@@ -1,4 +1,3 @@
-
 import {
   type ChangeEvent,
   useCallback,
@@ -29,6 +28,8 @@ function getPageNumbers(page: number, totalPageCount: number): Array<number | ".
 }
 
 export default function App() {
+  type SortOption = "alphaAsc" | "alphaDesc" | "dateDesc" | "dateAsc";
+
   const [query, setQuery] = useState("");
   const [results, setResults] = useState<SearchResultRecord[]>([]);
   const [loading, setLoading] = useState(false);
@@ -46,6 +47,7 @@ export default function App() {
   const [resultsPerPage, setResultsPerPage] = useState(25);
   const [currentPage, setCurrentPage] = useState(1);
   const [total, setTotal] = useState(0);
+  const [sortOption, setSortOption] = useState<SortOption>("dateDesc");
 
   const totalPages = Math.max(1, Math.ceil(total / resultsPerPage));
   const pageNumbers = getPageNumbers(currentPage, totalPages);
@@ -53,19 +55,25 @@ export default function App() {
   // Derive filter options from loaded results (simple approach — can be replaced with API aggs)
   const icNames = useMemo(() => {
     const set = new Set<string>();
-    results.forEach((r) => { if (r.IC_NAME) set.add(r.IC_NAME); });
+    results.forEach((r) => {
+      if (r.IC_NAME) set.add(r.IC_NAME);
+    });
     return Array.from(set).sort();
   }, [results]);
 
   const activityCodes = useMemo(() => {
     const set = new Set<string>();
-    results.forEach((r) => { if (r.ACTIVITY) set.add(r.ACTIVITY); });
+    results.forEach((r) => {
+      if (r.ACTIVITY) set.add(r.ACTIVITY);
+    });
     return Array.from(set).sort();
   }, [results]);
 
   const states = useMemo(() => {
     const set = new Set<string>();
-    results.forEach((r) => { if (r.ORG_STATE) set.add(r.ORG_STATE); });
+    results.forEach((r) => {
+      if (r.ORG_STATE) set.add(r.ORG_STATE);
+    });
     return Array.from(set).sort();
   }, [results]);
 
@@ -136,6 +144,33 @@ export default function App() {
     });
   }, [results, selectedIC, selectedActivity, selectedState, fyMin, fyMax, costMin, costMax]);
 
+  const sortedResults = useMemo(() => {
+    const collator = new Intl.Collator(undefined, { sensitivity: "base", numeric: true });
+
+    const getTitle = (record: SearchResultRecord): string =>
+      record.PROJECT_TITLE ?? record.project_title ?? record.title ?? "";
+
+    const getDateTimestamp = (record: SearchResultRecord): number => {
+      const rawDate = record.PROJECT_START ?? record.PROJECT_END;
+      if (!rawDate) return Number.NEGATIVE_INFINITY;
+      const parsed = Date.parse(rawDate);
+      return Number.isNaN(parsed) ? Number.NEGATIVE_INFINITY : parsed;
+    };
+
+    return [...filteredResults].sort((a, b) => {
+      if (sortOption === "alphaAsc") {
+        return collator.compare(getTitle(a), getTitle(b));
+      }
+      if (sortOption === "alphaDesc") {
+        return collator.compare(getTitle(b), getTitle(a));
+      }
+      if (sortOption === "dateAsc") {
+        return getDateTimestamp(a) - getDateTimestamp(b);
+      }
+      return getDateTimestamp(b) - getDateTimestamp(a);
+    });
+  }, [filteredResults, sortOption]);
+
   const handlePerPageChange = (e: ChangeEvent<HTMLSelectElement>) => {
     setResultsPerPage(Number(e.target.value));
     setCurrentPage(1);
@@ -152,25 +187,22 @@ export default function App() {
         <SearchBar onSearch={handleSearch} initialQuery={query} />
       </header>
 
-      {/* Sidebar */}
-      <Filters
-        icNames={icNames}
-        activityCodes={activityCodes}
-        states={states}
-        selectedIC={selectedIC}
-        selectedActivity={selectedActivity}
-        selectedState={selectedState}
-        fyMin={fyMin}
-        fyMax={fyMax}
-        costMin={costMin}
-        costMax={costMax}
-        onApply={handleApplyFilters}
-        onClear={handleClearFilters}
-      />
-
       {/* Main content */}
       <main className="app-main">
-        {/* Analytics section intentionally disabled for now. */}
+        <Filters
+          icNames={icNames}
+          activityCodes={activityCodes}
+          states={states}
+          selectedIC={selectedIC}
+          selectedActivity={selectedActivity}
+          selectedState={selectedState}
+          fyMin={fyMin}
+          fyMax={fyMax}
+          costMin={costMin}
+          costMax={costMax}
+          onApply={handleApplyFilters}
+          onClear={handleClearFilters}
+        />
 
         <div className="results-header">
           <div className="results-meta">
@@ -187,6 +219,16 @@ export default function App() {
           <div className="results-controls">
             <select
               className="per-page-select"
+              value={sortOption}
+              onChange={(e) => setSortOption(e.target.value as SortOption)}
+            >
+              <option value="dateDesc">Date: Most Recent</option>
+              <option value="dateAsc">Date: Least Recent</option>
+              <option value="alphaAsc">Title: A to Z</option>
+              <option value="alphaDesc">Title: Z to A</option>
+            </select>
+            <select
+              className="per-page-select"
               value={resultsPerPage}
               onChange={handlePerPageChange}
             >
@@ -197,7 +239,7 @@ export default function App() {
           </div>
         </div>
 
-        <ResultsList results={filteredResults} loading={loading} />
+        <ResultsList results={sortedResults} loading={loading} />
 
         {/* Pagination */}
         {totalPages > 1 && (
