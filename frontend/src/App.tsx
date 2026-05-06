@@ -35,7 +35,7 @@ function getPageNumbers(page: number, totalPageCount: number): Array<number | ".
 export default function App() {
   type SortOption = "alphaAsc" | "alphaDesc" | "dateDesc" | "dateAsc";
   type Theme = "light" | "dark";
-  type LightTheme = "default" | "blueAccent" | "yellowBeige" | "mintSlate";
+  type LightTheme = "default" | "blueAccent" | "yellowBeige" | "mintSlate" | "blueModified";
 
   const [view, setView] = useState<View>("search");
   const [query, setQuery] = useState("");
@@ -75,6 +75,7 @@ export default function App() {
       || storedLightTheme === "blueAccent"
       || storedLightTheme === "yellowBeige"
       || storedLightTheme === "mintSlate"
+      || storedLightTheme === "blueModified"
     ) {
       return storedLightTheme;
     }
@@ -297,6 +298,7 @@ export default function App() {
                 <option value="blueAccent">Blue accent</option>
                 <option value="yellowBeige">Yellow beige</option>
                 <option value="mintSlate">Mint slate</option>
+                <option value="blueModified">Blue modified</option>
               </select>
             </label>
           )}
