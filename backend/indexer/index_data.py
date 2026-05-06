@@ -55,7 +55,7 @@ def index_records(index_name: str, records: list[dict[str, Any]]) -> None:
 
 if __name__ == "__main__":
     index_name = os.getenv("OPENSEARCH_INDEX", "project_data")
-    data_file = sys.argv[1] if len(sys.argv) > 1 else os.getenv("DATA_FILE", "2025_ProjectData.csv")
+    data_file = sys.argv[1] if len(sys.argv) > 1 else os.getenv("DATA_FILE", "merged_project_data.csv")
     records = load_csv(data_file)
     create_index(index_name)
     index_records(index_name, records)
