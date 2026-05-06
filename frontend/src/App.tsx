@@ -214,15 +214,6 @@ export default function App() {
     setSelectedProject(item);
   };
 
-  if (selectedProject) {
-    return (
-      <ProjectDetailsPage
-        item={selectedProject}
-        onBack={() => setSelectedProject(null)}
-      />
-    );
-  }
-
   const handleThemeToggle = () => {
     setTheme((prev) => (prev === "light" ? "dark" : "light"));
   };
@@ -242,128 +233,152 @@ export default function App() {
     <div className="app-shell">
       {/* Header */}
       <header className="app-header">
-        <div className="header-logo">
+        <button
+          type="button"
+          className="header-logo"
+          onClick={() => setSelectedProject(null)}
+          aria-label="Return to search results"
+        >
           <div className="header-logo-dot" />
           NIH Project Search
-        </div>
-        <button
-          className="theme-toggle"
-          type="button"
-          onClick={handleThemeToggle}
-          aria-label={`Switch to ${theme === "light" ? "dark" : "light"} mode`}
-        >
-          {theme === "light" ? "Dark mode" : "Light mode"}
-          <span className="theme-toggle-icon" aria-hidden="true">
-            {theme === "light" ? "🌙" : "☀️"}
-          </span>
         </button>
+        <div className="header-right">
+          <button
+            className="theme-toggle"
+            type="button"
+            onClick={handleThemeToggle}
+            aria-label={`Switch to ${theme === "light" ? "dark" : "light"} mode`}
+          >
+            {theme === "light" ? "Dark mode" : "Light mode"}
+            <span className="theme-toggle-icon" aria-hidden="true">
+              {theme === "light" ? "🌙" : "☀️"}
+            </span>
+          </button>
+          <div className="header-images" aria-label="Partner logos">
+            <img src="/Images/KBR_(company)_logo.svg" alt="KBR logo" className="header-image header-image-kbr" />
+            <img
+              src="/Images/Florida_International_University_FIU_logo.svg.png"
+              alt="FIU logo"
+              className="header-image header-image-fiu"
+            />
+          </div>
+        </div>
       </header>
 
       {/* Main content */}
       <main className="app-main" ref={mainRef}>
-        <Filters
-          icNames={icNames}
-          activityCodes={activityCodes}
-          states={states}
-          selectedIC={selectedIC}
-          selectedActivity={selectedActivity}
-          selectedState={selectedState}
-          fyMin={fyMin}
-          fyMax={fyMax}
-          costMin={costMin}
-          costMax={costMax}
-          onApply={handleApplyFilters}
-          onClear={handleClearFilters}
-        />
+        {selectedProject ? (
+          <ProjectDetailsPage
+            item={selectedProject}
+            onBack={() => setSelectedProject(null)}
+          />
+        ) : (
+          <>
+            <Filters
+              icNames={icNames}
+              activityCodes={activityCodes}
+              states={states}
+              selectedIC={selectedIC}
+              selectedActivity={selectedActivity}
+              selectedState={selectedState}
+              fyMin={fyMin}
+              fyMax={fyMax}
+              costMin={costMin}
+              costMax={costMax}
+              onApply={handleApplyFilters}
+              onClear={handleClearFilters}
+            />
 
-        <div className="search-row">
-          <div className="search-row-inner">
-            <SearchBar onSearch={handleSearch} initialQuery={query} />
-          </div>
-        </div>
+            <div className="search-row">
+              <div className="search-row-inner">
+                <SearchBar onSearch={handleSearch} initialQuery={query} />
+              </div>
+            </div>
 
-        <div className="results-header">
-          <div className="results-meta">
-            {loading ? (
-              <span>Searching…</span>
-            ) : (
-              <span>
-                <strong>{total.toLocaleString()}</strong> results
-                {query ? ` for "${query}"` : ""}
-                {currentPage > 1 ? ` — page ${currentPage} of ${totalPages}` : ""}
-              </span>
-            )}
-          </div>
-          <div className="results-controls">
-            <select
-              className="per-page-select"
-              value={sortOption}
-              onChange={(e) => setSortOption(e.target.value as SortOption)}
-            >
-              <option value="dateDesc">Date: Most Recent</option>
-              <option value="dateAsc">Date: Least Recent</option>
-              <option value="alphaAsc">Title: A to Z</option>
-              <option value="alphaDesc">Title: Z to A</option>
-            </select>
-            <select
-              className="per-page-select"
-              value={resultsPerPage}
-              onChange={handlePerPageChange}
-            >
-              {[10, 25, 50, 100].map((n) => (
-                <option key={n} value={n}>{n} per page</option>
-              ))}
-            </select>
-          </div>
-        </div>
-
-        <ResultsList results={sortedResults} loading={loading} onOpenDetails={handleOpenDetails} />
-
-        {/* Pagination */}
-        {totalPages > 1 && (
-          <div className="pagination">
-            <button
-              className="btn-page"
-              onClick={() => setCurrentPage((p) => Math.max(1, p - 1))}
-              disabled={currentPage === 1}
-            >
-              ←
-            </button>
-
-            {pageNumbers.map((item, index) =>
-              item === "..." ? (
-                <span key={`ellipsis-${index}`} className="page-ellipsis">…</span>
-              ) : (
-                <button
-                  key={item}
-                  className={`btn-page${item === currentPage ? " active" : ""}`}
-                  onClick={() => setCurrentPage(item as number)}
-                  disabled={item === currentPage}
+            <div className="results-header">
+              <div className="results-meta">
+                {loading ? (
+                  <span>Searching…</span>
+                ) : (
+                  <span>
+                    <strong>{total.toLocaleString()}</strong> results
+                    {query ? ` for "${query}"` : ""}
+                    {currentPage > 1 ? ` — page ${currentPage} of ${totalPages}` : ""}
+                  </span>
+                )}
+              </div>
+              <div className="results-controls">
+                <select
+                  className="per-page-select"
+                  value={sortOption}
+                  onChange={(e) => setSortOption(e.target.value as SortOption)}
                 >
-                  {item}
+                  <option value="dateDesc">Date: Most Recent</option>
+                  <option value="dateAsc">Date: Least Recent</option>
+                  <option value="alphaAsc">Title: A to Z</option>
+                  <option value="alphaDesc">Title: Z to A</option>
+                </select>
+                <select
+                  className="per-page-select"
+                  value={resultsPerPage}
+                  onChange={handlePerPageChange}
+                >
+                  {[10, 25, 50, 100].map((n) => (
+                    <option key={n} value={n}>{n} per page</option>
+                  ))}
+                </select>
+              </div>
+            </div>
+
+            <ResultsList results={sortedResults} loading={loading} onOpenDetails={handleOpenDetails} />
+
+            {/* Pagination */}
+            {totalPages > 1 && (
+              <div className="pagination">
+                <button
+                  className="btn-page"
+                  onClick={() => setCurrentPage((p) => Math.max(1, p - 1))}
+                  disabled={currentPage === 1}
+                >
+                  ←
                 </button>
-              ),
+
+                {pageNumbers.map((item, index) =>
+                  item === "..." ? (
+                    <span key={`ellipsis-${index}`} className="page-ellipsis">…</span>
+                  ) : (
+                    <button
+                      key={item}
+                      className={`btn-page${item === currentPage ? " active" : ""}`}
+                      onClick={() => setCurrentPage(item as number)}
+                      disabled={item === currentPage}
+                    >
+                      {item}
+                    </button>
+                  ),
+                )}
+
+                <button
+                  className="btn-page"
+                  onClick={() => setCurrentPage((p) => Math.min(totalPages, p + 1))}
+                  disabled={currentPage >= totalPages}
+                >
+                  →
+                </button>
+              </div>
             )}
 
-            <button
-              className="btn-page"
-              onClick={() => setCurrentPage((p) => Math.min(totalPages, p + 1))}
-              disabled={currentPage >= totalPages}
-            >
-              →
-            </button>
-          </div>
-        )}
-
-        {showScrollTop && (
-          <button
-            type="button"
-            className="scroll-top-btn"
-            onClick={handleScrollToTop}
-            aria-label="Scroll back to top"
-          >
-            ↑
-          </button>
+            {showScrollTop && (
+              <button
+                type="button"
+                className="scroll-top-btn"
+                onClick={handleScrollToTop}
+                aria-label="Scroll back to top"
+              >
+                ↑
+              </button>
+            )}
+          </>
         )}
       </main>
     </div>

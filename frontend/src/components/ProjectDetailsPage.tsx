@@ -61,96 +61,85 @@ export default function ProjectDetailsPage({ item, onBack }: ProjectDetailsPageP
   const projectDates = [item.PROJECT_START, item.PROJECT_END].filter(Boolean).join(" to ") || "—";
 
   return (
-    <div className="app-shell">
-      <header className="app-header">
-        <div className="header-logo">
-          <div className="header-logo-dot" />
-          NIH Project Search
+    <div className="project-details-card">
+      <button type="button" className="project-back-link" onClick={onBack}>
+        Back to results
+      </button>
+
+      <h1 className="project-details-title">{item.PROJECT_TITLE ?? "Untitled Project"}</h1>
+
+      <section className="project-details-section">
+        <h2>Project Abstract</h2>
+        <p className="project-details-placeholder">
+          Placeholder: abstract mapping to `RePORTER_PRJABS_C_FY2025.csv` via `APPLICATION_ID`
+          will be added by your teammate.
+        </p>
+      </section>
+
+      <section className="project-details-grid">
+        <div>
+          <h2>Principal Investigator Names</h2>
+          {piNames.length > 0 ? (
+            <ul className="project-details-list">
+              {piNames.map((name) => (
+                <li key={name}>{name}</li>
+              ))}
+            </ul>
+          ) : (
+            <p>—</p>
+          )}
         </div>
-      </header>
 
-      <main className="app-main">
-        <div className="project-details-card">
-          <button type="button" className="project-back-link" onClick={onBack}>
-            Back to results
-          </button>
-
-          <h1 className="project-details-title">{item.PROJECT_TITLE ?? "Untitled Project"}</h1>
-
-          <section className="project-details-section">
-            <h2>Project Abstract</h2>
-            <p className="project-details-placeholder">
-              Placeholder: abstract mapping to `RePORTER_PRJABS_C_FY2025.csv` via `APPLICATION_ID`
-              will be added by your teammate.
-            </p>
-          </section>
-
-          <section className="project-details-grid">
-            <div>
-              <h2>Principal Investigator Names</h2>
-              {piNames.length > 0 ? (
-                <ul className="project-details-list">
-                  {piNames.map((name) => (
-                    <li key={name}>{name}</li>
-                  ))}
-                </ul>
-              ) : (
-                <p>—</p>
-              )}
-            </div>
-
-            <div>
-              <h2>Funded Organization</h2>
-              <p>{item.ORG_NAME ?? "—"}</p>
-            </div>
-
-            <div>
-              <h2>Funded Location</h2>
-              <p>{formatLocation(item)}</p>
-            </div>
-
-            <div>
-              <h2>NIH Institute or Center</h2>
-              <p>{item.IC_NAME ?? "—"}</p>
-            </div>
-
-            <div>
-              <h2>Fiscal Year(s)</h2>
-              <p>{fiscalYears}</p>
-            </div>
-
-            <div>
-              <h2>Project Start/End</h2>
-              <p>{projectDates}</p>
-            </div>
-
-            <div>
-              <h2>Award Amount</h2>
-              <p>{formatCurrency(item.TOTAL_COST as number | undefined)}</p>
-            </div>
-
-            <div>
-              <h2>Activity Code</h2>
-              <p>{item.ACTIVITY ?? "—"}</p>
-            </div>
-
-            <div className="project-details-keywords">
-              <h2>Keywords or Research Terms</h2>
-              {projectTerms.length > 0 ? (
-                <div className="project-details-tags">
-                  {projectTerms.map((term) => (
-                    <span key={term} className="project-details-tag">
-                      {term}
-                    </span>
-                  ))}
-                </div>
-              ) : (
-                <p>—</p>
-              )}
-            </div>
-          </section>
+        <div>
+          <h2>Funded Organization</h2>
+          <p>{item.ORG_NAME ?? "—"}</p>
         </div>
-      </main>
+
+        <div>
+          <h2>Funded Location</h2>
+          <p>{formatLocation(item)}</p>
+        </div>
+
+        <div>
+          <h2>NIH Institute or Center</h2>
+          <p>{item.IC_NAME ?? "—"}</p>
+        </div>
+
+        <div>
+          <h2>Fiscal Year(s)</h2>
+          <p>{fiscalYears}</p>
+        </div>
+
+        <div>
+          <h2>Project Start/End</h2>
+          <p>{projectDates}</p>
+        </div>
+
+        <div>
+          <h2>Award Amount</h2>
+          <p>{formatCurrency(item.TOTAL_COST as number | undefined)}</p>
+        </div>
+
+        <div>
+          <h2>Activity Code</h2>
+          <p>{item.ACTIVITY ?? "—"}</p>
+        </div>
+
+        <div className="project-details-keywords">
+          <h2>Keywords or Research Terms</h2>
+          {projectTerms.length > 0 ? (
+            <div className="project-details-tags">
+              {projectTerms.map((term) => (
+                <span key={term} className="project-details-tag">
+                  {term}
+                </span>
+              ))}
+            </div>
+          ) : (
+            <p>—</p>
+          )}
+        </div>
+      </section>
     </div>
   );
 }
