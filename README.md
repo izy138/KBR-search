@@ -8,6 +8,18 @@ This repo runs three services together:
 
 ## Project Structure
 
+# Commands to connect merged_project_data.csv
+for first time use, to start up docker use
+
+docker compose up --build -d
+
+After Docker starts up, then to load the file onto OpenSearch user
+
+docker compose exec backend python indexer/index_data.py
+
+
+
+
 ```text
 backend/
   indexer/
