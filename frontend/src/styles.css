@@ -909,15 +909,15 @@ body {
 /* ─── Results table layout ──────────────────────────────────────────────────── */
 
 /*
- * Column proportions (6 columns):
- *   Author 22% | University 22% | Institution 16% | Activity 12% | FY 8% | Date 14%
+ * Column proportions (7 columns):
+ *   Author 18% | University 18% | Institution 14% | Activity 10% | FY 7% | Date 13% | Total Cost 14%
  * The remaining ~6% is shared gap space.
  */
 .results-table-header,
 .result-row-cols {
   display: grid;
-  grid-template-columns: 22% 22% 16% 12% 8% 14%;
-  gap: 0 0.5rem;
+  grid-template-columns:20% 22% 25% 4% 3% 6% 8%;
+  gap: 0 2rem;
   align-items: center;
 }
 
@@ -983,6 +983,7 @@ body {
   overflow: hidden;
   text-overflow: ellipsis;
   white-space: nowrap;
+  font-size: 11.5px;
 }
 
 /* Chevron icons */
@@ -1011,7 +1012,7 @@ body {
 /* Result rows */
 .result-row {
   background: var(--surface);
-  padding: 0.6rem 1.25rem 0.78rem;
+  padding: 0.4rem 1.25rem 0.4rem;
   cursor: pointer;
   transition: background 0.1s;
   border-bottom: 1px solid var(--border);
@@ -1032,7 +1033,7 @@ body {
 
 /* Column-aligned metadata strip */
 .result-row-cols {
-  margin-bottom: 0.35rem;
+  margin-top: 0.6rem;
 }
 
 .result-row-cell {
@@ -1041,7 +1042,7 @@ body {
 
 .result-row-cell-value {
   display: block;
-  font-size: 11px;
+  font-size: 11.5px;
   color: var(--text-secondary);
   white-space: nowrap;
   overflow: hidden;
@@ -1081,14 +1082,15 @@ body {
 .result-row-bottom .result-title {
   flex: 1;
   min-width: 0;
-  font-size: 13px;
-  font-weight: 500;
+  font-size: 14.5px;
+  font-weight: 600;
   color: var(--text-primary);
   line-height: 1.4;
   white-space: nowrap;
   overflow: hidden;
   text-overflow: ellipsis;
   margin-bottom: 0;
+  margin-top: 0.45rem;
 }
 
 .result-row:hover .result-row-bottom .result-title {
