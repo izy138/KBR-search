@@ -17,7 +17,8 @@ type SortColumnKey =
   | "IC_NAME"
   | "ACTIVITY"
   | "FY"
-  | "PROJECT_START";
+  | "PROJECT_START"
+  | "TOTAL_COST";
 
 interface SortState {
   column: SortColumnKey | null;
@@ -35,9 +36,10 @@ const COLUMNS: ColumnDef[] = [
   { key: "PI_NAMEs",      label: "Author"        },
   { key: "ORG_NAME",      label: "University"    },
   { key: "IC_NAME",       label: "Institution"   },
-  { key: "ACTIVITY",      label: "Activity Code" },
+  { key: "ACTIVITY",      label: "Code"          },
   { key: "FY",            label: "FY"            },
   { key: "PROJECT_START", label: "Date"          },
+  { key: "TOTAL_COST",    label: "Total Cost"    },
 ];
 
 // ─── Helpers ─────────────────────────────────────────────────────────────────
@@ -60,6 +62,11 @@ function formatDate(value: string | undefined): string {
 function getSortValue(item: SearchResultRecord, column: SortColumnKey): string | number {
   const raw = item[column];
   if (raw == null) return "";
+  if (column === "TOTAL_COST") {
+    if (typeof raw === "number") return raw;
+    const parsed = Number(raw);
+    return Number.isFinite(parsed) ? parsed : Number.NEGATIVE_INFINITY;
+  }
   if (typeof raw === "number") return raw;
   return String(raw).toLowerCase();
 }
@@ -199,6 +206,7 @@ const ResultRow: React.FC<ResultRowProps> = ({ item, onOpenDetails }) => {
     ACTIVITY:      item.ACTIVITY      ?? "—",
     FY:            item.FY != null    ? String(item.FY) : "—",
     PROJECT_START: formatDate(item.PROJECT_START),
+    TOTAL_COST:    formatCost(totalCost),
   };
 
   const handleActivate = useCallback(() => {
@@ -219,7 +227,12 @@ const ResultRow: React.FC<ResultRowProps> = ({ item, onOpenDetails }) => {
       }}
       aria-label={`Project: ${title}`}
     >
-      {/* Column-aligned metadata strip */}
+      {/* First line: title */}
+      <div className="result-row-bottom" role="presentation">
+        <h3 className="result-title">{title}</h3>
+      </div>
+
+      {/* Second line: column-aligned metadata strip */}
       <div className="result-row-cols" role="presentation">
         {COLUMNS.map((col) => (
           <div key={col.key} className="result-row-cell" role="cell">
@@ -233,15 +246,7 @@ const ResultRow: React.FC<ResultRowProps> = ({ item, onOpenDetails }) => {
           </div>
         ))}
       </div>
-
-      {/* Second line: title + cost */}
-      <div className="result-row-bottom" role="presentation">
-        <h3 className="result-title">{title}</h3>
-        <div className="result-row-cost">
-          <span className="result-cost">{formatCost(totalCost)}</span>
-          <span className="result-cost-label">total cost</span>
-        </div>
-      </div>
+      
     </div>
   );
 };
