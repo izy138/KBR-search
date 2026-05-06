@@ -12,6 +12,8 @@ dist/
 .vite/
 
 # Python
+2025_ProjectData2.csv
+merged_project_data.csv
 __pycache__/
 **/__pycache__/
 *.py[cod]

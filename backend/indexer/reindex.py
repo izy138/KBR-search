@@ -13,7 +13,7 @@ def reindex() -> None:
   data_file = (
     sys.argv[1]
     if len(sys.argv) > 1
-    else os.getenv("DATA_FILE", "2025_ProjectData.csv")
+    else os.getenv("DATA_FILE", "merged_project_data.csv")
   )
 
   client = get_client()

@@ -23,7 +23,7 @@ def load_csv(file_path: str | Path) -> list[dict[str, Any]]:
 
 
 if __name__ == "__main__":
-    sample_path = Path("2025_ProjectData.csv")
+    sample_path = Path("merged_project_data.csv")
     if not sample_path.exists():
         print(f"Data file not found: {sample_path}")
     else:
