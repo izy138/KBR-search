@@ -36,7 +36,7 @@ const COLUMNS: ColumnDef[] = [
   { key: "ORG_NAME",      label: "University"    },
   { key: "IC_NAME",       label: "Institution"   },
   { key: "ACTIVITY",      label: "Activity Code" },
-  { key: "FY",            label: "Fiscal Year"   },
+  { key: "FY",            label: "FY"            },
   { key: "PROJECT_START", label: "Date"          },
 ];
 
@@ -76,7 +76,7 @@ const ChevronIcon: React.FC<{ direction: SortDirection }> = ({ direction }) => {
   if (direction === "asc") {
     return (
       <svg
-        className="sort-chevron sort-chevron--active"
+        className="sort-chevron sort-chevron--active sort-chevron--asc"
         width="10"
         height="10"
         viewBox="0 0 10 10"
@@ -90,7 +90,7 @@ const ChevronIcon: React.FC<{ direction: SortDirection }> = ({ direction }) => {
   if (direction === "desc") {
     return (
       <svg
-        className="sort-chevron sort-chevron--active"
+        className="sort-chevron sort-chevron--active sort-chevron--desc"
         width="10"
         height="10"
         viewBox="0 0 10 10"
@@ -126,36 +126,39 @@ interface SortHeaderProps {
 
 const SortHeader: React.FC<SortHeaderProps> = ({ sort, onSort }) => (
   <div className="results-table-header" role="row">
-    {COLUMNS.map((col) => {
-      const isActive = sort.column === col.key && sort.direction !== "none";
-      const ariaSort: React.AriaAttributes["aria-sort"] =
-        sort.column === col.key
-          ? sort.direction === "asc"
-            ? "ascending"
-            : sort.direction === "desc"
-            ? "descending"
-            : "none"
-          : "none";
+    <div className="results-table-header-grid">
+      {COLUMNS.map((col) => {
+        const isActive = sort.column === col.key && sort.direction !== "none";
+        const currentDirection: SortDirection = sort.column === col.key ? sort.direction : "none";
+        const ariaSort: React.AriaAttributes["aria-sort"] =
+          sort.column === col.key
+            ? sort.direction === "asc"
+              ? "ascending"
+              : sort.direction === "desc"
+              ? "descending"
+              : "none"
+            : "none";
 
-      return (
-        <button
-          key={col.key}
-          className={`results-table-th${isActive ? " results-table-th--active" : ""}`}
-          role="columnheader"
-          aria-sort={ariaSort}
-          onClick={() => onSort(col.key)}
-          onKeyDown={(e) => {
-            if (e.key === "Enter" || e.key === " ") {
-              e.preventDefault();
-              onSort(col.key);
-            }
-          }}
-        >
-          <span className="results-table-th-label">{col.label}</span>
-          <ChevronIcon direction={sort.column === col.key ? sort.direction : "none"} />
-        </button>
-      );
-    })}
+        return (
+          <button
+            key={col.key}
+            className={`results-table-th${isActive ? " results-table-th--active" : ""}${currentDirection === "asc" ? " results-table-th--active-asc" : ""}${currentDirection === "desc" ? " results-table-th--active-desc" : ""}`}
+            role="columnheader"
+            aria-sort={ariaSort}
+            onClick={() => onSort(col.key)}
+            onKeyDown={(e) => {
+              if (e.key === "Enter" || e.key === " ") {
+                e.preventDefault();
+                onSort(col.key);
+              }
+            }}
+          >
+            <span className="results-table-th-label">{col.label}</span>
+            <ChevronIcon direction={currentDirection} />
+          </button>
+        );
+      })}
+    </div>
   </div>
 );
 
