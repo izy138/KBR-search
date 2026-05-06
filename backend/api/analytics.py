@@ -15,8 +15,10 @@ def analytics_summary() -> dict[str, object]:
   client = get_client()
   body = {
     "size": 0,
+    "track_total_hits": True,
     "aggs": {
-      "categories": {"terms": {"field": "category.keyword", "size": 10}},
+      # Use ACTIVITY as the dashboard category grouping for NIH project data.
+      "categories": {"terms": {"field": "ACTIVITY.keyword", "size": 10}},
       "total_funding": {"sum": {"field": "TOTAL_COST"}},
       "unique_ics": {"cardinality": {"field": "IC_NAME.keyword"}},
       "unique_activities": {"cardinality": {"field": "ACTIVITY.keyword"}},
