@@ -6,6 +6,7 @@ import {
   useRef,
   useState,
 } from "react";
+import Dashboard from "./components/Dashboard";
 import Filters from "./components/Filters";
 import ProjectDetailsPage from "./components/ProjectDetailsPage";
 import ResultsList from "./components/ResultsList";
@@ -14,6 +15,8 @@ import {
   type SearchResultRecord,
   searchProjects,
 } from "./api";
+
+type View = "search" | "dashboard";
 
 function getPageNumbers(page: number, totalPageCount: number): Array<number | "..."> {
   if (totalPageCount <= 7) {
@@ -33,6 +36,7 @@ export default function App() {
   type SortOption = "alphaAsc" | "alphaDesc" | "dateDesc" | "dateAsc";
   type Theme = "light" | "dark";
 
+  const [view, setView] = useState<View>("search");
   const [query, setQuery] = useState("");
   const [results, setResults] = useState<SearchResultRecord[]>([]);
   const [loading, setLoading] = useState(false);
@@ -246,6 +250,22 @@ export default function App() {
           <div className="header-logo-dot" />
           NIH Project Search
         </div>
+        <nav className="nav-tabs" aria-label="Main navigation">
+          <button
+            type="button"
+            className={`nav-tab${view === "search" ? " active" : ""}`}
+            onClick={() => setView("search")}
+          >
+            Search
+          </button>
+          <button
+            type="button"
+            className={`nav-tab${view === "dashboard" ? " active" : ""}`}
+            onClick={() => setView("dashboard")}
+          >
+            Dashboard
+          </button>
+        </nav>
         <button
           className="theme-toggle"
           type="button"
@@ -260,7 +280,8 @@ export default function App() {
       </header>
 
       {/* Main content */}
-      <main className="app-main" ref={mainRef}>
+      {view === "dashboard" && <Dashboard />}
+      <main className="app-main" ref={mainRef} style={view === "dashboard" ? { display: "none" } : undefined}>
         <Filters
           icNames={icNames}
           activityCodes={activityCodes}

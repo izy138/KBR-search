@@ -5,6 +5,7 @@
 
 # Data (large; obtain separately or use symlink)
 2025_ProjectData.csv
+merged_project_data.csv
 
 # Node / frontend
 node_modules/
