@@ -33,7 +33,7 @@ function getPageNumbers(page: number, totalPageCount: number): Array<number | ".
 }
 
 export default function App() {
-  type SortOption = "alphaAsc" | "alphaDesc" | "dateDesc" | "dateAsc";
+  type SortOption = "alphaAsc" | "alphaDesc" | "dateDesc" | "dateAsc" | "costDesc" | "costAsc";
   type Theme = "light" | "dark";
   type LightTheme = "default" | "blueAccent" | "yellowBeige" | "mintSlate";
 
@@ -216,6 +216,11 @@ export default function App() {
       return Number.isNaN(parsed) ? Number.NEGATIVE_INFINITY : parsed;
     };
 
+    const getTotalCost = (record: SearchResultRecord): number => {
+      const value = record.TOTAL_COST;
+      return typeof value === "number" && Number.isFinite(value) ? value : Number.NEGATIVE_INFINITY;
+    };
+
     return [...results].sort((a, b) => {
       if (sortOption === "alphaAsc") {
         return collator.compare(getTitle(a), getTitle(b));
@@ -225,6 +230,12 @@ export default function App() {
       }
       if (sortOption === "dateAsc") {
         return getDateTimestamp(a) - getDateTimestamp(b);
+      }
+      if (sortOption === "costAsc") {
+        return getTotalCost(a) - getTotalCost(b);
+      }
+      if (sortOption === "costDesc") {
+        return getTotalCost(b) - getTotalCost(a);
       }
       return getDateTimestamp(b) - getDateTimestamp(a);
     });
@@ -374,6 +385,8 @@ export default function App() {
                 >
                   <option value="dateDesc">Date: Most Recent</option>
                   <option value="dateAsc">Date: Least Recent</option>
+                  <option value="costDesc">Total Cost: Highest</option>
+                  <option value="costAsc">Total Cost: Lowest</option>
                   <option value="alphaAsc">Title: A to Z</option>
                   <option value="alphaDesc">Title: Z to A</option>
                 </select>
