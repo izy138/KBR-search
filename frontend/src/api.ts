@@ -36,6 +36,7 @@ export interface SearchResponse {
   query: string;
   limit: number;
   total: number;
+  visible_total?: number;
   results: SearchResultRecord[];
 }
 
