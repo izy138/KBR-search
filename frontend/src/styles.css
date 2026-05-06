@@ -557,6 +557,7 @@ body {
   border: 1px solid var(--border);
   border-radius: var(--radius-lg);
   padding: 1.5rem;
+  width: 100%;
 }
 
 .project-back-link {
@@ -584,6 +585,7 @@ body {
 
 .project-details-section {
   margin-bottom: 1.25rem;
+  width: 100%;
 }
 
 .project-details-section h2,
@@ -598,6 +600,31 @@ body {
 .project-details-placeholder {
   color: var(--text-secondary);
   font-style: italic;
+  width: 100%;
+  max-width: none;
+}
+
+.project-details-abstract {
+  color: var(--text-primary);
+  white-space: normal;
+  width: 100%;
+  max-width: none;
+}
+
+.project-details-abstract-toggle {
+  margin-top: 0.35rem;
+  padding: 0;
+  border: none;
+  background: none;
+  color: var(--accent);
+  font-family: 'DM Sans', sans-serif;
+  font-size: 0.86rem;
+  font-weight: 600;
+  cursor: pointer;
+}
+
+.project-details-abstract-toggle:hover {
+  text-decoration: underline;
 }
 
 .project-details-grid {

@@ -22,6 +22,8 @@ export interface SearchResultRecord {
   PROJECT_START?: string;
   PROJECT_END?: string;
   PROJECT_TERMS?: string;
+  ABSTRACT_TEXT?: string;
+  PROJECT_ABSTRACT?: string;
   // Lowercase aliases accessed by display logic in App.tsx
   title?: string;
   project_title?: string;
