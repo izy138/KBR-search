@@ -1,221 +1,371 @@
-
 import {
   type ChangeEvent,
   useCallback,
   useEffect,
   useMemo,
+  useRef,
   useState,
 } from "react";
-import Charts from "./components/Charts";
 import Filters from "./components/Filters";
+import ProjectDetailsPage from "./components/ProjectDetailsPage";
 import ResultsList from "./components/ResultsList";
 import SearchBar from "./components/SearchBar";
+import {
+  type SearchResultRecord,
+  searchProjects,
+} from "./api";
 
-type SearchResult = {
-  _id?: string;
-  id?: string;
-  title?: string;
-  project_title?: string;
-  abstract?: string;
-  category?: string;
-  [key: string]: unknown;
-};
-
-type AnalyticsPoint = {
-  label: string;
-  value: number;
-};
-
-const API_BASE_URL = "http://localhost:8000";
+function getPageNumbers(page: number, totalPageCount: number): Array<number | "..."> {
+  if (totalPageCount <= 7) {
+    return Array.from({ length: totalPageCount }, (_, i) => i + 1);
+  }
+  const pages: Array<number | "..."> = [1];
+  if (page > 3) pages.push("...");
+  const start = Math.max(2, page - 1);
+  const end = Math.min(totalPageCount - 1, page + 1);
+  for (let p = start; p <= end; p++) pages.push(p);
+  if (page < totalPageCount - 2) pages.push("...");
+  pages.push(totalPageCount);
+  return pages;
+}
 
 export default function App() {
+  type SortOption = "alphaAsc" | "alphaDesc" | "dateDesc" | "dateAsc";
+  type Theme = "light" | "dark";
+
   const [query, setQuery] = useState("");
-  const [results, setResults] = useState<SearchResult[]>([]);
-  const [selectedCategory, setSelectedCategory] = useState("");
-  const [chartData, setChartData] = useState<AnalyticsPoint[]>([]);
+  const [results, setResults] = useState<SearchResultRecord[]>([]);
+  const [loading, setLoading] = useState(false);
 
-  const [resultsPerPage, setResultsPerPage] = useState(10);
-  const [currentPage, setCurrentPage] = useState(1);
-  const [total, setTotal] = useState(0);
-  const [hasSearched, setHasSearched] = useState(false);
+  // Filters
+  const [selectedIC, setSelectedIC] = useState("");
+  const [selectedActivity, setSelectedActivity] = useState("");
+  const [selectedState, setSelectedState] = useState("");
+  const [fyMin, setFyMin] = useState("");
+  const [fyMax, setFyMax] = useState("");
+  const [costMin, setCostMin] = useState("");
+  const [costMax, setCostMax] = useState("");
 
+  // Pagination
   const [resultsPerPage, setResultsPerPage] = useState(25);
   const [currentPage, setCurrentPage] = useState(1);
   const [total, setTotal] = useState(0);
-
-  const categories = useMemo(() => {
-    const source = chartData.length ? chartData : [];
-    return source.map((point) => point.label);
-  }, [chartData]);
+  const [sortOption, setSortOption] = useState<SortOption>("dateDesc");
+  const [selectedProject, setSelectedProject] = useState<SearchResultRecord | null>(null);
+  const [showScrollTop, setShowScrollTop] = useState(false);
+  const [theme, setTheme] = useState<Theme>(() => {
+    if (typeof window === "undefined") return "light";
+    const storedTheme = window.localStorage.getItem("theme");
+    if (storedTheme === "light" || storedTheme === "dark") {
+      return storedTheme;
+    }
+    return window.matchMedia("(prefers-color-scheme: dark)").matches ? "dark" : "light";
+  });
 
   const totalPages = Math.max(1, Math.ceil(total / resultsPerPage));
+  const pageNumbers = getPageNumbers(currentPage, totalPages);
+  const mainRef = useRef<HTMLElement | null>(null);
 
-  const loadAnalytics = async () => {
-    const payload = await getAnalyticsSummary();
-    setChartData(payload.by_category ?? []);
-  };
+  // Derive filter options from loaded results (simple approach — can be replaced with API aggs)
+  const icNames = useMemo(() => {
+    const set = new Set<string>();
+    results.forEach((r) => {
+      if (r.IC_NAME) set.add(r.IC_NAME);
+    });
+    return Array.from(set).sort();
+  }, [results]);
+
+  const activityCodes = useMemo(() => {
+    const set = new Set<string>();
+    results.forEach((r) => {
+      if (r.ACTIVITY) set.add(r.ACTIVITY);
+    });
+    return Array.from(set).sort();
+  }, [results]);
+
+  const states = useMemo(() => {
+    const set = new Set<string>();
+    results.forEach((r) => {
+      if (r.ORG_STATE) set.add(r.ORG_STATE);
+    });
+    return Array.from(set).sort();
+  }, [results]);
 
   const runSearch = useCallback(
-    async (nextQuery: string, page: number, category: string, limit: number) => {
-      const payload = await searchProjects(nextQuery, {
-        page,
-        limit,
-        category,
-      });
-      setResults(payload.results ?? []);
-      setTotal(payload.total ?? 0);
+    async (q: string, page: number, limit: number) => {
+      setLoading(true);
+      try {
+        const payload = await searchProjects(q, {
+          page,
+          limit,
+          ic: selectedIC,
+          activity: selectedActivity,
+          state: selectedState,
+          fyMin,
+          fyMax,
+          costMin,
+          costMax,
+        });
+        setResults(payload.results ?? []);
+        setTotal(payload.total ?? 0);
+      } finally {
+        setLoading(false);
+      }
     },
-    [],
+    [selectedIC, selectedActivity, selectedState, fyMin, fyMax, costMin, costMax],
   );
+
+  useEffect(() => {
+    void runSearch(query, currentPage, resultsPerPage);
+  }, [query, currentPage, resultsPerPage, runSearch]);
+
+  useEffect(() => {
+    document.documentElement.setAttribute("data-theme", theme);
+    window.localStorage.setItem("theme", theme);
+  }, [theme]);
+
+  useEffect(() => {
+    const mainElement = mainRef.current;
+
+    const handleScroll = () => {
+      const windowOffset = window.scrollY || document.documentElement.scrollTop || 0;
+      const mainOffset = mainElement?.scrollTop ?? 0;
+      setShowScrollTop(Math.max(windowOffset, mainOffset) > 550);
+    };
+
+    handleScroll();
+    window.addEventListener("scroll", handleScroll, { passive: true });
+    mainElement?.addEventListener("scroll", handleScroll, { passive: true });
+
+    return () => {
+      window.removeEventListener("scroll", handleScroll);
+      mainElement?.removeEventListener("scroll", handleScroll);
+    };
+  }, []);
 
   const handleSearch = (nextQuery: string) => {
     setQuery(nextQuery);
     setCurrentPage(1);
   };
 
-  useEffect(() => {
-    void runSearch(query, currentPage, selectedCategory, resultsPerPage);
-  }, [query, currentPage, selectedCategory, resultsPerPage, runSearch]);
-
-  const handleCategoryChange = (category: string) => {
-    setSelectedCategory(category);
+  const handleApplyFilters = (filters: {
+    ic: string;
+    activity: string;
+    state: string;
+    fyMin: string;
+    fyMax: string;
+    costMin: string;
+    costMax: string;
+  }) => {
+    setSelectedIC(filters.ic);
+    setSelectedActivity(filters.activity);
+    setSelectedState(filters.state);
+    setFyMin(filters.fyMin);
+    setFyMax(filters.fyMax);
+    setCostMin(filters.costMin);
+    setCostMax(filters.costMax);
     setCurrentPage(1);
   };
 
-  const handleResultsPerPageChange = (event: ChangeEvent<HTMLSelectElement>) => {
-    setResultsPerPage(Number(event.target.value));
+  const handleClearFilters = () => {
+    setSelectedIC("");
+    setSelectedActivity("");
+    setSelectedState("");
+    setFyMin("");
+    setFyMax("");
+    setCostMin("");
+    setCostMax("");
     setCurrentPage(1);
   };
 
-  const getPageNumbers = (
-    page: number,
-    totalPageCount: number,
-  ): Array<number | "..."> => {
-    if (totalPageCount <= 7) {
-      return Array.from({ length: totalPageCount }, (_, i) => i + 1);
-    }
+  const sortedResults = useMemo(() => {
+    const collator = new Intl.Collator(undefined, { sensitivity: "base", numeric: true });
 
-    const pages: Array<number | "..."> = [1];
+    const getTitle = (record: SearchResultRecord): string =>
+      record.PROJECT_TITLE ?? record.project_title ?? record.title ?? "";
 
-    if (page > 3) {
-      pages.push("...");
-    }
+    const getDateTimestamp = (record: SearchResultRecord): number => {
+      const rawDate = record.PROJECT_START ?? record.PROJECT_END;
+      if (!rawDate) return Number.NEGATIVE_INFINITY;
+      const parsed = Date.parse(rawDate);
+      return Number.isNaN(parsed) ? Number.NEGATIVE_INFINITY : parsed;
+    };
 
-    const start = Math.max(2, page - 1);
-    const end = Math.min(totalPageCount - 1, page + 1);
+    return [...results].sort((a, b) => {
+      if (sortOption === "alphaAsc") {
+        return collator.compare(getTitle(a), getTitle(b));
+      }
+      if (sortOption === "alphaDesc") {
+        return collator.compare(getTitle(b), getTitle(a));
+      }
+      if (sortOption === "dateAsc") {
+        return getDateTimestamp(a) - getDateTimestamp(b);
+      }
+      return getDateTimestamp(b) - getDateTimestamp(a);
+    });
+  }, [results, sortOption]);
 
-    for (let p = start; p <= end; p += 1) {
-      pages.push(p);
-    }
-
-    if (page < totalPageCount - 2) {
-      pages.push("...");
-    }
-
-    pages.push(totalPageCount);
-
-    return pages;
+  const handlePerPageChange = (e: ChangeEvent<HTMLSelectElement>) => {
+    setResultsPerPage(Number(e.target.value));
+    setCurrentPage(1);
   };
 
-  const pageNumbers = getPageNumbers(currentPage, totalPages);
+  const handleOpenDetails = (item: SearchResultRecord): void => {
+    setSelectedProject(item);
+  };
+
+  if (selectedProject) {
+    return (
+      <ProjectDetailsPage
+        item={selectedProject}
+        onBack={() => setSelectedProject(null)}
+      />
+    );
+  }
+
+  const handleThemeToggle = () => {
+    setTheme((prev) => (prev === "light" ? "dark" : "light"));
+  };
+
+  const handleScrollToTop = () => {
+    window.scrollTo({
+      top: 0,
+      behavior: "smooth",
+    });
+    mainRef.current?.scrollTo({
+      top: 0,
+      behavior: "smooth",
+    });
+  };
 
   return (
-    <main className="container">
-      <h1>KBR Internship Search</h1>
-
-      <SearchBar onSearch={handleSearch} />
-
-      <button onClick={() => void loadAnalytics()} type="button">
-        Load Analytics
-      </button>
-
-      <Filters
-        categories={categories}
-        selectedCategory={selectedCategory}
-        onChange={handleCategoryChange}
-      />
-
-      <label>
-        Results per page:
-        <select value={resultsPerPage} onChange={handleResultsPerPageChange}>
-          {[10, 25, 50, 100].map((size) => (
-            <option key={size} value={size}>
-              {size}
-            </option>
-          ))}
-        </select>
-      </label>
-
-      <Charts data={chartData} />
-
-      <h2>Results for: {query || "all records"}</h2>
-      <p>
-        Showing page {currentPage} of {totalPages} ({total} total results)
-      </p>
-
-      <ResultsList
-        results={results.map((item, index) => ({
-          id: item._id ?? item.id ?? String(index),
-          title:
-            typeof item.title === "string"
-              ? item.title
-              : typeof item.project_title === "string"
-                ? item.project_title
-                : "Untitled",
-          snippet:
-            typeof item.abstract === "string"
-              ? item.abstract.slice(0, 200)
-              : "No abstract available",
-        }))}
-      />
-
-      <div
-        style={{
-          display: "flex",
-          gap: "0.5rem",
-          marginTop: "1rem",
-          flexWrap: "wrap",
-          alignItems: "center",
-        }}
-      >
+    <div className="app-shell">
+      {/* Header */}
+      <header className="app-header">
+        <div className="header-logo">
+          <div className="header-logo-dot" />
+          NIH Project Search
+        </div>
         <button
+          className="theme-toggle"
           type="button"
-          onClick={() => setCurrentPage((p) => Math.max(1, p - 1))}
-          disabled={currentPage === 1}
+          onClick={handleThemeToggle}
+          aria-label={`Switch to ${theme === "light" ? "dark" : "light"} mode`}
         >
-          Previous
+          {theme === "light" ? "Dark mode" : "Light mode"}
+          <span className="theme-toggle-icon" aria-hidden="true">
+            {theme === "light" ? "🌙" : "☀️"}
+          </span>
         </button>
+      </header>
 
-        {pageNumbers.map((item, index) =>
-          item === "..." ? (
-            <span key={`ellipsis-${index}`} style={{ padding: "0.5rem 0.25rem" }}>
-              ...
-            </span>
-          ) : (
-            <button
-              key={item}
-              type="button"
-              onClick={() => setCurrentPage(item)}
-              disabled={item === currentPage}
-              style={
-                item === currentPage
-                  ? { background: "#1f2937", borderColor: "#1f2937" }
-                  : undefined
-              }
+      {/* Main content */}
+      <main className="app-main" ref={mainRef}>
+        <Filters
+          icNames={icNames}
+          activityCodes={activityCodes}
+          states={states}
+          selectedIC={selectedIC}
+          selectedActivity={selectedActivity}
+          selectedState={selectedState}
+          fyMin={fyMin}
+          fyMax={fyMax}
+          costMin={costMin}
+          costMax={costMax}
+          onApply={handleApplyFilters}
+          onClear={handleClearFilters}
+        />
+
+        <div className="search-row">
+          <div className="search-row-inner">
+            <SearchBar onSearch={handleSearch} initialQuery={query} />
+          </div>
+        </div>
+
+        <div className="results-header">
+          <div className="results-meta">
+            {loading ? (
+              <span>Searching…</span>
+            ) : (
+              <span>
+                <strong>{total.toLocaleString()}</strong> results
+                {query ? ` for "${query}"` : ""}
+                {currentPage > 1 ? ` — page ${currentPage} of ${totalPages}` : ""}
+              </span>
+            )}
+          </div>
+          <div className="results-controls">
+            <select
+              className="per-page-select"
+              value={sortOption}
+              onChange={(e) => setSortOption(e.target.value as SortOption)}
             >
-              {item}
+              <option value="dateDesc">Date: Most Recent</option>
+              <option value="dateAsc">Date: Least Recent</option>
+              <option value="alphaAsc">Title: A to Z</option>
+              <option value="alphaDesc">Title: Z to A</option>
+            </select>
+            <select
+              className="per-page-select"
+              value={resultsPerPage}
+              onChange={handlePerPageChange}
+            >
+              {[10, 25, 50, 100].map((n) => (
+                <option key={n} value={n}>{n} per page</option>
+              ))}
+            </select>
+          </div>
+        </div>
+
+        <ResultsList results={sortedResults} loading={loading} onOpenDetails={handleOpenDetails} />
+
+        {/* Pagination */}
+        {totalPages > 1 && (
+          <div className="pagination">
+            <button
+              className="btn-page"
+              onClick={() => setCurrentPage((p) => Math.max(1, p - 1))}
+              disabled={currentPage === 1}
+            >
+              ←
             </button>
-          ),
+
+            {pageNumbers.map((item, index) =>
+              item === "..." ? (
+                <span key={`ellipsis-${index}`} className="page-ellipsis">…</span>
+              ) : (
+                <button
+                  key={item}
+                  className={`btn-page${item === currentPage ? " active" : ""}`}
+                  onClick={() => setCurrentPage(item as number)}
+                  disabled={item === currentPage}
+                >
+                  {item}
+                </button>
+              ),
+            )}
+
+            <button
+              className="btn-page"
+              onClick={() => setCurrentPage((p) => Math.min(totalPages, p + 1))}
+              disabled={currentPage >= totalPages}
+            >
+              →
+            </button>
+          </div>
         )}
 
-        <button
-          type="button"
-          onClick={() => setCurrentPage((p) => Math.min(totalPages, p + 1))}
-          disabled={currentPage >= totalPages}
-        >
-          Next
-        </button>
-      </div>
-    </main>
+        {showScrollTop && (
+          <button
+            type="button"
+            className="scroll-top-btn"
+            onClick={handleScrollToTop}
+            aria-label="Scroll back to top"
+          >
+            ↑
+          </button>
+        )}
+      </main>
+    </div>
   );
 }

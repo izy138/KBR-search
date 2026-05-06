@@ -460,3 +460,21 @@ The Golden Rule
 Treat your local OpenSearch like a local database. It's yours. Keep it in sync with the repo.
 Same way you'd run npm install after pulling new frontend changes, you run the indexer after any data/mapping changes.
 
+only 10k results:
+
+Because OpenSearch is capping your reported total at 10,000 in the current search request.
+
+I verified:
+
+Index actually has 75,995 docs (/project_data/_count)
+Your API returns "total": 10000 from /search/
+Why this happens:
+
+In backend/api/search.py, client.search(...) doesn’t set track_total_hits.
+OpenSearch defaults to an optimized total-hits behavior and returns up to 10k accurately unless you ask for full counting.
+Also, default max_result_window is 10,000, so deep pagination with from/size past that won’t work anyway.
+If you want, I can patch it so:
+
+total count is accurate (track_total_hits: true), and
+API returns total_relation too (eq / gte) so frontend knows when count is capped.
+And if you need browsing past 10k, we should switch to search_after (or raise max_result_window, less ideal).

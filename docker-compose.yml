@@ -34,7 +34,8 @@ services:
       - "8000:8000"
     volumes:
       - ./backend:/app
-      - ./2025_ProjectData.csv:/app/2025_ProjectData.csv:ro
+
+      - ./backend/2025_ProjectData.csv:/app/2025_ProjectData.csv:ro
     depends_on:
       opensearch:
         condition: service_healthy
