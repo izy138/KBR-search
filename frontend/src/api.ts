@@ -118,3 +118,85 @@ export async function getHealth(): Promise<HealthStatus> {
   }
   return response.json() as Promise<HealthStatus>;
 }
+
+// ─── Analytics dashboard interfaces ─────────────────────────────────────────
+
+export interface StateDataPoint {
+  state: string;
+  count: number;
+  total_funding: number;
+}
+
+export interface IcDataPoint {
+  label: string;
+  value: number;
+}
+
+export interface ActivityDataPoint {
+  label: string;
+  total_funding: number;
+  count: number;
+}
+
+export interface YearDataPoint {
+  year: number;
+  count: number;
+  total_funding: number;
+}
+
+export interface OrgDataPoint {
+  label: string;
+  total_funding: number;
+}
+
+export interface AvgGrantDataPoint {
+  label: string;
+  avg_grant: number;
+}
+
+export interface DashboardSummary {
+  total_documents: number;
+  total_funding: number;
+  unique_ics: number;
+  unique_activities: number;
+  by_category: AnalyticsCategory[];
+  time_series: unknown[];
+}
+
+// ─── Analytics fetch helpers ──────────────────────────────────────────────────
+
+async function fetchAnalytics<T>(path: string): Promise<T> {
+  const response = await fetch(`${API_BASE_URL}${path}`);
+  if (!response.ok) {
+    throw new Error(`Analytics request failed (${path}): ${response.status}`);
+  }
+  return response.json() as Promise<T>;
+}
+
+export function getStateData(): Promise<StateDataPoint[]> {
+  return fetchAnalytics<StateDataPoint[]>("/analytics/by-state");
+}
+
+export function getIcData(): Promise<IcDataPoint[]> {
+  return fetchAnalytics<IcDataPoint[]>("/analytics/by-ic");
+}
+
+export function getActivityData(): Promise<ActivityDataPoint[]> {
+  return fetchAnalytics<ActivityDataPoint[]>("/analytics/by-activity");
+}
+
+export function getYearData(): Promise<YearDataPoint[]> {
+  return fetchAnalytics<YearDataPoint[]>("/analytics/by-year");
+}
+
+export function getTopOrgs(): Promise<OrgDataPoint[]> {
+  return fetchAnalytics<OrgDataPoint[]>("/analytics/top-orgs");
+}
+
+export function getAvgGrantByIc(): Promise<AvgGrantDataPoint[]> {
+  return fetchAnalytics<AvgGrantDataPoint[]>("/analytics/avg-grant-by-ic");
+}
+
+export function getDashboardSummary(): Promise<DashboardSummary> {
+  return fetchAnalytics<DashboardSummary>("/analytics/summary");
+}

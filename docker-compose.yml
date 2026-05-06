@@ -44,6 +44,7 @@ services:
     build:
       context: ./frontend
     container_name: kbr-frontend
+    command: sh -c "npm install && npm run dev"
     ports:
       - "5173:5173"
     volumes:
