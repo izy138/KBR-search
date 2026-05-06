@@ -1,9 +1,12 @@
+import { useEffect, useState } from "react";
 import type { SearchResultRecord } from "../api";
 
 type ProjectDetailsPageProps = {
   item: SearchResultRecord;
   onBack: () => void;
 };
+
+const ABSTRACT_PREVIEW_LENGTH = 1500;
 
 function parsePiNames(rawNames: string): string[] {
   return rawNames
@@ -54,11 +57,39 @@ function formatLocation(item: SearchResultRecord): string {
   return segments.join(", ") || "—";
 }
 
+function getProjectAbstract(item: SearchResultRecord): string | null {
+  const abstractValue = item.ABSTRACT_TEXT ?? item.PROJECT_ABSTRACT ?? item.abstract;
+  if (typeof abstractValue !== "string") return null;
+  const normalized = abstractValue
+    .replace(/^ABSTRACT\s*\n?/i, "")
+    .replace(
+      /^\s*project\s+summary(?:\s*\/\s*abstract)?\s*[:\-]?\s*(?:\r?\n)?/i,
+      "",
+    )
+    .replace(/\r\n?/g, "\n")
+    .replace(/\n{3,}/g, "\n\n")
+    .replace(/([^\n])\n(?!\n)/g, "$1 ")
+    .trim();
+  return normalized.length > 0 ? normalized : null;
+}
+
 export default function ProjectDetailsPage({ item, onBack }: ProjectDetailsPageProps) {
   const piNames = sortPiNames(item.PI_NAMEs);
   const projectTerms = parseSemicolonTerms(item.PROJECT_TERMS);
+  const projectAbstract = getProjectAbstract(item);
+  const [isAbstractExpanded, setIsAbstractExpanded] = useState<boolean>(false);
   const fiscalYears = item.FY != null ? String(item.FY) : "—";
   const projectDates = [item.PROJECT_START, item.PROJECT_END].filter(Boolean).join(" to ") || "—";
+  const isLongAbstract =
+    projectAbstract != null && projectAbstract.length > ABSTRACT_PREVIEW_LENGTH;
+  const abstractPreview =
+    projectAbstract != null && isLongAbstract
+      ? `${projectAbstract.slice(0, ABSTRACT_PREVIEW_LENGTH).trimEnd()}...`
+      : projectAbstract;
+
+  useEffect(() => {
+    setIsAbstractExpanded(false);
+  }, [item._id, item.APPLICATION_ID, item.PROJECT_TITLE]);
 
   return (
     <div className="project-details-card">
@@ -70,10 +101,22 @@ export default function ProjectDetailsPage({ item, onBack }: ProjectDetailsPageP
 
       <section className="project-details-section">
         <h2>Project Abstract</h2>
-        <p className="project-details-placeholder">
-          Placeholder: abstract mapping to `RePORTER_PRJABS_C_FY2025.csv` via `APPLICATION_ID`
-          will be added by your teammate.
+        <p className={projectAbstract ? "project-details-abstract" : "project-details-placeholder"}>
+          {projectAbstract == null
+            ? "No abstract available for this project."
+            : isAbstractExpanded
+            ? projectAbstract
+            : abstractPreview}
         </p>
+        {projectAbstract != null && isLongAbstract && (
+          <button
+            type="button"
+            className="project-details-abstract-toggle"
+            onClick={() => setIsAbstractExpanded((prev) => !prev)}
+          >
+            {isAbstractExpanded ? "Show less" : "Read more"}
+          </button>
+        )}
       </section>
 
       <section className="project-details-grid">
