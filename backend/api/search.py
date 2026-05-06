@@ -8,6 +8,7 @@ from .opensearch_client import get_client
 
 router = APIRouter()
 INDEX_NAME = "project_data"
+MAX_RESULT_WINDOW = 10_000
 
 
 @router.get("/")
@@ -64,7 +65,7 @@ def search(
     from_ = (page - 1) * limit
     response = client.search(
         index=INDEX_NAME,
-        body={"from": from_, "size": limit, "query": os_query},
+        body={"from": from_, "size": limit, "query": os_query, "track_total_hits": True},
     )
 
     hits = response.get("hits", {}).get("hits", [])
@@ -76,5 +77,12 @@ def search(
 
     total = response.get("hits", {}).get("total", {})
     total_value = total.get("value", 0) if isinstance(total, dict) else total
+    visible_total = min(total_value, MAX_RESULT_WINDOW)
 
-    return {"query": q, "limit": limit, "total": total_value, "results": results}
+    return {
+        "query": q,
+        "limit": limit,
+        "total": total_value,
+        "visible_total": visible_total,
+        "results": results,
+    }

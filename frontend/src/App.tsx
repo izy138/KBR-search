@@ -35,6 +35,7 @@ function getPageNumbers(page: number, totalPageCount: number): Array<number | ".
 export default function App() {
   type SortOption = "alphaAsc" | "alphaDesc" | "dateDesc" | "dateAsc";
   type Theme = "light" | "dark";
+  type LightTheme = "default" | "blueAccent" | "yellowBeige" | "mintSlate";
 
   const [view, setView] = useState<View>("search");
   const [query, setQuery] = useState("");
@@ -54,6 +55,7 @@ export default function App() {
   const [resultsPerPage, setResultsPerPage] = useState(25);
   const [currentPage, setCurrentPage] = useState(1);
   const [total, setTotal] = useState(0);
+  const [visibleTotal, setVisibleTotal] = useState(0);
   const [sortOption, setSortOption] = useState<SortOption>("dateDesc");
   const [selectedProject, setSelectedProject] = useState<SearchResultRecord | null>(null);
   const [showScrollTop, setShowScrollTop] = useState(false);
@@ -65,8 +67,21 @@ export default function App() {
     }
     return window.matchMedia("(prefers-color-scheme: dark)").matches ? "dark" : "light";
   });
+  const [lightTheme, setLightTheme] = useState<LightTheme>(() => {
+    if (typeof window === "undefined") return "default";
+    const storedLightTheme = window.localStorage.getItem("lightTheme");
+    if (
+      storedLightTheme === "default"
+      || storedLightTheme === "blueAccent"
+      || storedLightTheme === "yellowBeige"
+      || storedLightTheme === "mintSlate"
+    ) {
+      return storedLightTheme;
+    }
+    return "default";
+  });
 
-  const totalPages = Math.max(1, Math.ceil(total / resultsPerPage));
+  const totalPages = Math.max(1, Math.ceil(visibleTotal / resultsPerPage));
   const pageNumbers = getPageNumbers(currentPage, totalPages);
   const mainRef = useRef<HTMLElement | null>(null);
 
@@ -112,6 +127,7 @@ export default function App() {
         });
         setResults(payload.results ?? []);
         setTotal(payload.total ?? 0);
+        setVisibleTotal(payload.visible_total ?? payload.total ?? 0);
       } finally {
         setLoading(false);
       }
@@ -127,6 +143,11 @@ export default function App() {
     document.documentElement.setAttribute("data-theme", theme);
     window.localStorage.setItem("theme", theme);
   }, [theme]);
+
+  useEffect(() => {
+    document.documentElement.setAttribute("data-light-theme", lightTheme);
+    window.localStorage.setItem("lightTheme", lightTheme);
+  }, [lightTheme]);
 
   useEffect(() => {
     const mainElement = mainRef.current;
@@ -263,6 +284,22 @@ export default function App() {
           </button>
         </nav>
         <div className="header-right">
+          {theme === "light" && (
+            <label className="theme-palette-picker">
+              <span className="theme-palette-label">Light theme</span>
+              <select
+                className="theme-palette-select"
+                value={lightTheme}
+                onChange={(event) => setLightTheme(event.target.value as LightTheme)}
+                aria-label="Select light color theme"
+              >
+                <option value="default">Default</option>
+                <option value="blueAccent">Blue accent</option>
+                <option value="yellowBeige">Yellow beige</option>
+                <option value="mintSlate">Mint slate</option>
+              </select>
+            </label>
+          )}
           <button
             className="theme-toggle"
             type="button"
@@ -322,7 +359,8 @@ export default function App() {
                   <span>Searching…</span>
                 ) : (
                   <span>
-                    <strong>{total.toLocaleString()}</strong> results
+                    <strong>{visibleTotal.toLocaleString()}</strong> results
+                    {total > visibleTotal ? ` out of ${total.toLocaleString()}` : ""}
                     {query ? ` for "${query}"` : ""}
                     {currentPage > 1 ? ` — page ${currentPage} of ${totalPages}` : ""}
                   </span>
