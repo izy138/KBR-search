@@ -2,7 +2,7 @@
 
 from __future__ import annotations
 
-from fastapi import APIRouter
+from fastapi import APIRouter, Query
 
 from .opensearch_client import get_client, get_index_name
 
@@ -209,3 +209,50 @@ def analytics_avg_grant_by_ic() -> list[dict[str, object]]:
     }
     for b in buckets
   ]
+
+
+@router.get("/by-activity-terms")
+def analytics_by_activity_terms(
+  activity_id: str = Query(..., description="Activity code, e.g. R01"),
+  limit: int = Query(default=25, ge=1, le=100),
+) -> dict[str, object]:
+  client = get_client()
+  body = {
+    "size": 0,
+    "query": {
+      "bool": {
+        "filter": [
+          {"term": {"ACTIVITY.keyword": activity_id}},
+        ],
+      },
+    },
+    "aggs": {
+      "by_term": {
+        "terms": {
+          "field": "PROJECT_TERMS.keyword",
+          "size": limit,
+        },
+        "aggs": {
+          "total_funding": {"sum": {"field": "TOTAL_COST"}},
+        },
+      },
+    },
+  }
+  response = client.search(index=INDEX_NAME, body=body)
+  buckets = response.get("aggregations", {}).get("by_term", {}).get("buckets", [])
+
+  data = [
+    {
+      "label": b["key"],
+      "count": b["doc_count"],
+      "total_funding": b.get("total_funding", {}).get("value", 0.0),
+    }
+    for b in buckets
+  ]
+  data.sort(key=lambda x: x["total_funding"], reverse=True)
+
+  return {
+    "activity_id": activity_id,
+    "limit": limit,
+    "data": data,
+  }
