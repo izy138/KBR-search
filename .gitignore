@@ -33,3 +33,5 @@ htmlcov/
 .DS_Store
 .idea/
 backend/merged_project_data copy.csv
+
+isa.md
