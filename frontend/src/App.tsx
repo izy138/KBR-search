@@ -363,6 +363,9 @@ export default function App() {
           >
             Search
           </button>
+
+
+
           <button
             type="button"
             className={`nav-tab${view === "dashboard" ? " active" : ""}`}
@@ -371,6 +374,8 @@ export default function App() {
             Dashboard
           </button>
         </nav>
+
+        {/* Header right Theme toggle*/}
         <div className="header-right">
           {theme === "light" && (
             <label className="theme-palette-picker">
@@ -389,17 +394,22 @@ export default function App() {
               </select>
             </label>
           )}
+
+          {/* Theme toggle */}
           <button
             className="theme-toggle"
             type="button"
             onClick={handleThemeToggle}
             aria-label={`Switch to ${theme === "light" ? "dark" : "light"} mode`}
           >
+
             {theme === "light" ? "Dark mode" : "Light mode"}
             <span className="theme-toggle-icon" aria-hidden="true">
               {theme === "light" ? "🌙" : "☀️"}
             </span>
           </button>
+
+          {/* Partner logos */}
           <div className="header-images" aria-label="Partner logos">
             <img src="/Images/KBR_(company)_logo.svg" alt="KBR logo" className="header-image header-image-kbr" />
             <img
@@ -431,6 +441,8 @@ export default function App() {
                 Back to results
               </button>
             </div>
+
+            
           ) : selectedProject ? (
             <ProjectDetailsPage
               item={selectedProject}
@@ -485,6 +497,8 @@ export default function App() {
                   </span>
                 )}
               </div>
+
+
               <div className="results-controls">
                 <select
                   className="per-page-select"
@@ -554,6 +568,8 @@ export default function App() {
                 >
                   →
                 </button>
+
+                
 
                 <form className="page-jump-form" onSubmit={handleJumpToPageSubmit}>
                   <input
