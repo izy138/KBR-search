@@ -1,5 +1,6 @@
 import { useEffect, useState } from "react";
 import type { SearchResultRecord } from "../api";
+import { getOrderedPiNames } from "../utils/piNames";
 
 type ProjectDetailsPageProps = {
   item: SearchResultRecord;
@@ -8,35 +9,12 @@ type ProjectDetailsPageProps = {
 
 const ABSTRACT_PREVIEW_LENGTH = 1500;
 
-function parsePiNames(rawNames: string): string[] {
-  return rawNames
-    .split(";")
-    .map((name) => name.trim())
-    .filter(Boolean);
-}
-
 function parseSemicolonTerms(rawTerms: string | undefined): string[] {
   if (!rawTerms) return [];
   return rawTerms
     .split(";")
     .map((term) => term.trim())
     .filter(Boolean);
-}
-
-function getLastName(value: string): string {
-  const withoutContact = value.replace("(contact)", "").trim();
-  const parts = withoutContact.split(/\s+/);
-  return parts[parts.length - 1]?.toLowerCase() ?? "";
-}
-
-function sortPiNames(rawNames: string | undefined): string[] {
-  if (!rawNames) return [];
-  const names = parsePiNames(rawNames);
-  const contactNames = names.filter((name) => name.includes("(contact)"));
-  const nonContactNames = names
-    .filter((name) => !name.includes("(contact)"))
-    .sort((a, b) => getLastName(a).localeCompare(getLastName(b)));
-  return [...contactNames, ...nonContactNames];
 }
 
 function formatCurrency(value: number | undefined): string {
@@ -74,7 +52,7 @@ function getProjectAbstract(item: SearchResultRecord): string | null {
 }
 
 export default function ProjectDetailsPage({ item, onBack }: ProjectDetailsPageProps) {
-  const piNames = sortPiNames(item.PI_NAMEs);
+  const piNames = getOrderedPiNames(item.PI_NAMEs);
   const projectTerms = parseSemicolonTerms(item.PROJECT_TERMS);
   const projectAbstract = getProjectAbstract(item);
   const [isAbstractExpanded, setIsAbstractExpanded] = useState<boolean>(false);
