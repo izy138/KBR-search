@@ -455,3 +455,20 @@ If you want, I can patch it so:
 total count is accurate (track_total_hits: true), and
 API returns total_relation too (eq / gte) so frontend knows when count is capped.
 And if you need browsing past 10k, we should switch to search_after (or raise max_result_window, less ideal).
+
+Make sure services are up:
+docker compose up -d
+Run full rebuild:
+docker compose exec backend python indexer/reindex.py
+Optional custom file path:
+docker compose exec backend python indexer/reindex.py /path/to/new_file.csv
+Verify count:
+curl http://localhost:9200/project_data/_count
+
+
+First-time / append-only indexing
+If index does not exist yet, or you just want to load data into existing index:
+
+docker compose exec backend python indexer/index_data.py
+Or with a file path:
+docker compose exec backend python indexer/index_data.py /path/to/new_file.csv

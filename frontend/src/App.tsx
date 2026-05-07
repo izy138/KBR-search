@@ -45,7 +45,7 @@ function getPageNumbers(page: number, totalPageCount: number): Array<number | ".
 }
 
 export default function App() {
-  type SortOption = "alphaAsc" | "alphaDesc" | "dateDesc" | "dateAsc" | "costDesc" | "costAsc";
+  type SortOption = "relevant" | "alphaAsc" | "alphaDesc" | "dateDesc" | "dateAsc";
   type Theme = "light" | "dark";
   type LightTheme = "default" | "blueAccent" | "yellowBeige" | "mintSlate" | "blueModified";
 
@@ -243,44 +243,6 @@ export default function App() {
     setCurrentPage(1);
   };
 
-  const sortedResults = useMemo(() => {
-    const collator = new Intl.Collator(undefined, { sensitivity: "base", numeric: true });
-
-    const getTitle = (record: SearchResultRecord): string =>
-      record.PROJECT_TITLE ?? record.project_title ?? record.title ?? "";
-
-    const getDateTimestamp = (record: SearchResultRecord): number => {
-      const rawDate = record.PROJECT_START ?? record.PROJECT_END;
-      if (!rawDate) return Number.NEGATIVE_INFINITY;
-      const parsed = Date.parse(rawDate);
-      return Number.isNaN(parsed) ? Number.NEGATIVE_INFINITY : parsed;
-    };
-
-    const getTotalCost = (record: SearchResultRecord): number => {
-      const value = record.TOTAL_COST;
-      return typeof value === "number" && Number.isFinite(value) ? value : Number.NEGATIVE_INFINITY;
-    };
-
-    return [...results].sort((a, b) => {
-      if (sortOption === "alphaAsc") {
-        return collator.compare(getTitle(a), getTitle(b));
-      }
-      if (sortOption === "alphaDesc") {
-        return collator.compare(getTitle(b), getTitle(a));
-      }
-      if (sortOption === "dateAsc") {
-        return getDateTimestamp(a) - getDateTimestamp(b);
-      }
-      if (sortOption === "costAsc") {
-        return getTotalCost(a) - getTotalCost(b);
-      }
-      if (sortOption === "costDesc") {
-        return getTotalCost(b) - getTotalCost(a);
-      }
-      return getDateTimestamp(b) - getDateTimestamp(a);
-    });
-  }, [results, sortOption]);
-
   const handlePerPageChange = (e: ChangeEvent<HTMLSelectElement>) => {
     setResultsPerPage(Number(e.target.value));
     setCurrentPage(1);
@@ -472,8 +434,18 @@ export default function App() {
       </header>
 
       {/* Main content */}
-      {view === "dashboard" && <Dashboard />}
-      <main className="app-main" ref={mainRef} style={view === "dashboard" ? { display: "none" } : undefined}>
+      <section
+        style={view === "dashboard" ? undefined : { display: "none" }}
+        aria-hidden={view !== "dashboard"}
+      >
+        <Dashboard />
+      </section>
+      <main
+        className="app-main"
+        ref={mainRef}
+        style={view === "dashboard" ? { display: "none" } : undefined}
+        aria-hidden={view === "dashboard"}
+      >
         {selectedProjectId ? (
           projectLoading ? (
             <div className="empty-state" role="status" aria-live="polite">
@@ -567,11 +539,11 @@ export default function App() {
                   className="per-page-select"
                   value={sortOption}
                   onChange={(e) => setSortOption(e.target.value as SortOption)}
+                  aria-label="Sort results"
                 >
+                  <option value="relevant">Most Relevant</option>
                   <option value="dateDesc">Date: Most Recent</option>
                   <option value="dateAsc">Date: Least Recent</option>
-                  <option value="costDesc">Total Cost: Highest</option>
-                  <option value="costAsc">Total Cost: Lowest</option>
                   <option value="alphaAsc">Title: A to Z</option>
                   <option value="alphaDesc">Title: Z to A</option>
                 </select>
@@ -588,7 +560,8 @@ export default function App() {
             </div>
 
             <ResultsList
-              results={sortedResults}
+              results={results}
+              primarySort={sortOption}
               loading={loading}
               onOpenDetails={handleOpenDetails}
               onOpenInvestigator={handleOpenInvestigator}
