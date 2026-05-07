@@ -7,12 +7,14 @@ import {
   useRef,
   useState,
 } from "react";
+import { matchPath, useLocation, useNavigate } from "react-router-dom";
 import Dashboard from "./components/Dashboard";
 import Filters from "./components/Filters";
 import ProjectDetailsPage from "./components/ProjectDetailsPage";
 import ResultsList from "./components/ResultsList";
 import SearchBar from "./components/SearchBar";
 import {
+  getProjectById,
   type SearchResultRecord,
   searchProjects,
 } from "./api";
@@ -67,7 +69,11 @@ export default function App() {
   const [visibleTotal, setVisibleTotal] = useState(0);
   const [sortOption, setSortOption] = useState<SortOption>("dateDesc");
   const [selectedProject, setSelectedProject] = useState<SearchResultRecord | null>(null);
+  const [projectLoading, setProjectLoading] = useState(false);
+  const [projectError, setProjectError] = useState<string>("");
   const [showScrollTop, setShowScrollTop] = useState(false);
+  const navigate = useNavigate();
+  const location = useLocation();
   const [theme, setTheme] = useState<Theme>(() => {
     if (typeof window === "undefined") return "light";
     const storedTheme = window.localStorage.getItem("theme");
@@ -94,6 +100,8 @@ export default function App() {
   const totalPages = Math.max(1, Math.ceil(visibleTotal / resultsPerPage));
   const pageNumbers = getPageNumbers(currentPage, totalPages);
   const mainRef = useRef<HTMLElement | null>(null);
+  const projectRouteMatch = matchPath("/projects/:projectId", location.pathname);
+  const selectedProjectId = projectRouteMatch?.params.projectId ?? null;
 
   // Derive filter options from loaded results (simple approach — can be replaced with API aggs)
   const icNames = useMemo(() => {
@@ -273,7 +281,9 @@ export default function App() {
   };
 
   const handleOpenDetails = (item: SearchResultRecord): void => {
-    setSelectedProject(item);
+    const projectId = item._id ?? item.id;
+    if (!projectId) return;
+    navigate(`/projects/${encodeURIComponent(projectId)}`);
   };
 
   const handleThemeToggle = () => {
@@ -291,6 +301,47 @@ export default function App() {
     });
   };
 
+  useEffect(() => {
+    let isCancelled = false;
+    if (!selectedProjectId) {
+      setSelectedProject(null);
+      setProjectLoading(false);
+      setProjectError("");
+      return;
+    }
+
+    const projectFromResults = results.find(
+      (item) => (item._id ?? item.id) === selectedProjectId,
+    );
+    if (projectFromResults) {
+      setSelectedProject(projectFromResults);
+      setProjectLoading(false);
+      setProjectError("");
+      return;
+    }
+
+    setProjectLoading(true);
+    setProjectError("");
+    void getProjectById(selectedProjectId)
+      .then((project) => {
+        if (isCancelled) return;
+        setSelectedProject(project);
+      })
+      .catch(() => {
+        if (isCancelled) return;
+        setSelectedProject(null);
+        setProjectError("Unable to load this project right now.");
+      })
+      .finally(() => {
+        if (isCancelled) return;
+        setProjectLoading(false);
+      });
+
+    return () => {
+      isCancelled = true;
+    };
+  }, [selectedProjectId, results]);
+
   return (
     <div className="app-shell">
       {/* Header */}
@@ -298,7 +349,7 @@ export default function App() {
         <button
           type="button"
           className="header-logo"
-          onClick={() => setSelectedProject(null)}
+          onClick={() => navigate("/")}
           aria-label="Return to search results"
         >
           <div className="header-logo-dot" />
@@ -363,11 +414,41 @@ export default function App() {
       {/* Main content */}
       {view === "dashboard" && <Dashboard />}
       <main className="app-main" ref={mainRef} style={view === "dashboard" ? { display: "none" } : undefined}>
-        {selectedProject ? (
-          <ProjectDetailsPage
-            item={selectedProject}
-            onBack={() => setSelectedProject(null)}
-          />
+        {selectedProjectId ? (
+          projectLoading ? (
+            <div className="empty-state" role="status" aria-live="polite">
+              <strong style={{ color: "var(--text-secondary)", fontSize: 15 }}>Loading project…</strong>
+            </div>
+          ) : projectError ? (
+            <div className="empty-state" role="status" aria-live="polite">
+              <strong style={{ color: "var(--text-secondary)", fontSize: 15 }}>{projectError}</strong>
+              <button
+                type="button"
+                className="project-back-link"
+                onClick={() => navigate("/")}
+                style={{ marginTop: "0.85rem" }}
+              >
+                Back to results
+              </button>
+            </div>
+          ) : selectedProject ? (
+            <ProjectDetailsPage
+              item={selectedProject}
+              onBack={() => navigate("/")}
+            />
+          ) : (
+            <div className="empty-state" role="status" aria-live="polite">
+              <strong style={{ color: "var(--text-secondary)", fontSize: 15 }}>Project not found</strong>
+              <button
+                type="button"
+                className="project-back-link"
+                onClick={() => navigate("/")}
+                style={{ marginTop: "0.85rem" }}
+              >
+                Back to results
+              </button>
+            </div>
+          )
         ) : (
           <>
             <Filters

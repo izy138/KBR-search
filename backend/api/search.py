@@ -2,7 +2,7 @@
 
 from __future__ import annotations
 
-from fastapi import APIRouter, Query
+from fastapi import APIRouter, HTTPException, Path, Query
 
 from .opensearch_client import get_client
 
@@ -86,3 +86,20 @@ def search(
         "visible_total": visible_total,
         "results": results,
     }
+
+
+@router.get("/project/{project_id}")
+def get_project(project_id: str = Path(..., description="OpenSearch document ID")) -> dict[str, object]:
+    client = get_client()
+    try:
+        response = client.get(index=INDEX_NAME, id=project_id)
+    except Exception as exc:
+        error_body = getattr(exc, "info", {})
+        status_code = error_body.get("status") if isinstance(error_body, dict) else None
+        if status_code == 404:
+            raise HTTPException(status_code=404, detail="Project not found") from exc
+        raise
+
+    source = response.get("_source", {})
+    source["_id"] = response.get("_id")
+    return {"project": source}
