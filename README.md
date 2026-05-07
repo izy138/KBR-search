@@ -370,29 +370,6 @@ When you add, rename, or remove a field from the CSV or change the indexer logic
 
 ---
 
-You said: Questions about open search and docker, I am in a group of 3, is there anything to know about running opensearch through docker and indexing when there are 3 ppl using it locally?
-Claude responded: Great question — this is something that trips up a lot of teams.
-Great question — this is something that trips up a lot of teams. Here's what you need to know:
-
-The Core Issue
-OpenSearch running in Docker is a local instance. That means:
-Person A's laptop → their own OpenSearch → their own index
-Person B's laptop → their own OpenSearch → their own index  
-Person C's laptop → their own OpenSearch → their own index
-You are NOT sharing one OpenSearch. Each person has their own isolated instance. This is actually fine for development — but your team needs to understand this.
-
-What This Means Practically
-Each person needs to:
-Have Docker installed on their own machine
-Run docker-compose up themselves
-Run the indexer script themselves to populate their local OpenSearch
-Re-index if the data or mapping changes
-The Important Things to Align On
-1. Everyone uses the same docker-compose.yml
-This should be committed to the repo. Everyone pulls it and runs the same config. No one should be tweaking it locally.
-2. Everyone uses the same index mapping
-If Person A changes the mapping (adds a field, changes a type), everyone needs to:
-bash
 # delete old index
 curl -X DELETE http://localhost:9200/nih_projects
 
