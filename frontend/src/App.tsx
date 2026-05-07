@@ -10,10 +10,12 @@ import {
 import { matchPath, useLocation, useNavigate } from "react-router-dom";
 import Dashboard from "./components/Dashboard";
 import Filters from "./components/Filters";
+import InvestigatorPage from "./components/InvestigatorPage";
 import ProjectDetailsPage from "./components/ProjectDetailsPage";
 import ResultsList from "./components/ResultsList";
 import SearchBar from "./components/SearchBar";
 import {
+  getProjectsByInvestigator,
   getProjectById,
   type SearchResultRecord,
   searchProjects,
@@ -43,7 +45,7 @@ function getPageNumbers(page: number, totalPageCount: number): Array<number | ".
 }
 
 export default function App() {
-  type SortOption = "alphaAsc" | "alphaDesc" | "dateDesc" | "dateAsc" | "costDesc" | "costAsc";
+  type SortOption = "relevant" | "alphaAsc" | "alphaDesc" | "dateDesc" | "dateAsc";
   type Theme = "light" | "dark";
   type LightTheme = "default" | "blueAccent" | "yellowBeige" | "mintSlate" | "blueModified";
 
@@ -71,6 +73,12 @@ export default function App() {
   const [selectedProject, setSelectedProject] = useState<SearchResultRecord | null>(null);
   const [projectLoading, setProjectLoading] = useState(false);
   const [projectError, setProjectError] = useState<string>("");
+  const [investigatorResults, setInvestigatorResults] = useState<SearchResultRecord[]>([]);
+  const [investigatorLoading, setInvestigatorLoading] = useState(false);
+  const [investigatorError, setInvestigatorError] = useState<string>("");
+  const [investigatorPage, setInvestigatorPage] = useState(1);
+  const [investigatorTotal, setInvestigatorTotal] = useState(0);
+  const [investigatorVisibleTotal, setInvestigatorVisibleTotal] = useState(0);
   const [showScrollTop, setShowScrollTop] = useState(false);
   const navigate = useNavigate();
   const location = useLocation();
@@ -102,6 +110,13 @@ export default function App() {
   const mainRef = useRef<HTMLElement | null>(null);
   const projectRouteMatch = matchPath("/projects/:projectId", location.pathname);
   const selectedProjectId = projectRouteMatch?.params.projectId ?? null;
+  const investigatorRouteMatch = matchPath("/investigators/:investigatorName", location.pathname);
+  const selectedInvestigatorName = investigatorRouteMatch?.params.investigatorName
+    ? decodeURIComponent(investigatorRouteMatch.params.investigatorName)
+    : null;
+  const investigatorPerPage = 25;
+  const investigatorTotalPages = Math.max(1, Math.ceil(investigatorVisibleTotal / investigatorPerPage));
+  const investigatorPageNumbers = getPageNumbers(investigatorPage, investigatorTotalPages);
 
   // Derive filter options from loaded results (simple approach — can be replaced with API aggs)
   const icNames = useMemo(() => {
@@ -154,8 +169,11 @@ export default function App() {
   );
 
   useEffect(() => {
+    if (view === "dashboard" || selectedProjectId || selectedInvestigatorName) {
+      return;
+    }
     void runSearch(query, currentPage, resultsPerPage);
-  }, [query, currentPage, resultsPerPage, runSearch]);
+  }, [query, currentPage, resultsPerPage, runSearch, view, selectedProjectId, selectedInvestigatorName]);
 
   useEffect(() => {
     setJumpToPageInput(String(currentPage));
@@ -225,44 +243,6 @@ export default function App() {
     setCurrentPage(1);
   };
 
-  const sortedResults = useMemo(() => {
-    const collator = new Intl.Collator(undefined, { sensitivity: "base", numeric: true });
-
-    const getTitle = (record: SearchResultRecord): string =>
-      record.PROJECT_TITLE ?? record.project_title ?? record.title ?? "";
-
-    const getDateTimestamp = (record: SearchResultRecord): number => {
-      const rawDate = record.PROJECT_START ?? record.PROJECT_END;
-      if (!rawDate) return Number.NEGATIVE_INFINITY;
-      const parsed = Date.parse(rawDate);
-      return Number.isNaN(parsed) ? Number.NEGATIVE_INFINITY : parsed;
-    };
-
-    const getTotalCost = (record: SearchResultRecord): number => {
-      const value = record.TOTAL_COST;
-      return typeof value === "number" && Number.isFinite(value) ? value : Number.NEGATIVE_INFINITY;
-    };
-
-    return [...results].sort((a, b) => {
-      if (sortOption === "alphaAsc") {
-        return collator.compare(getTitle(a), getTitle(b));
-      }
-      if (sortOption === "alphaDesc") {
-        return collator.compare(getTitle(b), getTitle(a));
-      }
-      if (sortOption === "dateAsc") {
-        return getDateTimestamp(a) - getDateTimestamp(b);
-      }
-      if (sortOption === "costAsc") {
-        return getTotalCost(a) - getTotalCost(b);
-      }
-      if (sortOption === "costDesc") {
-        return getTotalCost(b) - getTotalCost(a);
-      }
-      return getDateTimestamp(b) - getDateTimestamp(a);
-    });
-  }, [results, sortOption]);
-
   const handlePerPageChange = (e: ChangeEvent<HTMLSelectElement>) => {
     setResultsPerPage(Number(e.target.value));
     setCurrentPage(1);
@@ -284,6 +264,10 @@ export default function App() {
     const projectId = item._id ?? item.id;
     if (!projectId) return;
     navigate(`/projects/${encodeURIComponent(projectId)}`);
+  };
+  const handleOpenInvestigator = (name: string): void => {
+    setInvestigatorPage(1);
+    navigate(`/investigators/${encodeURIComponent(name)}`);
   };
 
   const handleThemeToggle = () => {
@@ -341,6 +325,44 @@ export default function App() {
       isCancelled = true;
     };
   }, [selectedProjectId, results]);
+
+  useEffect(() => {
+    let isCancelled = false;
+    if (!selectedInvestigatorName) {
+      setInvestigatorResults([]);
+      setInvestigatorError("");
+      setInvestigatorLoading(false);
+      return;
+    }
+
+    setInvestigatorLoading(true);
+    setInvestigatorError("");
+    void getProjectsByInvestigator(selectedInvestigatorName, {
+      limit: investigatorPerPage,
+      page: investigatorPage,
+    })
+      .then((payload) => {
+        if (isCancelled) return;
+        setInvestigatorResults(payload.results ?? []);
+        setInvestigatorTotal(payload.total ?? 0);
+        setInvestigatorVisibleTotal(payload.visible_total ?? payload.total ?? 0);
+      })
+      .catch(() => {
+        if (isCancelled) return;
+        setInvestigatorResults([]);
+        setInvestigatorTotal(0);
+        setInvestigatorVisibleTotal(0);
+        setInvestigatorError("Unable to load investigator projects right now.");
+      })
+      .finally(() => {
+        if (isCancelled) return;
+        setInvestigatorLoading(false);
+      });
+
+    return () => {
+      isCancelled = true;
+    };
+  }, [selectedInvestigatorName, investigatorPage]);
 
   return (
     <div className="app-shell">
@@ -422,8 +444,18 @@ export default function App() {
       </header>
 
       {/* Main content */}
-      {view === "dashboard" && <Dashboard />}
-      <main className="app-main" ref={mainRef} style={view === "dashboard" ? { display: "none" } : undefined}>
+      <section
+        style={view === "dashboard" ? undefined : { display: "none" }}
+        aria-hidden={view !== "dashboard"}
+      >
+        <Dashboard />
+      </section>
+      <main
+        className="app-main"
+        ref={mainRef}
+        style={view === "dashboard" ? { display: "none" } : undefined}
+        aria-hidden={view === "dashboard"}
+      >
         {selectedProjectId ? (
           projectLoading ? (
             <div className="empty-state" role="status" aria-live="polite">
@@ -447,6 +479,7 @@ export default function App() {
             <ProjectDetailsPage
               item={selectedProject}
               onBack={() => navigate("/")}
+              onOpenInvestigator={handleOpenInvestigator}
             />
           ) : (
             <div className="empty-state" role="status" aria-live="polite">
@@ -461,6 +494,22 @@ export default function App() {
               </button>
             </div>
           )
+        ) : selectedInvestigatorName ? (
+          <InvestigatorPage
+            investigatorName={selectedInvestigatorName}
+            loading={investigatorLoading}
+            error={investigatorError}
+            results={investigatorResults}
+            visibleTotal={investigatorVisibleTotal}
+            total={investigatorTotal}
+            currentPage={investigatorPage}
+            totalPages={investigatorTotalPages}
+            pageNumbers={investigatorPageNumbers}
+            onOpenDetails={handleOpenDetails}
+            onOpenInvestigator={handleOpenInvestigator}
+            onPageChange={setInvestigatorPage}
+            onBack={() => navigate("/")}
+          />
         ) : (
           <>
             <Filters
@@ -504,11 +553,11 @@ export default function App() {
                   className="per-page-select"
                   value={sortOption}
                   onChange={(e) => setSortOption(e.target.value as SortOption)}
+                  aria-label="Sort results"
                 >
+                  <option value="relevant">Most Relevant</option>
                   <option value="dateDesc">Date: Most Recent</option>
                   <option value="dateAsc">Date: Least Recent</option>
-                  <option value="costDesc">Total Cost: Highest</option>
-                  <option value="costAsc">Total Cost: Lowest</option>
                   <option value="alphaAsc">Title: A to Z</option>
                   <option value="alphaDesc">Title: Z to A</option>
                 </select>
@@ -524,7 +573,13 @@ export default function App() {
               </div>
             </div>
 
-            <ResultsList results={sortedResults} loading={loading} onOpenDetails={handleOpenDetails} />
+            <ResultsList
+              results={results}
+              primarySort={sortOption}
+              loading={loading}
+              onOpenDetails={handleOpenDetails}
+              onOpenInvestigator={handleOpenInvestigator}
+            />
 
             {/* Pagination */}
             {totalPages > 1 && (

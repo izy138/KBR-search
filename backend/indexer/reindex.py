@@ -4,12 +4,13 @@ from __future__ import annotations
 import os
 import sys
 
-from index_data import create_index, get_client, index_records
-from load_data import load_csv
+from api.opensearch_client import get_client, get_index_name
+from index_data import create_index, index_records
+from load_data import iter_csv_chunks
 
 
 def reindex() -> None:
-  index_name = os.getenv("OPENSEARCH_INDEX", "project_data")
+  index_name = get_index_name()
   data_file = (
     sys.argv[1]
     if len(sys.argv) > 1
@@ -22,9 +23,10 @@ def reindex() -> None:
     print(f"Deleted index '{index_name}'.")
 
   create_index(index_name)
-  records = load_csv(data_file)
-  index_records(index_name, records)
-  print(f"Reindexed {len(records)} records into '{index_name}' from {data_file}.")
+  indexed_total = 0
+  for chunk in iter_csv_chunks(data_file):
+    indexed_total += index_records(index_name, chunk)
+  print(f"Reindexed {indexed_total} records into '{index_name}' from {data_file}.")
 
 
 if __name__ == "__main__":

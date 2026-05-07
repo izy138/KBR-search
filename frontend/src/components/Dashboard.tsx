@@ -41,7 +41,21 @@ function formatCount(n: number): string {
   return n.toLocaleString();
 }
 
-function abbreviateInstituteLabel(label: string): string {
+/**
+ * Formats count ticks for compact chart axes (e.g., 1k, 3k, 6k, 12k).
+ */
+function formatHybridCountTick(n: number): string {
+  if (n >= 1e3) {
+    return `${Math.round(n / 1e3)}k`;
+  }
+  return n.toLocaleString();
+}
+
+/**
+ * Shortens long institute or organization names for chart axes; pair with
+ * `full_label` on the same row for tooltips.
+ */
+function abbreviateChartCategoryLabel(label: string): string {
   const trimmed = label.trim();
   const parenMatch = trimmed.match(/\(([^)]+)\)\s*$/);
   if (parenMatch && parenMatch[1]) {
@@ -159,9 +173,23 @@ export default function Dashboard() {
     summary.total_documents > 0
       ? summary.total_funding / summary.total_documents
       : 0;
-  const icChartData = icData.map((point) => ({
+  const icChartData = icData
+    .map((point) => ({
+      ...point,
+      short_label: abbreviateChartCategoryLabel(point.label),
+      full_label: point.label,
+    }))
+    .sort((a, b) => a.full_label.localeCompare(b.full_label));
+
+  const topOrgsChartData = topOrgs.map((point) => ({
     ...point,
-    short_label: abbreviateInstituteLabel(point.label),
+    short_label: abbreviateChartCategoryLabel(point.label),
+    full_label: point.label,
+  }));
+
+  const avgGrantChartData = avgGrant.map((point) => ({
+    ...point,
+    short_label: abbreviateChartCategoryLabel(point.label),
     full_label: point.label,
   }));
 
@@ -188,11 +216,15 @@ export default function Dashboard() {
           labelKey="short_label"
           tooltipLabelKey="full_label"
           layout="horizontal"
-          formatter={formatCount}
+          valueScale="log"
+          valueDomain={[5, 12000]}
+          valueTicks={[5, 10, 100, 500, 1000, 3000, 6000, 12000]}
+          formatter={formatHybridCountTick}
+          tooltipFormatter={formatCount}
         />
       </div>
 
-      {/* Additional visuals in compact 3-column grid */}
+      {/* Activity full width; year + orgs in a row; avg grant full width */}
       <div className="dashboard-grid-3">
         <BarChartPanel
           title="Funding by Activity Code"
@@ -210,17 +242,19 @@ export default function Dashboard() {
         />
         <BarChartPanel
           title="Top Organizations by Funding"
-          data={topOrgs as unknown as Array<Record<string, unknown>>}
+          data={topOrgsChartData as unknown as Array<Record<string, unknown>>}
           dataKey="total_funding"
-          labelKey="label"
-          layout="vertical"
+          labelKey="short_label"
+          tooltipLabelKey="full_label"
+          layout="horizontal"
           formatter={formatDollars}
         />
         <BarChartPanel
           title="Average Grant by Institute (IC)"
-          data={avgGrant as unknown as Array<Record<string, unknown>>}
+          data={avgGrantChartData as unknown as Array<Record<string, unknown>>}
           dataKey="avg_grant"
-          labelKey="label"
+          labelKey="short_label"
+          tooltipLabelKey="full_label"
           layout="horizontal"
           formatter={formatDollars}
           color="#7c3aed"
