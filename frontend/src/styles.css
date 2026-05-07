@@ -896,7 +896,7 @@ body {
 .results-table-header,
 .result-row-cols {
   display: grid;
-  grid-template-columns:20% 22% 25% 4% 3% 6% 8%;
+  grid-template-columns:20% 22% 24% 4.5% 3% 6% 8%;
   gap: 0 2rem;
   align-items: center;
 }
