@@ -4,10 +4,10 @@ from __future__ import annotations
 
 from fastapi import APIRouter
 
-from .opensearch_client import get_client
+from .opensearch_client import get_client, get_index_name
 
 router = APIRouter()
-INDEX_NAME = "project_data"
+INDEX_NAME = get_index_name()
 
 
 @router.get("/summary")

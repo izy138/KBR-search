@@ -1,4 +1,4 @@
-import { useState } from "react";
+import { useRef, useState } from "react";
 import { scaleSequential } from "d3-scale";
 import {
   ComposableMap,
@@ -92,8 +92,6 @@ function interpolateHex(colorA: string, colorB: string, t: number): string {
 }
 
 interface TooltipState {
-  x: number;
-  y: number;
   stateName: string;
   count: number;
   totalFunding: number;
@@ -116,6 +114,14 @@ const formatFunding = (n: number): string => {
  */
 export default function StateMap({ data }: StateMapProps) {
   const [tooltip, setTooltip] = useState<TooltipState | null>(null);
+  const tooltipRef = useRef<HTMLDivElement | null>(null);
+
+  const updateTooltipPosition = (x: number, y: number): void => {
+    const el = tooltipRef.current;
+    if (!el) return;
+    el.style.left = `${x}px`;
+    el.style.top = `${y}px`;
+  };
 
   // Build lookup from full state name → data point
   const stateByName = new Map<string, StateDataPoint>();
@@ -169,20 +175,15 @@ export default function StateMap({ data }: StateMapProps) {
                     pressed: { outline: "none" },
                   }}
                   onMouseEnter={(e) => {
+                    updateTooltipPosition(e.clientX + 12, e.clientY - 8);
                     setTooltip({
-                      x: e.clientX + 12,
-                      y: e.clientY - 8,
                       stateName: geoName,
                       count: point?.count ?? 0,
                       totalFunding: point?.total_funding ?? 0,
                     });
                   }}
                   onMouseMove={(e) => {
-                    setTooltip((prev) =>
-                      prev
-                        ? { ...prev, x: e.clientX + 12, y: e.clientY - 8 }
-                        : null,
-                    );
+                    updateTooltipPosition(e.clientX + 12, e.clientY - 8);
                   }}
                   onMouseLeave={() => setTooltip(null)}
                 />
@@ -194,8 +195,9 @@ export default function StateMap({ data }: StateMapProps) {
 
       {tooltip && (
         <div
+          ref={tooltipRef}
           className="map-tooltip"
-          style={{ left: tooltip.x, top: tooltip.y }}
+          style={{ left: 0, top: 0 }}
         >
           <div className="map-tooltip-state">{tooltip.stateName}</div>
           <div className="map-tooltip-row">Projects: {tooltip.count.toLocaleString()}</div>

@@ -4,11 +4,19 @@ from __future__ import annotations
 
 from fastapi import APIRouter, HTTPException, Path, Query
 
-from .opensearch_client import get_client
+from .opensearch_client import get_client, get_index_name
 
 router = APIRouter()
-INDEX_NAME = "project_data"
+INDEX_NAME = get_index_name()
 MAX_RESULT_WINDOW = 10_000
+SEARCH_FIELDS = [
+    "PROJECT_TITLE^4",
+    "PROJECT_TERMS^2",
+    "PI_NAMEs^2",
+    "ORG_NAME",
+    "IC_NAME",
+    "ACTIVITY",
+]
 
 
 @router.get("/")
@@ -29,7 +37,16 @@ def search(
     must: list[dict[str, object]] = []
     filters: list[dict[str, object]] = []
     if q:
-        must.append({"multi_match": {"query": q, "fields": ["*"]}})
+        must.append(
+            {
+                "multi_match": {
+                    "query": q,
+                    "fields": SEARCH_FIELDS,
+                    "type": "best_fields",
+                    "operator": "and",
+                }
+            }
+        )
     else:
         must.append({"match_all": {}})
     if category:
@@ -63,9 +80,15 @@ def search(
             bool_query["filter"] = filters
         os_query = {"bool": bool_query}
     from_ = (page - 1) * limit
+    if from_ >= MAX_RESULT_WINDOW:
+        raise HTTPException(
+            status_code=400,
+            detail=f"Requested page exceeds max result window ({MAX_RESULT_WINDOW}).",
+        )
+    size = min(limit, MAX_RESULT_WINDOW - from_)
     response = client.search(
         index=INDEX_NAME,
-        body={"from": from_, "size": limit, "query": os_query, "track_total_hits": True},
+        body={"from": from_, "size": size, "query": os_query, "track_total_hits": True},
     )
 
     hits = response.get("hits", {}).get("hits", [])
@@ -113,19 +136,25 @@ def get_projects_for_investigator(
 ) -> dict[str, object]:
     client = get_client()
     from_ = (page - 1) * limit
+    if from_ >= MAX_RESULT_WINDOW:
+        raise HTTPException(
+            status_code=400,
+            detail=f"Requested page exceeds max result window ({MAX_RESULT_WINDOW}).",
+        )
+    size = min(limit, MAX_RESULT_WINDOW - from_)
     response = client.search(
         index=INDEX_NAME,
         body={
             "from": from_,
-            "size": limit,
+            "size": size,
             "track_total_hits": True,
             "sort": [{"FY": {"order": "desc"}}],
             "query": {
                 "bool": {
                     "should": [
                         {"term": {"PI_NAMEs.keyword": pi_name}},
-                        {"wildcard": {"PI_NAMEs.keyword": f"*{pi_name}*"}},
                         {"match_phrase": {"PI_NAMEs": pi_name}},
+                        {"match": {"PI_NAMEs": {"query": pi_name, "operator": "and"}}},
                     ],
                     "minimum_should_match": 1,
                 }
