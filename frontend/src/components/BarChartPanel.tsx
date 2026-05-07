@@ -17,6 +17,8 @@ interface BarChartPanelProps {
   dataKey: string;
   /** The field name for the string label */
   labelKey: string;
+  /** Optional field name used for tooltip label display */
+  tooltipLabelKey?: string;
   layout: "horizontal" | "vertical";
   formatter?: (value: number) => string;
   color?: string;
@@ -33,6 +35,7 @@ export default function BarChartPanel({
   data,
   dataKey,
   labelKey,
+  tooltipLabelKey,
   layout,
   formatter,
   color = "#1a56db",
@@ -42,7 +45,11 @@ export default function BarChartPanel({
     const entry = props.payload[0];
     const rawValue = entry.value;
     const numericValue = typeof rawValue === "number" ? rawValue : Number(rawValue);
-    const label = props.label as string;
+    const rawTooltipLabel = entry.payload?.[tooltipLabelKey ?? labelKey];
+    const label =
+      typeof rawTooltipLabel === "string" && rawTooltipLabel.trim().length > 0
+        ? rawTooltipLabel
+        : (props.label as string);
     const displayValue = formatter
       ? formatter(numericValue)
       : numericValue.toLocaleString();

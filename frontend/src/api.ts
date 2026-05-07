@@ -40,6 +40,10 @@ export interface SearchResponse {
   results: SearchResultRecord[];
 }
 
+export interface ProjectResponse {
+  project: SearchResultRecord;
+}
+
 export interface AnalyticsCategory {
   label: string;
   value: number;
@@ -120,6 +124,15 @@ export async function getHealth(): Promise<HealthStatus> {
     throw new Error(`Health check failed: ${response.status}`);
   }
   return response.json() as Promise<HealthStatus>;
+}
+
+export async function getProjectById(projectId: string): Promise<SearchResultRecord> {
+  const response = await fetch(`${API_BASE_URL}/search/project/${encodeURIComponent(projectId)}`);
+  if (!response.ok) {
+    throw new Error(`Project request failed: ${response.status}`);
+  }
+  const payload = (await response.json()) as ProjectResponse;
+  return payload.project;
 }
 
 // ─── Analytics dashboard interfaces ─────────────────────────────────────────

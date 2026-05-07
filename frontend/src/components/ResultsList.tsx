@@ -1,5 +1,6 @@
 import React, { useState, useCallback, useMemo } from "react";
 import type { SearchResultRecord } from "../api";
+import { formatPiNamesForInlineDisplay } from "../utils/piNames";
 
 // ─── Types ────────────────────────────────────────────────────────────────────
 
@@ -200,7 +201,7 @@ const ResultRow: React.FC<ResultRowProps> = ({ item, onOpenDetails }) => {
   const totalCost = item.TOTAL_COST as number | undefined;
 
   const cellValues: Record<SortColumnKey, string> = {
-    PI_NAMEs:      item.PI_NAMEs      ?? "—",
+    PI_NAMEs:      formatPiNamesForInlineDisplay(item.PI_NAMEs),
     ORG_NAME:      item.ORG_NAME      ?? "—",
     IC_NAME:       item.IC_NAME       ?? "—",
     ACTIVITY:      item.ACTIVITY      ?? "—",

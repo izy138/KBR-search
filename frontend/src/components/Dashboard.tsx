@@ -19,6 +19,7 @@ import type {
 } from "../api";
 import BarChartPanel from "./BarChartPanel";
 import LineChartPanel from "./LineChartPanel";
+import SearchBar from "./SearchBar";
 import StateMap from "./StateMap";
 
 // ─── Formatting helpers ───────────────────────────────────────────────────────
@@ -38,6 +39,30 @@ function formatDollars(n: number): string {
  */
 function formatCount(n: number): string {
   return n.toLocaleString();
+}
+
+function abbreviateInstituteLabel(label: string): string {
+  const trimmed = label.trim();
+  const parenMatch = trimmed.match(/\(([^)]+)\)\s*$/);
+  if (parenMatch && parenMatch[1]) {
+    return parenMatch[1].trim();
+  }
+
+  const words = trimmed
+    .replace(/[^A-Za-z0-9\s]/g, " ")
+    .split(/\s+/)
+    .filter(Boolean);
+  const filtered = words.filter((word) => !["of", "and", "the", "for"].includes(word.toLowerCase()));
+
+  if (filtered.length >= 2) {
+    return filtered.map((word) => word[0]?.toUpperCase() ?? "").join("").slice(0, 8);
+  }
+
+  if (trimmed.length <= 12) {
+    return trimmed;
+  }
+
+  return `${trimmed.slice(0, 10)}…`;
 }
 
 // ─── Types for combined dashboard state ──────────────────────────────────────
@@ -77,6 +102,7 @@ function KpiCard({ label, value }: KpiCardProps) {
 export default function Dashboard() {
   const [data, setData] = useState<DashboardData | null>(null);
   const [error, setError] = useState<string | null>(null);
+  const [dashboardQuery, setDashboardQuery] = useState("");
 
   useEffect(() => {
     let cancelled = false;
@@ -133,14 +159,22 @@ export default function Dashboard() {
     summary.total_documents > 0
       ? summary.total_funding / summary.total_documents
       : 0;
+  const icChartData = icData.map((point) => ({
+    ...point,
+    short_label: abbreviateInstituteLabel(point.label),
+    full_label: point.label,
+  }));
 
   return (
     <div className="dashboard">
+      <section className="dashboard-search-section" aria-label="Dashboard search">
+        <SearchBar onSearch={setDashboardQuery} initialQuery={dashboardQuery} />
+      </section>
+
       {/* KPI cards */}
       <div className="kpi-cards">
         <KpiCard label="Total Funding" value={formatDollars(summary.total_funding)} />
-        <KpiCard label="Projects" value={formatCount(summary.total_documents)} />
-        <KpiCard label="Institutes (ICs)" value={formatCount(summary.unique_ics)} />
+        <KpiCard label="Total Projects" value={formatCount(summary.total_documents)} />
         <KpiCard label="Avg Grant" value={formatDollars(avgGrantValue)} />
       </div>
 
@@ -149,27 +183,26 @@ export default function Dashboard() {
         <StateMap data={stateData} />
         <BarChartPanel
           title="Projects by Institute (IC)"
-          data={icData as unknown as Array<Record<string, unknown>>}
+          data={icChartData as unknown as Array<Record<string, unknown>>}
           dataKey="value"
-          labelKey="label"
-          layout="vertical"
+          labelKey="short_label"
+          tooltipLabelKey="full_label"
+          layout="horizontal"
           formatter={formatCount}
         />
       </div>
 
-      {/* Activity funding — full width */}
-      <BarChartPanel
-        title="Funding by Activity Code"
-        data={activityData as unknown as Array<Record<string, unknown>>}
-        dataKey="total_funding"
-        labelKey="label"
-        layout="horizontal"
-        formatter={formatDollars}
-        color="#0e9f6e"
-      />
-
-      {/* Year trend + top orgs */}
-      <div className="dashboard-grid-2">
+      {/* Additional visuals in compact 3-column grid */}
+      <div className="dashboard-grid-3">
+        <BarChartPanel
+          title="Funding by Activity Code"
+          data={activityData as unknown as Array<Record<string, unknown>>}
+          dataKey="total_funding"
+          labelKey="label"
+          layout="horizontal"
+          formatter={formatDollars}
+          color="#0e9f6e"
+        />
         <LineChartPanel
           title="Projects & Funding by Year"
           data={yearData}
@@ -183,18 +216,16 @@ export default function Dashboard() {
           layout="vertical"
           formatter={formatDollars}
         />
+        <BarChartPanel
+          title="Average Grant by Institute (IC)"
+          data={avgGrant as unknown as Array<Record<string, unknown>>}
+          dataKey="avg_grant"
+          labelKey="label"
+          layout="horizontal"
+          formatter={formatDollars}
+          color="#7c3aed"
+        />
       </div>
-
-      {/* Avg grant by IC — full width */}
-      <BarChartPanel
-        title="Average Grant by Institute (IC)"
-        data={avgGrant as unknown as Array<Record<string, unknown>>}
-        dataKey="avg_grant"
-        labelKey="label"
-        layout="horizontal"
-        formatter={formatDollars}
-        color="#7c3aed"
-      />
     </div>
   );
 }
