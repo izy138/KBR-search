@@ -37,8 +37,8 @@ export default function LineChartPanel({ title, data, formatter }: LineChartPane
     if (!props.active || !props.payload?.length) return null;
 
     return (
-      <div className="map-tooltip">
-        <div className="map-tooltip-state">FY {props.label}</div>
+      <div className="chart-tooltip">
+        <div className="chart-tooltip-title">FY {props.label}</div>
         {props.payload.map((entry) => {
           const rawValue = entry.value;
           const numericValue = typeof rawValue === "number" ? rawValue : Number(rawValue);
@@ -48,7 +48,7 @@ export default function LineChartPanel({ title, data, formatter }: LineChartPane
               : numericValue.toLocaleString();
 
           return (
-            <div key={entry.dataKey as string} className="map-tooltip-row" style={{ color: entry.color }}>
+            <div key={entry.dataKey as string} className="chart-tooltip-row" style={{ color: entry.color }}>
               {entry.name}: {displayValue}
             </div>
           );
@@ -84,7 +84,7 @@ export default function LineChartPanel({ title, data, formatter }: LineChartPane
             axisLine={false}
             tickLine={false}
           />
-          <Tooltip content={renderTooltip} />
+          <Tooltip content={renderTooltip} position={{ x: 16, y: 16 }} />
           <Legend
             wrapperStyle={{ fontSize: 12, color: "var(--text-secondary)" }}
           />
