@@ -1,5 +1,6 @@
 import {
   type ChangeEvent,
+  type FormEvent,
   useCallback,
   useEffect,
   useMemo,
@@ -19,16 +20,23 @@ import {
 type View = "search" | "dashboard";
 
 function getPageNumbers(page: number, totalPageCount: number): Array<number | "..."> {
-  if (totalPageCount <= 7) {
+  if (totalPageCount <= 5) {
     return Array.from({ length: totalPageCount }, (_, i) => i + 1);
   }
-  const pages: Array<number | "..."> = [1];
-  if (page > 3) pages.push("...");
-  const start = Math.max(2, page - 1);
-  const end = Math.min(totalPageCount - 1, page + 1);
-  for (let p = start; p <= end; p++) pages.push(p);
-  if (page < totalPageCount - 2) pages.push("...");
-  pages.push(totalPageCount);
+  const start = Math.max(1, page);
+  const end = Math.min(totalPageCount, start + 2);
+  const pages: Array<number | "..."> = [];
+
+  for (let p = start; p <= end; p++) {
+    pages.push(p);
+  }
+  if (end < totalPageCount - 1) {
+    pages.push("...");
+  }
+  if (end < totalPageCount) {
+    pages.push(totalPageCount);
+  }
+
   return pages;
 }
 
@@ -54,6 +62,7 @@ export default function App() {
   // Pagination
   const [resultsPerPage, setResultsPerPage] = useState(25);
   const [currentPage, setCurrentPage] = useState(1);
+  const [jumpToPageInput, setJumpToPageInput] = useState("1");
   const [total, setTotal] = useState(0);
   const [visibleTotal, setVisibleTotal] = useState(0);
   const [sortOption, setSortOption] = useState<SortOption>("dateDesc");
@@ -139,6 +148,10 @@ export default function App() {
   useEffect(() => {
     void runSearch(query, currentPage, resultsPerPage);
   }, [query, currentPage, resultsPerPage, runSearch]);
+
+  useEffect(() => {
+    setJumpToPageInput(String(currentPage));
+  }, [currentPage]);
 
   useEffect(() => {
     document.documentElement.setAttribute("data-theme", theme);
@@ -245,6 +258,18 @@ export default function App() {
   const handlePerPageChange = (e: ChangeEvent<HTMLSelectElement>) => {
     setResultsPerPage(Number(e.target.value));
     setCurrentPage(1);
+  };
+
+  const handleJumpToPageSubmit = (e: FormEvent<HTMLFormElement>) => {
+    e.preventDefault();
+    const parsed = Number.parseInt(jumpToPageInput, 10);
+    if (!Number.isFinite(parsed)) {
+      setJumpToPageInput(String(currentPage));
+      return;
+    }
+    const boundedPage = Math.min(totalPages, Math.max(1, parsed));
+    setCurrentPage(boundedPage);
+    setJumpToPageInput(String(boundedPage));
   };
 
   const handleOpenDetails = (item: SearchResultRecord): void => {
@@ -411,6 +436,15 @@ export default function App() {
               <div className="pagination">
                 <button
                   className="btn-page"
+                  onClick={() => setCurrentPage(1)}
+                  disabled={currentPage === 1}
+                  aria-label="Go to first page"
+                >
+                  «
+                </button>
+
+                <button
+                  className="btn-page"
                   onClick={() => setCurrentPage((p) => Math.max(1, p - 1))}
                   disabled={currentPage === 1}
                 >
@@ -439,6 +473,21 @@ export default function App() {
                 >
                   →
                 </button>
+
+                <form className="page-jump-form" onSubmit={handleJumpToPageSubmit}>
+                  <input
+                    className="page-jump-input"
+                    type="text"
+                    inputMode="numeric"
+                    pattern="[0-9]*"
+                    value={jumpToPageInput}
+                    onChange={(e) => setJumpToPageInput(e.target.value.replace(/\D/g, ""))}
+                    aria-label={`Jump to page between 1 and ${totalPages}`}
+                  />
+                  <button className="btn-page btn-page-jump" type="submit">
+                    Go
+                  </button>
+                </form>
               </div>
             )}
 
