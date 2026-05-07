@@ -1414,8 +1414,8 @@ body {
 
 /* ─── Map tooltip ───────────────────────────────────────────────────────────── */
 
+.chart-tooltip,
 .map-tooltip {
-  position: fixed;
   background: var(--surface);
   border: 1px solid var(--border);
   border-radius: var(--radius-md);
@@ -1423,16 +1423,26 @@ body {
   font-size: 0.8125rem;
   padding: 0.625rem 0.875rem;
   pointer-events: none;
-  z-index: 1000;
   min-width: 160px;
 }
 
+.chart-tooltip {
+  z-index: 10;
+}
+
+.map-tooltip {
+  position: fixed;
+  z-index: 1000;
+}
+
+.chart-tooltip-title,
 .map-tooltip-state {
   color: var(--text-primary);
   font-weight: 600;
   margin-bottom: 0.25rem;
 }
 
+.chart-tooltip-row,
 .map-tooltip-row {
   color: var(--text-secondary);
 }
