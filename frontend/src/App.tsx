@@ -9,10 +9,12 @@ import {
 import { matchPath, useLocation, useNavigate } from "react-router-dom";
 import Dashboard from "./components/Dashboard";
 import Filters from "./components/Filters";
+import InvestigatorPage from "./components/InvestigatorPage";
 import ProjectDetailsPage from "./components/ProjectDetailsPage";
 import ResultsList from "./components/ResultsList";
 import SearchBar from "./components/SearchBar";
 import {
+  getProjectsByInvestigator,
   getProjectById,
   type SearchResultRecord,
   searchProjects,
@@ -62,6 +64,12 @@ export default function App() {
   const [selectedProject, setSelectedProject] = useState<SearchResultRecord | null>(null);
   const [projectLoading, setProjectLoading] = useState(false);
   const [projectError, setProjectError] = useState<string>("");
+  const [investigatorResults, setInvestigatorResults] = useState<SearchResultRecord[]>([]);
+  const [investigatorLoading, setInvestigatorLoading] = useState(false);
+  const [investigatorError, setInvestigatorError] = useState<string>("");
+  const [investigatorPage, setInvestigatorPage] = useState(1);
+  const [investigatorTotal, setInvestigatorTotal] = useState(0);
+  const [investigatorVisibleTotal, setInvestigatorVisibleTotal] = useState(0);
   const [showScrollTop, setShowScrollTop] = useState(false);
   const navigate = useNavigate();
   const location = useLocation();
@@ -92,6 +100,13 @@ export default function App() {
   const mainRef = useRef<HTMLElement | null>(null);
   const projectRouteMatch = matchPath("/projects/:projectId", location.pathname);
   const selectedProjectId = projectRouteMatch?.params.projectId ?? null;
+  const investigatorRouteMatch = matchPath("/investigators/:investigatorName", location.pathname);
+  const selectedInvestigatorName = investigatorRouteMatch?.params.investigatorName
+    ? decodeURIComponent(investigatorRouteMatch.params.investigatorName)
+    : null;
+  const investigatorPerPage = 25;
+  const investigatorTotalPages = Math.max(1, Math.ceil(investigatorVisibleTotal / investigatorPerPage));
+  const investigatorPageNumbers = getPageNumbers(investigatorPage, investigatorTotalPages);
 
   // Derive filter options from loaded results (simple approach — can be replaced with API aggs)
   const icNames = useMemo(() => {
@@ -144,8 +159,11 @@ export default function App() {
   );
 
   useEffect(() => {
+    if (view === "dashboard" || selectedProjectId || selectedInvestigatorName) {
+      return;
+    }
     void runSearch(query, currentPage, resultsPerPage);
-  }, [query, currentPage, resultsPerPage, runSearch]);
+  }, [query, currentPage, resultsPerPage, runSearch, view, selectedProjectId, selectedInvestigatorName]);
 
   useEffect(() => {
     document.documentElement.setAttribute("data-theme", theme);
@@ -259,6 +277,10 @@ export default function App() {
     if (!projectId) return;
     navigate(`/projects/${encodeURIComponent(projectId)}`);
   };
+  const handleOpenInvestigator = (name: string): void => {
+    setInvestigatorPage(1);
+    navigate(`/investigators/${encodeURIComponent(name)}`);
+  };
 
   const handleThemeToggle = () => {
     setTheme((prev) => (prev === "light" ? "dark" : "light"));
@@ -315,6 +337,44 @@ export default function App() {
       isCancelled = true;
     };
   }, [selectedProjectId, results]);
+
+  useEffect(() => {
+    let isCancelled = false;
+    if (!selectedInvestigatorName) {
+      setInvestigatorResults([]);
+      setInvestigatorError("");
+      setInvestigatorLoading(false);
+      return;
+    }
+
+    setInvestigatorLoading(true);
+    setInvestigatorError("");
+    void getProjectsByInvestigator(selectedInvestigatorName, {
+      limit: investigatorPerPage,
+      page: investigatorPage,
+    })
+      .then((payload) => {
+        if (isCancelled) return;
+        setInvestigatorResults(payload.results ?? []);
+        setInvestigatorTotal(payload.total ?? 0);
+        setInvestigatorVisibleTotal(payload.visible_total ?? payload.total ?? 0);
+      })
+      .catch(() => {
+        if (isCancelled) return;
+        setInvestigatorResults([]);
+        setInvestigatorTotal(0);
+        setInvestigatorVisibleTotal(0);
+        setInvestigatorError("Unable to load investigator projects right now.");
+      })
+      .finally(() => {
+        if (isCancelled) return;
+        setInvestigatorLoading(false);
+      });
+
+    return () => {
+      isCancelled = true;
+    };
+  }, [selectedInvestigatorName, investigatorPage]);
 
   return (
     <div className="app-shell">
@@ -408,6 +468,7 @@ export default function App() {
             <ProjectDetailsPage
               item={selectedProject}
               onBack={() => navigate("/")}
+              onOpenInvestigator={handleOpenInvestigator}
             />
           ) : (
             <div className="empty-state" role="status" aria-live="polite">
@@ -422,6 +483,22 @@ export default function App() {
               </button>
             </div>
           )
+        ) : selectedInvestigatorName ? (
+          <InvestigatorPage
+            investigatorName={selectedInvestigatorName}
+            loading={investigatorLoading}
+            error={investigatorError}
+            results={investigatorResults}
+            visibleTotal={investigatorVisibleTotal}
+            total={investigatorTotal}
+            currentPage={investigatorPage}
+            totalPages={investigatorTotalPages}
+            pageNumbers={investigatorPageNumbers}
+            onOpenDetails={handleOpenDetails}
+            onOpenInvestigator={handleOpenInvestigator}
+            onPageChange={setInvestigatorPage}
+            onBack={() => navigate("/")}
+          />
         ) : (
           <>
             <Filters
@@ -483,7 +560,12 @@ export default function App() {
               </div>
             </div>
 
-            <ResultsList results={sortedResults} loading={loading} onOpenDetails={handleOpenDetails} />
+            <ResultsList
+              results={sortedResults}
+              loading={loading}
+              onOpenDetails={handleOpenDetails}
+              onOpenInvestigator={handleOpenInvestigator}
+            />
 
             {/* Pagination */}
             {totalPages > 1 && (

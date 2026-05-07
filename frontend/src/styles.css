@@ -670,6 +670,19 @@ body {
   text-decoration: underline;
 }
 
+.pi-link-button {
+  padding: 0;
+  border: none;
+  background: none;
+  color: var(--accent);
+  font: inherit;
+  cursor: pointer;
+}
+
+.pi-link-button:hover {
+  text-decoration: underline;
+}
+
 .project-details-title {
   font-size: 1.55rem;
   line-height: 1.35;
