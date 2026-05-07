@@ -162,7 +162,7 @@ export default function StateMap({ data }: StateMapProps) {
                   geography={geo}
                   fill={getFill(geoName)}
                   stroke="var(--surface)"
-                  strokeWidth={0.5}
+                  strokeWidth={1}
                   style={{
                     default: { outline: "none" },
                     hover: { outline: "none", filter: "brightness(0.88)" },

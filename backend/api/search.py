@@ -103,3 +103,50 @@ def get_project(project_id: str = Path(..., description="OpenSearch document ID"
     source = response.get("_source", {})
     source["_id"] = response.get("_id")
     return {"project": source}
+
+
+@router.get("/investigator/{pi_name}")
+def get_projects_for_investigator(
+    pi_name: str = Path(..., description="Principal investigator name"),
+    limit: int = Query(default=25, ge=1, le=100),
+    page: int = Query(default=1, ge=1, description="1-based page index"),
+) -> dict[str, object]:
+    client = get_client()
+    from_ = (page - 1) * limit
+    response = client.search(
+        index=INDEX_NAME,
+        body={
+            "from": from_,
+            "size": limit,
+            "track_total_hits": True,
+            "sort": [{"FY": {"order": "desc"}}],
+            "query": {
+                "bool": {
+                    "should": [
+                        {"term": {"PI_NAMEs.keyword": pi_name}},
+                        {"wildcard": {"PI_NAMEs.keyword": f"*{pi_name}*"}},
+                        {"match_phrase": {"PI_NAMEs": pi_name}},
+                    ],
+                    "minimum_should_match": 1,
+                }
+            },
+        },
+    )
+
+    hits = response.get("hits", {}).get("hits", [])
+    results: list[dict[str, object]] = []
+    for item in hits:
+        source = item.get("_source", {})
+        source["_id"] = item.get("_id")
+        results.append(source)
+
+    total = response.get("hits", {}).get("total", {})
+    total_value = total.get("value", 0) if isinstance(total, dict) else total
+    visible_total = min(total_value, MAX_RESULT_WINDOW)
+    return {
+        "investigator_name": pi_name,
+        "limit": limit,
+        "total": total_value,
+        "visible_total": visible_total,
+        "results": results,
+    }

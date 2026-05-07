@@ -44,6 +44,14 @@ export interface ProjectResponse {
   project: SearchResultRecord;
 }
 
+export interface InvestigatorProjectsResponse {
+  investigator_name: string;
+  limit: number;
+  total: number;
+  visible_total?: number;
+  results: SearchResultRecord[];
+}
+
 export interface AnalyticsCategory {
   label: string;
   value: number;
@@ -133,6 +141,21 @@ export async function getProjectById(projectId: string): Promise<SearchResultRec
   }
   const payload = (await response.json()) as ProjectResponse;
   return payload.project;
+}
+
+export async function getProjectsByInvestigator(
+  investigatorName: string,
+  options: { limit?: number; page?: number } = {},
+): Promise<InvestigatorProjectsResponse> {
+  const { limit = 25, page = 1 } = options;
+  const url = new URL(`${API_BASE_URL}/search/investigator/${encodeURIComponent(investigatorName)}`);
+  url.searchParams.set("limit", String(limit));
+  url.searchParams.set("page", String(page));
+  const response = await fetch(url.toString());
+  if (!response.ok) {
+    throw new Error(`Investigator request failed: ${response.status}`);
+  }
+  return response.json() as Promise<InvestigatorProjectsResponse>;
 }
 
 // ─── Analytics dashboard interfaces ─────────────────────────────────────────

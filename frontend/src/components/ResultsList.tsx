@@ -1,6 +1,6 @@
 import React, { useState, useCallback, useMemo } from "react";
 import type { SearchResultRecord } from "../api";
-import { formatPiNamesForInlineDisplay } from "../utils/piNames";
+import { getOrderedPiNames } from "../utils/piNames";
 
 // ─── Types ────────────────────────────────────────────────────────────────────
 
@@ -8,6 +8,7 @@ type ResultsListProps = {
   results: SearchResultRecord[];
   loading?: boolean;
   onOpenDetails?: (item: SearchResultRecord) => void;
+  onOpenInvestigator?: (name: string) => void;
 };
 
 type SortDirection = "asc" | "desc" | "none";
@@ -193,15 +194,17 @@ const SkeletonRow: React.FC = () => (
 interface ResultRowProps {
   item: SearchResultRecord;
   onOpenDetails?: (item: SearchResultRecord) => void;
+  onOpenInvestigator?: (name: string) => void;
 }
 
-const ResultRow: React.FC<ResultRowProps> = ({ item, onOpenDetails }) => {
+const ResultRow: React.FC<ResultRowProps> = ({ item, onOpenDetails, onOpenInvestigator }) => {
   const title =
     item.PROJECT_TITLE ?? item.title ?? item.project_title ?? "Untitled Project";
   const totalCost = item.TOTAL_COST as number | undefined;
+  const orderedPiNames = getOrderedPiNames(item.PI_NAMEs);
 
   const cellValues: Record<SortColumnKey, string> = {
-    PI_NAMEs:      formatPiNamesForInlineDisplay(item.PI_NAMEs),
+    PI_NAMEs:      item.PI_NAMEs ?? "—",
     ORG_NAME:      item.ORG_NAME      ?? "—",
     IC_NAME:       item.IC_NAME       ?? "—",
     ACTIVITY:      item.ACTIVITY      ?? "—",
@@ -237,13 +240,44 @@ const ResultRow: React.FC<ResultRowProps> = ({ item, onOpenDetails }) => {
       <div className="result-row-cols" role="presentation">
         {COLUMNS.map((col) => (
           <div key={col.key} className="result-row-cell" role="cell">
-            <span
-              className={`result-row-cell-value${
-                col.key === "ACTIVITY" ? " result-row-cell-value--activity" : ""
-              }${col.key === "FY" ? " result-row-cell-value--fy" : ""}`}
-            >
-              {cellValues[col.key]}
-            </span>
+            {col.key === "PI_NAMEs" ? (
+              <span className="result-row-cell-value">
+                {orderedPiNames.length > 0 ? (
+                  onOpenInvestigator ? (
+                    orderedPiNames.map((name, index) => (
+                      <React.Fragment key={name}>
+                        <button
+                          type="button"
+                          className="pi-link-button"
+                          onClick={(event) => {
+                            event.stopPropagation();
+                            onOpenInvestigator(name);
+                          }}
+                          onKeyDown={(event) => {
+                            event.stopPropagation();
+                          }}
+                        >
+                          {name}
+                        </button>
+                        {index < orderedPiNames.length - 1 ? "; " : ""}
+                      </React.Fragment>
+                    ))
+                  ) : (
+                    orderedPiNames.join("; ")
+                  )
+                ) : (
+                  "—"
+                )}
+              </span>
+            ) : (
+              <span
+                className={`result-row-cell-value${
+                  col.key === "ACTIVITY" ? " result-row-cell-value--activity" : ""
+                }${col.key === "FY" ? " result-row-cell-value--fy" : ""}`}
+              >
+                {cellValues[col.key]}
+              </span>
+            )}
           </div>
         ))}
       </div>
@@ -254,7 +288,7 @@ const ResultRow: React.FC<ResultRowProps> = ({ item, onOpenDetails }) => {
 
 // ─── Main Component ───────────────────────────────────────────────────────────
 
-const ResultsList: React.FC<ResultsListProps> = ({ results, loading, onOpenDetails }) => {
+const ResultsList: React.FC<ResultsListProps> = ({ results, loading, onOpenDetails, onOpenInvestigator }) => {
   const [sort, setSort] = useState<SortState>({ column: null, direction: "none" });
 
   const handleSort = useCallback((column: SortColumnKey) => {
@@ -331,6 +365,7 @@ const ResultsList: React.FC<ResultsListProps> = ({ results, loading, onOpenDetai
             key={item._id ?? String(index)}
             item={item}
             onOpenDetails={onOpenDetails}
+            onOpenInvestigator={onOpenInvestigator}
           />
         ))}
       </div>

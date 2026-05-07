@@ -5,6 +5,7 @@ import { getOrderedPiNames } from "../utils/piNames";
 type ProjectDetailsPageProps = {
   item: SearchResultRecord;
   onBack: () => void;
+  onOpenInvestigator?: (name: string) => void;
 };
 
 const ABSTRACT_PREVIEW_LENGTH = 1500;
@@ -51,7 +52,7 @@ function getProjectAbstract(item: SearchResultRecord): string | null {
   return normalized.length > 0 ? normalized : null;
 }
 
-export default function ProjectDetailsPage({ item, onBack }: ProjectDetailsPageProps) {
+export default function ProjectDetailsPage({ item, onBack, onOpenInvestigator }: ProjectDetailsPageProps) {
   const piNames = getOrderedPiNames(item.PI_NAMEs);
   const projectTerms = parseSemicolonTerms(item.PROJECT_TERMS);
   const projectAbstract = getProjectAbstract(item);
@@ -103,7 +104,19 @@ export default function ProjectDetailsPage({ item, onBack }: ProjectDetailsPageP
           {piNames.length > 0 ? (
             <ul className="project-details-list">
               {piNames.map((name) => (
-                <li key={name}>{name}</li>
+                <li key={name}>
+                  {onOpenInvestigator ? (
+                    <button
+                      type="button"
+                      className="pi-link-button"
+                      onClick={() => onOpenInvestigator(name)}
+                    >
+                      {name}
+                    </button>
+                  ) : (
+                    name
+                  )}
+                </li>
               ))}
             </ul>
           ) : (

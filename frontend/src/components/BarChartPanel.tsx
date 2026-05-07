@@ -20,6 +20,14 @@ interface BarChartPanelProps {
   /** Optional field name used for tooltip label display */
   tooltipLabelKey?: string;
   layout: "horizontal" | "vertical";
+  /** Controls numeric axis scaling for charts with number values */
+  valueScale?: "linear" | "log";
+  /** Optional explicit numeric domain for the value axis */
+  valueDomain?: [number | "auto", number | "auto"];
+  /** Optional explicit tick positions for the value axis */
+  valueTicks?: number[];
+  /** Optional formatter dedicated to tooltip values */
+  tooltipFormatter?: (value: number) => string;
   formatter?: (value: number) => string;
   color?: string;
 }
@@ -37,6 +45,10 @@ export default function BarChartPanel({
   labelKey,
   tooltipLabelKey,
   layout,
+  valueScale = "linear",
+  valueDomain,
+  valueTicks,
+  tooltipFormatter,
   formatter,
   color = "#1a56db",
 }: BarChartPanelProps) {
@@ -50,8 +62,10 @@ export default function BarChartPanel({
       typeof rawTooltipLabel === "string" && rawTooltipLabel.trim().length > 0
         ? rawTooltipLabel
         : (props.label as string);
-    const displayValue = formatter
-      ? formatter(numericValue)
+    const displayValue = tooltipFormatter
+      ? tooltipFormatter(numericValue)
+      : formatter
+        ? formatter(numericValue)
       : numericValue.toLocaleString();
 
     return (
@@ -63,6 +77,8 @@ export default function BarChartPanel({
   };
 
   const isVertical = layout === "vertical";
+  const useLogScale = valueScale === "log";
+  const axisDomain: [number | "auto", number | "auto"] = valueDomain ?? (useLogScale ? [1, "auto"] : ["auto", "auto"]);
 
   return (
     <div className="chart-panel">
@@ -75,6 +91,11 @@ export default function BarChartPanel({
               type="number"
               tick={{ fontSize: 11, fill: "var(--text-secondary)" }}
               tickFormatter={formatter ?? ((v: number) => v.toLocaleString())}
+              scale={useLogScale ? "log" : "auto"}
+              domain={axisDomain}
+              ticks={valueTicks}
+              interval={0}
+              allowDataOverflow={useLogScale}
               axisLine={false}
               tickLine={false}
             />
@@ -90,7 +111,7 @@ export default function BarChartPanel({
             <Bar dataKey={dataKey} fill={color} radius={[0, 3, 3, 0]} maxBarSize={24} />
           </BarChart>
         ) : (
-          <BarChart data={data} margin={{ top: 4, right: 16, bottom: 48, left: 8 }}>
+          <BarChart data={data} margin={{ top: 4, right: 16, bottom: 36, left: 8 }}>
             <CartesianGrid strokeDasharray="3 3" vertical={false} stroke="var(--border)" />
             <XAxis
               type="category"
@@ -105,6 +126,11 @@ export default function BarChartPanel({
             <YAxis
               tick={{ fontSize: 11, fill: "var(--text-secondary)" }}
               tickFormatter={formatter ?? ((v: number) => v.toLocaleString())}
+              scale={useLogScale ? "log" : "auto"}
+              domain={axisDomain}
+              ticks={valueTicks}
+              interval={0}
+              allowDataOverflow={useLogScale}
               axisLine={false}
               tickLine={false}
             />
