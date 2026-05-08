@@ -980,7 +980,7 @@ body {
 .results-table-header,
 .result-row-cols {
   display: grid;
-  grid-template-columns:20% 22% 24% 4.5% 3% 6% 8%;
+  grid-template-columns:20% 23% 28% 5% 5% 3% 8%;
   gap: 0 2rem;
   align-items: center;
 }
@@ -997,6 +997,22 @@ body {
 
 .results-table-header-grid {
   display: contents;
+}
+
+/* Keep global 2rem spacing; tighten State→Code to 1rem. */
+.results-table-header-grid > :nth-child(5),
+.result-row-cols > :nth-child(5) {
+  margin-left: -2rem;
+}
+
+/* Pull FY left so Code→FY effectively shrinks by 2rem. */
+.results-table-header-grid > :nth-child(6),
+.result-row-cols > :nth-child(6) {
+  margin-left: -4rem;
+}
+.results-table-header-grid > :nth-child(7),
+.result-row-cols > :nth-child(7) {
+  margin-left: -4rem;
 }
 
 .results-table-th {
