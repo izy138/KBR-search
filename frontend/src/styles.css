@@ -432,6 +432,27 @@ body {
   border-color: var(#334eb0);
 }
 
+.sidebar-text-input {
+  width: 100%;
+  padding: 0.42rem 0.62rem;
+  border: 1px solid var(--border);
+  border-radius: var(--radius-sm);
+  background: var(--bg);
+  font-family: 'DM Sans', sans-serif;
+  font-size: 13px;
+  color: var(--text-primary);
+  outline: none;
+  transition: border-color 0.15s;
+}
+
+.sidebar-text-input:focus {
+  border-color: var(--accent);
+}
+
+.sidebar-text-input:hover {
+  border-color: var(#334eb0);
+}
+
 .sidebar-range-row {
   display: flex;
   gap: 0.5rem;
@@ -681,7 +702,7 @@ body {
   border: none;
   color: var(--accent);
   text-decoration: none;
-  font-size: 14px;
+  font-size: 18px;
   font-family: 'DM Sans', sans-serif;
   cursor: pointer;
 }
