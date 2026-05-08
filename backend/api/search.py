@@ -25,6 +25,7 @@ def search(
     limit: int = Query(default=10, ge=1, le=100),
     page: int = Query(default=1, ge=1, description="1-based page index"),
     category: str = Query(default="", description="Filter by category (category.keyword)"),
+    pi: str = Query(default="", description="Filter by PI_NAMEs"),
     ic: str = Query(default="", description="Filter by IC_NAME"),
     activity: str = Query(default="", description="Filter by ACTIVITY"),
     state: str = Query(default="", description="Filter by ORG_STATE"),
@@ -51,6 +52,8 @@ def search(
         must.append({"match_all": {}})
     if category:
         must.append({"term": {"category.keyword": category}})
+    if pi:
+        filters.append({"match_phrase": {"PI_NAMEs": pi}})
     if ic:
         filters.append({"term": {"IC_NAME.keyword": ic}})
     if activity:

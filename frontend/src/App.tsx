@@ -20,6 +20,7 @@ import {
   type SearchResultRecord,
   searchProjects,
 } from "./api";
+import { getOrderedPiNames } from "./utils/piNames";
 
 type View = "search" | "dashboard";
 
@@ -55,6 +56,7 @@ export default function App() {
   const [loading, setLoading] = useState(false);
 
   // Filters
+  const [selectedPI, setSelectedPI] = useState("");
   const [selectedIC, setSelectedIC] = useState("");
   const [selectedActivity, setSelectedActivity] = useState("");
   const [selectedState, setSelectedState] = useState("");
@@ -127,6 +129,17 @@ export default function App() {
     return Array.from(set).sort();
   }, [results]);
 
+  const piNames = useMemo(() => {
+    const set = new Set<string>();
+    results.forEach((r) => {
+      const ordered = getOrderedPiNames(r.PI_NAMEs);
+      ordered.forEach((name) => {
+        if (name) set.add(name);
+      });
+    });
+    return Array.from(set).sort((a, b) => a.localeCompare(b, undefined, { sensitivity: "base" }));
+  }, [results]);
+
   const activityCodes = useMemo(() => {
     const set = new Set<string>();
     results.forEach((r) => {
@@ -150,6 +163,7 @@ export default function App() {
         const payload = await searchProjects(q, {
           page,
           limit,
+          pi: selectedPI,
           ic: selectedIC,
           activity: selectedActivity,
           state: selectedState,
@@ -165,7 +179,7 @@ export default function App() {
         setLoading(false);
       }
     },
-    [selectedIC, selectedActivity, selectedState, fyMin, fyMax, costMin, costMax],
+    [selectedPI, selectedIC, selectedActivity, selectedState, fyMin, fyMax, costMin, costMax],
   );
 
   useEffect(() => {
@@ -214,6 +228,7 @@ export default function App() {
   };
 
   const handleApplyFilters = (filters: {
+    pi: string;
     ic: string;
     activity: string;
     state: string;
@@ -222,6 +237,7 @@ export default function App() {
     costMin: string;
     costMax: string;
   }) => {
+    setSelectedPI(filters.pi);
     setSelectedIC(filters.ic);
     setSelectedActivity(filters.activity);
     setSelectedState(filters.state);
@@ -233,6 +249,7 @@ export default function App() {
   };
 
   const handleClearFilters = () => {
+    setSelectedPI("");
     setSelectedIC("");
     setSelectedActivity("");
     setSelectedState("");
@@ -385,6 +402,9 @@ export default function App() {
           >
             Search
           </button>
+
+
+
           <button
             type="button"
             className={`nav-tab${view === "dashboard" ? " active" : ""}`}
@@ -393,6 +413,8 @@ export default function App() {
             Dashboard
           </button>
         </nav>
+
+        {/* Header right Theme toggle*/}
         <div className="header-right">
           {theme === "light" && (
             <label className="theme-palette-picker">
@@ -411,17 +433,22 @@ export default function App() {
               </select>
             </label>
           )}
+
+          {/* Theme toggle */}
           <button
             className="theme-toggle"
             type="button"
             onClick={handleThemeToggle}
             aria-label={`Switch to ${theme === "light" ? "dark" : "light"} mode`}
           >
+
             {theme === "light" ? "Dark mode" : "Light mode"}
             <span className="theme-toggle-icon" aria-hidden="true">
               {theme === "light" ? "🌙" : "☀️"}
             </span>
           </button>
+
+          {/* Partner logos */}
           <div className="header-images" aria-label="Partner logos">
             <img src="/Images/KBR_(company)_logo.svg" alt="KBR logo" className="header-image header-image-kbr" />
             <img
@@ -463,6 +490,8 @@ export default function App() {
                 Back to results
               </button>
             </div>
+
+            
           ) : selectedProject ? (
             <ProjectDetailsPage
               item={selectedProject}
@@ -501,9 +530,11 @@ export default function App() {
         ) : (
           <>
             <Filters
+              piNames={piNames}
               icNames={icNames}
               activityCodes={activityCodes}
               states={states}
+              selectedPI={selectedPI}
               selectedIC={selectedIC}
               selectedActivity={selectedActivity}
               selectedState={selectedState}
@@ -534,6 +565,8 @@ export default function App() {
                   </span>
                 )}
               </div>
+
+
               <div className="results-controls">
                 <select
                   className="per-page-select"
@@ -609,6 +642,8 @@ export default function App() {
                 >
                   →
                 </button>
+
+                
 
                 <form className="page-jump-form" onSubmit={handleJumpToPageSubmit}>
                   <input
