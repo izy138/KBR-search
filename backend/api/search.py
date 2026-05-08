@@ -51,7 +51,20 @@ def search(
     if category:
         must.append({"term": {"category.keyword": category}})
     if pi:
-        filters.append({"match_phrase": {"PI_NAMEs": pi}})
+        # Support both "Last, First" and "First Last" user inputs.
+        # `match` with operator "and" keeps all terms required but does not
+        # force token order, while `match_phrase` preserves exact phrase behavior.
+        filters.append(
+            {
+                "bool": {
+                    "should": [
+                        {"match_phrase": {"PI_NAMEs": pi}},
+                        {"match": {"PI_NAMEs": {"query": pi, "operator": "and"}}},
+                    ],
+                    "minimum_should_match": 1,
+                }
+            }
+        )
     if ic:
         filters.append({"term": {"IC_NAME.keyword": ic}})
     if activity:

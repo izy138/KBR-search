@@ -45,7 +45,7 @@ function getPageNumbers(page: number, totalPageCount: number): Array<number | ".
 }
 
 export default function App() {
-  type SortOption = "relevant" | "alphaAsc" | "alphaDesc" | "dateDesc" | "dateAsc";
+  type SortOption = "relevant" | "alphaAsc" | "alphaDesc";
   type Theme = "light" | "dark";
   type LightTheme = "default" | "blueAccent" | "yellowBeige" | "mintSlate" | "blueModified";
 
@@ -68,7 +68,7 @@ export default function App() {
   const [jumpToPageInput, setJumpToPageInput] = useState("1");
   const [total, setTotal] = useState(0);
   const [visibleTotal, setVisibleTotal] = useState(0);
-  const [sortOption, setSortOption] = useState<SortOption>("dateDesc");
+  const [sortOption, setSortOption] = useState<SortOption>("relevant");
   const [selectedProject, setSelectedProject] = useState<SearchResultRecord | null>(null);
   const [projectLoading, setProjectLoading] = useState(false);
   const [projectError, setProjectError] = useState<string>("");
@@ -550,8 +550,6 @@ export default function App() {
                   aria-label="Sort results"
                 >
                   <option value="relevant">Most Relevant</option>
-                  <option value="dateDesc">Date: Most Recent</option>
-                  <option value="dateAsc">Date: Least Recent</option>
                   <option value="alphaAsc">Title: A to Z</option>
                   <option value="alphaDesc">Title: Z to A</option>
                 </select>
