@@ -72,6 +72,7 @@ export type SearchProjectsOptions = {
   limit?: number;
   page?: number;
   category?: string;
+  pi?: string;
   ic?: string;
   activity?: string;
   state?: string;
@@ -89,6 +90,7 @@ export async function searchProjects(
     limit = 25,
     page = 1,
     category = "",
+    pi = "",
     ic = "",
     activity = "",
     state = "",
@@ -104,6 +106,7 @@ export async function searchProjects(
   if (category) {
     url.searchParams.set("category", category);
   }
+  if (pi) url.searchParams.set("pi", pi);
   if (ic) url.searchParams.set("ic", ic);
   if (activity) url.searchParams.set("activity", activity);
   if (state) url.searchParams.set("state", state);
