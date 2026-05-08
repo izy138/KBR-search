@@ -1,32 +1,36 @@
 import React, { useState, useCallback, useMemo } from "react";
 import type { SearchResultRecord } from "../api";
+import { getOrderedPiNames } from "../utils/piNames";
 
 // ─── Types ────────────────────────────────────────────────────────────────────
 
 type ResultsListProps = {
   results: SearchResultRecord[];
+  primarySort: "relevant" | "alphaAsc" | "alphaDesc" | "dateDesc" | "dateAsc";
   loading?: boolean;
   onOpenDetails?: (item: SearchResultRecord) => void;
+  onOpenInvestigator?: (name: string) => void;
 };
 
-type SortDirection = "asc" | "desc" | "none";
-
-type SortColumnKey =
+type ColumnKey =
   | "PI_NAMEs"
   | "ORG_NAME"
   | "IC_NAME"
   | "ACTIVITY"
   | "FY"
-  | "PROJECT_START";
-
-interface SortState {
-  column: SortColumnKey | null;
-  direction: SortDirection;
-}
+  | "PROJECT_START"
+  | "TOTAL_COST";
 
 interface ColumnDef {
-  key: SortColumnKey;
+  key: ColumnKey;
   label: string;
+}
+
+type SortDirection = "asc" | "desc" | "none";
+
+interface SortState {
+  column: ColumnKey | null;
+  direction: SortDirection;
 }
 
 // ─── Constants ────────────────────────────────────────────────────────────────
@@ -35,9 +39,10 @@ const COLUMNS: ColumnDef[] = [
   { key: "PI_NAMEs",      label: "Author"        },
   { key: "ORG_NAME",      label: "University"    },
   { key: "IC_NAME",       label: "Institution"   },
-  { key: "ACTIVITY",      label: "Activity Code" },
-  { key: "FY",            label: "Fiscal Year"   },
+  { key: "ACTIVITY",      label: "Code"          },
+  { key: "FY",            label: "FY"            },
   { key: "PROJECT_START", label: "Date"          },
+  { key: "TOTAL_COST",    label: "Total Cost"    },
 ];
 
 // ─── Helpers ─────────────────────────────────────────────────────────────────
@@ -57,9 +62,14 @@ function formatDate(value: string | undefined): string {
   return d.toLocaleDateString("en-US", { year: "numeric", month: "short", day: "numeric" });
 }
 
-function getSortValue(item: SearchResultRecord, column: SortColumnKey): string | number {
+function getSortValue(item: SearchResultRecord, column: ColumnKey): string | number {
   const raw = item[column];
   if (raw == null) return "";
+  if (column === "TOTAL_COST") {
+    if (typeof raw === "number") return raw;
+    const parsed = Number(raw);
+    return Number.isFinite(parsed) ? parsed : Number.NEGATIVE_INFINITY;
+  }
   if (typeof raw === "number") return raw;
   return String(raw).toLowerCase();
 }
@@ -70,13 +80,38 @@ function cycleSortDirection(current: SortDirection): SortDirection {
   return "none";
 }
 
-// ─── Sort Chevron Icon ────────────────────────────────────────────────────────
+function applyPrimarySort(
+  results: SearchResultRecord[],
+  primarySort: ResultsListProps["primarySort"],
+): SearchResultRecord[] {
+  if (primarySort === "relevant") {
+    // Keep API order for relevance ranking.
+    return results;
+  }
+
+  const collator = new Intl.Collator(undefined, { sensitivity: "base", numeric: true });
+  const getTitle = (record: SearchResultRecord): string =>
+    record.PROJECT_TITLE ?? record.project_title ?? record.title ?? "";
+  const getDateTimestamp = (record: SearchResultRecord): number => {
+    const rawDate = record.PROJECT_START ?? record.PROJECT_END;
+    if (!rawDate) return Number.NEGATIVE_INFINITY;
+    const parsed = Date.parse(rawDate);
+    return Number.isNaN(parsed) ? Number.NEGATIVE_INFINITY : parsed;
+  };
+
+  return [...results].sort((a, b) => {
+    if (primarySort === "alphaAsc") return collator.compare(getTitle(a), getTitle(b));
+    if (primarySort === "alphaDesc") return collator.compare(getTitle(b), getTitle(a));
+    if (primarySort === "dateAsc") return getDateTimestamp(a) - getDateTimestamp(b);
+    return getDateTimestamp(b) - getDateTimestamp(a);
+  });
+}
 
 const ChevronIcon: React.FC<{ direction: SortDirection }> = ({ direction }) => {
   if (direction === "asc") {
     return (
       <svg
-        className="sort-chevron sort-chevron--active"
+        className="sort-chevron sort-chevron--active sort-chevron--asc"
         width="10"
         height="10"
         viewBox="0 0 10 10"
@@ -90,7 +125,7 @@ const ChevronIcon: React.FC<{ direction: SortDirection }> = ({ direction }) => {
   if (direction === "desc") {
     return (
       <svg
-        className="sort-chevron sort-chevron--active"
+        className="sort-chevron sort-chevron--active sort-chevron--desc"
         width="10"
         height="10"
         viewBox="0 0 10 10"
@@ -101,7 +136,6 @@ const ChevronIcon: React.FC<{ direction: SortDirection }> = ({ direction }) => {
       </svg>
     );
   }
-  // none — neutral double-chevron
   return (
     <svg
       className="sort-chevron sort-chevron--neutral"
@@ -117,45 +151,48 @@ const ChevronIcon: React.FC<{ direction: SortDirection }> = ({ direction }) => {
   );
 };
 
-// ─── Sticky Sort Header ───────────────────────────────────────────────────────
-
 interface SortHeaderProps {
   sort: SortState;
-  onSort: (column: SortColumnKey) => void;
+  onSort: (column: ColumnKey) => void;
 }
 
-const SortHeader: React.FC<SortHeaderProps> = ({ sort, onSort }) => (
-  <div className="results-table-header" role="row">
-    {COLUMNS.map((col) => {
-      const isActive = sort.column === col.key && sort.direction !== "none";
-      const ariaSort: React.AriaAttributes["aria-sort"] =
-        sort.column === col.key
-          ? sort.direction === "asc"
-            ? "ascending"
-            : sort.direction === "desc"
-            ? "descending"
-            : "none"
-          : "none";
+// ─── Sticky Header ────────────────────────────────────────────────────────────
 
-      return (
-        <button
-          key={col.key}
-          className={`results-table-th${isActive ? " results-table-th--active" : ""}`}
-          role="columnheader"
-          aria-sort={ariaSort}
-          onClick={() => onSort(col.key)}
-          onKeyDown={(e) => {
-            if (e.key === "Enter" || e.key === " ") {
-              e.preventDefault();
-              onSort(col.key);
-            }
-          }}
-        >
-          <span className="results-table-th-label">{col.label}</span>
-          <ChevronIcon direction={sort.column === col.key ? sort.direction : "none"} />
-        </button>
-      );
-    })}
+const ResultsHeader: React.FC<SortHeaderProps> = ({ sort, onSort }) => (
+  <div className="results-table-header" role="row">
+    <div className="results-table-header-grid">
+      {COLUMNS.map((col) => {
+        const isActive = sort.column === col.key && sort.direction !== "none";
+        const currentDirection: SortDirection = sort.column === col.key ? sort.direction : "none";
+        const ariaSort: React.AriaAttributes["aria-sort"] =
+          sort.column === col.key
+            ? sort.direction === "asc"
+              ? "ascending"
+              : sort.direction === "desc"
+              ? "descending"
+              : "none"
+            : "none";
+
+        return (
+          <button
+            key={col.key}
+            className={`results-table-th${isActive ? " results-table-th--active" : ""}${currentDirection === "asc" ? " results-table-th--active-asc" : ""}${currentDirection === "desc" ? " results-table-th--active-desc" : ""}`}
+            role="columnheader"
+            aria-sort={ariaSort}
+            onClick={() => onSort(col.key)}
+            onKeyDown={(e) => {
+              if (e.key === "Enter" || e.key === " ") {
+                e.preventDefault();
+                onSort(col.key);
+              }
+            }}
+          >
+            <span className="results-table-th-label">{col.label}</span>
+            <ChevronIcon direction={currentDirection} />
+          </button>
+        );
+      })}
+    </div>
   </div>
 );
 
@@ -182,20 +219,23 @@ const SkeletonRow: React.FC = () => (
 interface ResultRowProps {
   item: SearchResultRecord;
   onOpenDetails?: (item: SearchResultRecord) => void;
+  onOpenInvestigator?: (name: string) => void;
 }
 
-const ResultRow: React.FC<ResultRowProps> = ({ item, onOpenDetails }) => {
+const ResultRow: React.FC<ResultRowProps> = ({ item, onOpenDetails, onOpenInvestigator }) => {
   const title =
     item.PROJECT_TITLE ?? item.title ?? item.project_title ?? "Untitled Project";
   const totalCost = item.TOTAL_COST as number | undefined;
+  const orderedPiNames = getOrderedPiNames(item.PI_NAMEs);
 
-  const cellValues: Record<SortColumnKey, string> = {
-    PI_NAMEs:      item.PI_NAMEs      ?? "—",
+  const cellValues: Record<ColumnKey, string> = {
+    PI_NAMEs:      item.PI_NAMEs ?? "—",
     ORG_NAME:      item.ORG_NAME      ?? "—",
     IC_NAME:       item.IC_NAME       ?? "—",
     ACTIVITY:      item.ACTIVITY      ?? "—",
     FY:            item.FY != null    ? String(item.FY) : "—",
     PROJECT_START: formatDate(item.PROJECT_START),
+    TOTAL_COST:    formatCost(totalCost),
   };
 
   const handleActivate = useCallback(() => {
@@ -216,42 +256,75 @@ const ResultRow: React.FC<ResultRowProps> = ({ item, onOpenDetails }) => {
       }}
       aria-label={`Project: ${title}`}
     >
-      {/* Column-aligned metadata strip */}
+      {/* First line: title */}
+      <div className="result-row-bottom" role="presentation">
+        <h3 className="result-title">{title}</h3>
+      </div>
+
+      {/* Second line: column-aligned metadata strip */}
       <div className="result-row-cols" role="presentation">
         {COLUMNS.map((col) => (
           <div key={col.key} className="result-row-cell" role="cell">
-            <span
-              className={`result-row-cell-value${
-                col.key === "ACTIVITY" ? " result-row-cell-value--activity" : ""
-              }${col.key === "FY" ? " result-row-cell-value--fy" : ""}`}
-            >
-              {cellValues[col.key]}
-            </span>
+            {col.key === "PI_NAMEs" ? (
+              <span className="result-row-cell-value">
+                {orderedPiNames.length > 0 ? (
+                  onOpenInvestigator ? (
+                    orderedPiNames.map((name, index) => (
+                      <React.Fragment key={name}>
+                        <button
+                          type="button"
+                          className="pi-link-button"
+                          onClick={(event) => {
+                            event.stopPropagation();
+                            onOpenInvestigator(name);
+                          }}
+                          onKeyDown={(event) => {
+                            event.stopPropagation();
+                          }}
+                        >
+                          {name}
+                        </button>
+                        {index < orderedPiNames.length - 1 ? "; " : ""}
+                      </React.Fragment>
+                    ))
+                  ) : (
+                    orderedPiNames.join("; ")
+                  )
+                ) : (
+                  "—"
+                )}
+              </span>
+            ) : (
+              <span
+                className={`result-row-cell-value${
+                  col.key === "ACTIVITY" ? " result-row-cell-value--activity" : ""
+                }${col.key === "FY" ? " result-row-cell-value--fy" : ""}`}
+              >
+                {cellValues[col.key]}
+              </span>
+            )}
           </div>
         ))}
       </div>
-
-      {/* Second line: title + cost */}
-      <div className="result-row-bottom" role="presentation">
-        <h3 className="result-title">{title}</h3>
-        <div className="result-row-cost">
-          <span className="result-cost">{formatCost(totalCost)}</span>
-          <span className="result-cost-label">total cost</span>
-        </div>
-      </div>
+      
     </div>
   );
 };
 
 // ─── Main Component ───────────────────────────────────────────────────────────
 
-const ResultsList: React.FC<ResultsListProps> = ({ results, loading, onOpenDetails }) => {
+const ResultsList: React.FC<ResultsListProps> = ({
+  results,
+  primarySort,
+  loading,
+  onOpenDetails,
+  onOpenInvestigator,
+}) => {
   const [sort, setSort] = useState<SortState>({ column: null, direction: "none" });
 
-  const handleSort = useCallback((column: SortColumnKey) => {
+  const handleSort = useCallback((column: ColumnKey) => {
     setSort((prev) => {
       if (prev.column !== column) {
-        // New column: always start at asc
         return { column, direction: "asc" };
       }
       const next = cycleSortDirection(prev.direction);
@@ -260,22 +333,23 @@ const ResultsList: React.FC<ResultsListProps> = ({ results, loading, onOpenDetai
   }, []);
 
   const sortedResults = useMemo<SearchResultRecord[]>(() => {
-    if (sort.column === null || sort.direction === "none") return results;
+    const baseResults = applyPrimarySort(results, primarySort);
+    if (sort.column === null || sort.direction === "none") return baseResults;
     const col = sort.column;
     const dir = sort.direction;
-    return [...results].sort((a, b) => {
+    return [...baseResults].sort((a, b) => {
       const av = getSortValue(a, col);
       const bv = getSortValue(b, col);
       if (av < bv) return dir === "asc" ? -1 : 1;
       if (av > bv) return dir === "asc" ? 1 : -1;
       return 0;
     });
-  }, [results, sort]);
+  }, [results, primarySort, sort]);
 
   if (loading) {
     return (
       <div className="results-list" role="table" aria-label="Search results loading" aria-busy="true">
-        <SortHeader sort={sort} onSort={handleSort} />
+        <ResultsHeader sort={sort} onSort={handleSort} />
         <div role="rowgroup">
           {Array.from({ length: 5 }).map((_, i) => (
             <SkeletonRow key={i} />
@@ -315,13 +389,14 @@ const ResultsList: React.FC<ResultsListProps> = ({ results, loading, onOpenDetai
       aria-label="Search results"
       aria-rowcount={results.length}
     >
-      <SortHeader sort={sort} onSort={handleSort} />
+      <ResultsHeader sort={sort} onSort={handleSort} />
       <div role="rowgroup">
         {sortedResults.map((item, index) => (
           <ResultRow
             key={item._id ?? String(index)}
             item={item}
             onOpenDetails={onOpenDetails}
+            onOpenInvestigator={onOpenInvestigator}
           />
         ))}
       </div>
