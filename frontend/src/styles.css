@@ -702,7 +702,7 @@ body {
   border: none;
   color: var(--accent);
   text-decoration: none;
-  font-size: 18px;
+  font-size: 15.5px;
   font-family: 'DM Sans', sans-serif;
   cursor: pointer;
 }
@@ -1485,4 +1485,5 @@ body {
 .chart-tooltip-row,
 .map-tooltip-row {
   color: var(--text-secondary);
+}
 }
