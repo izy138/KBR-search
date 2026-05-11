@@ -15,6 +15,7 @@ dist/
 # Python
 2025_ProjectData2.csv
 merged_project_data.csv
+*.csv
 __pycache__/
 **/__pycache__/
 *.py[cod]
