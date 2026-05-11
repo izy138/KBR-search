@@ -69,9 +69,9 @@ export default function BarChartPanel({
       : numericValue.toLocaleString();
 
     return (
-      <div className="map-tooltip">
-        <div className="map-tooltip-state">{label}</div>
-        <div className="map-tooltip-row">{displayValue}</div>
+      <div className="chart-tooltip">
+        <div className="chart-tooltip-title">{label}</div>
+        <div className="chart-tooltip-row">{displayValue}</div>
       </div>
     );
   };
@@ -83,7 +83,7 @@ export default function BarChartPanel({
   return (
     <div className="chart-panel">
       <div className="chart-panel-title">{title}</div>
-      <ResponsiveContainer width="100%" height={300}>
+      <ResponsiveContainer width="100%" height={275}>
         {isVertical ? (
           <BarChart data={data} layout="vertical" margin={{ top: 4, right: 16, bottom: 4, left: 8 }}>
             <CartesianGrid strokeDasharray="3 3" horizontal={false} stroke="var(--border)" />
@@ -107,11 +107,15 @@ export default function BarChartPanel({
               axisLine={false}
               tickLine={false}
             />
-            <Tooltip content={renderTooltip} cursor={{ fill: "var(--accent-light)" }} />
+            <Tooltip
+              content={renderTooltip}
+              cursor={{ fill: "var(--accent-light)" }}
+              position={{ x: 16, y: 16 }}
+            />
             <Bar dataKey={dataKey} fill={color} radius={[0, 3, 3, 0]} maxBarSize={24} />
           </BarChart>
         ) : (
-          <BarChart data={data} margin={{ top: 4, right: 16, bottom: 36, left: 8 }}>
+          <BarChart data={data} margin={{ top: 4, right: 16, bottom: 24, left: 8 }}>
             <CartesianGrid strokeDasharray="3 3" vertical={false} stroke="var(--border)" />
             <XAxis
               type="category"
@@ -134,7 +138,11 @@ export default function BarChartPanel({
               axisLine={false}
               tickLine={false}
             />
-            <Tooltip content={renderTooltip} cursor={{ fill: "var(--accent-light)" }} />
+            <Tooltip
+              content={renderTooltip}
+              cursor={{ fill: "var(--accent-light)" }}
+              position={{ x: 16, y: 16 }}
+            />
             <Bar dataKey={dataKey} fill={color} radius={[3, 3, 0, 0]} maxBarSize={40} />
           </BarChart>
         )}
