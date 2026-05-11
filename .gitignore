@@ -19,6 +19,7 @@ dist/
 .vite/
 
 # Python
+*.csv
 __pycache__/
 **/__pycache__/
 *.py[cod]
