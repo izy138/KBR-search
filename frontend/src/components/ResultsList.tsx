@@ -6,7 +6,7 @@ import { getOrderedPiNames } from "../utils/piNames";
 
 type ResultsListProps = {
   results: SearchResultRecord[];
-  primarySort: "relevant" | "alphaAsc" | "alphaDesc" | "dateDesc" | "dateAsc";
+  primarySort: "relevant" | "alphaAsc" | "alphaDesc";
   loading?: boolean;
   onOpenDetails?: (item: SearchResultRecord) => void;
   onOpenInvestigator?: (name: string) => void;
@@ -16,9 +16,9 @@ type ColumnKey =
   | "PI_NAMEs"
   | "ORG_NAME"
   | "IC_NAME"
+  | "ORG_STATE"
   | "ACTIVITY"
   | "FY"
-  | "PROJECT_START"
   | "TOTAL_COST";
 
 interface ColumnDef {
@@ -36,12 +36,12 @@ interface SortState {
 // ─── Constants ────────────────────────────────────────────────────────────────
 
 const COLUMNS: ColumnDef[] = [
-  { key: "PI_NAMEs",      label: "Author"        },
+  { key: "PI_NAMEs",      label: "Principal Investigator"        },
   { key: "ORG_NAME",      label: "University"    },
   { key: "IC_NAME",       label: "Institution"   },
+  { key: "ORG_STATE",     label: "State"         },
   { key: "ACTIVITY",      label: "Code"          },
   { key: "FY",            label: "FY"            },
-  { key: "PROJECT_START", label: "Date"          },
   { key: "TOTAL_COST",    label: "Total Cost"    },
 ];
 
@@ -52,14 +52,6 @@ function formatCost(value: number | undefined): string {
   if (value >= 1_000_000) return `$${(value / 1_000_000).toFixed(2)}M`;
   if (value >= 1_000) return `$${(value / 1_000).toFixed(0)}K`;
   return `$${value}`;
-}
-
-function formatDate(value: string | undefined): string {
-  if (!value) return "—";
-  // Accept ISO dates like "2024-09-01" or "09/01/2024"
-  const d = new Date(value);
-  if (isNaN(d.getTime())) return value;
-  return d.toLocaleDateString("en-US", { year: "numeric", month: "short", day: "numeric" });
 }
 
 function getSortValue(item: SearchResultRecord, column: ColumnKey): string | number {
@@ -92,18 +84,9 @@ function applyPrimarySort(
   const collator = new Intl.Collator(undefined, { sensitivity: "base", numeric: true });
   const getTitle = (record: SearchResultRecord): string =>
     record.PROJECT_TITLE ?? record.project_title ?? record.title ?? "";
-  const getDateTimestamp = (record: SearchResultRecord): number => {
-    const rawDate = record.PROJECT_START ?? record.PROJECT_END;
-    if (!rawDate) return Number.NEGATIVE_INFINITY;
-    const parsed = Date.parse(rawDate);
-    return Number.isNaN(parsed) ? Number.NEGATIVE_INFINITY : parsed;
-  };
-
   return [...results].sort((a, b) => {
     if (primarySort === "alphaAsc") return collator.compare(getTitle(a), getTitle(b));
-    if (primarySort === "alphaDesc") return collator.compare(getTitle(b), getTitle(a));
-    if (primarySort === "dateAsc") return getDateTimestamp(a) - getDateTimestamp(b);
-    return getDateTimestamp(b) - getDateTimestamp(a);
+    return collator.compare(getTitle(b), getTitle(a));
   });
 }
 
@@ -232,9 +215,9 @@ const ResultRow: React.FC<ResultRowProps> = ({ item, onOpenDetails, onOpenInvest
     PI_NAMEs:      item.PI_NAMEs ?? "—",
     ORG_NAME:      item.ORG_NAME      ?? "—",
     IC_NAME:       item.IC_NAME       ?? "—",
+    ORG_STATE:     item.ORG_STATE     ?? "—",
     ACTIVITY:      item.ACTIVITY      ?? "—",
     FY:            item.FY != null    ? String(item.FY) : "—",
-    PROJECT_START: formatDate(item.PROJECT_START),
     TOTAL_COST:    formatCost(totalCost),
   };
 

@@ -61,6 +61,7 @@ export default function InvestigatorPage({
       ) : (
         <ResultsList
           results={results}
+          primarySort="relevant"
           loading={loading}
           onOpenDetails={onOpenDetails}
           onOpenInvestigator={onOpenInvestigator}

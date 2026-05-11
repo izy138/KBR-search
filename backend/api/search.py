@@ -31,8 +31,6 @@ def search(
     state: str = Query(default="", description="Filter by ORG_STATE"),
     fy_min: int | None = Query(default=None, description="Minimum fiscal year"),
     fy_max: int | None = Query(default=None, description="Maximum fiscal year"),
-    cost_min: float | None = Query(default=None, description="Minimum TOTAL_COST"),
-    cost_max: float | None = Query(default=None, description="Maximum TOTAL_COST"),
 ) -> dict[str, object]:
     client = get_client()
     must: list[dict[str, object]] = []
@@ -53,7 +51,20 @@ def search(
     if category:
         must.append({"term": {"category.keyword": category}})
     if pi:
-        filters.append({"match_phrase": {"PI_NAMEs": pi}})
+        # Support both "Last, First" and "First Last" user inputs.
+        # `match` with operator "and" keeps all terms required but does not
+        # force token order, while `match_phrase` preserves exact phrase behavior.
+        filters.append(
+            {
+                "bool": {
+                    "should": [
+                        {"match_phrase": {"PI_NAMEs": pi}},
+                        {"match": {"PI_NAMEs": {"query": pi, "operator": "and"}}},
+                    ],
+                    "minimum_should_match": 1,
+                }
+            }
+        )
     if ic:
         filters.append({"term": {"IC_NAME.keyword": ic}})
     if activity:
@@ -67,14 +78,6 @@ def search(
         if fy_max is not None:
             range_clause["lte"] = fy_max
         filters.append({"range": {"FY": range_clause}})
-    if cost_min is not None or cost_max is not None:
-        range_clause_cost: dict[str, float] = {}
-        if cost_min is not None:
-            range_clause_cost["gte"] = cost_min
-        if cost_max is not None:
-            range_clause_cost["lte"] = cost_max
-        filters.append({"range": {"TOTAL_COST": range_clause_cost}})
-
     if len(must) == 1 and not filters:
         os_query: dict[str, object] = must[0]
     else:

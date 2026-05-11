@@ -170,7 +170,7 @@ body {
   border: 1px solid var(--border);
   border-radius: var(--radius-lg);
   padding: 0.75rem 0.9rem;
-  margin-bottom: 1rem;
+  margin-bottom: 0rem;
   margin-top: -0.25rem;
   display: grid;
   grid-template-columns: repeat(auto-fit, minmax(190px, 1fr));
@@ -187,7 +187,7 @@ body {
 .search-row {
   display: flex;
   justify-content: center;
-  padding: 0.35rem 1.25rem 0;
+  padding: 0.75rem 1.25rem 0;
 }
 
 .search-row-inner {
@@ -429,6 +429,27 @@ body {
 }
 
 .sidebar-select:hover {
+  border-color: var(#334eb0);
+}
+
+.sidebar-text-input {
+  width: 100%;
+  padding: 0.42rem 0.62rem;
+  border: 1px solid var(--border);
+  border-radius: var(--radius-sm);
+  background: var(--bg);
+  font-family: 'DM Sans', sans-serif;
+  font-size: 13px;
+  color: var(--text-primary);
+  outline: none;
+  transition: border-color 0.15s;
+}
+
+.sidebar-text-input:focus {
+  border-color: var(--accent);
+}
+
+.sidebar-text-input:hover {
   border-color: var(#334eb0);
 }
 
@@ -681,7 +702,7 @@ body {
   border: none;
   color: var(--accent);
   text-decoration: none;
-  font-size: 14px;
+  font-size: 15.5px;
   font-family: 'DM Sans', sans-serif;
   cursor: pointer;
 }
@@ -959,7 +980,7 @@ body {
 .results-table-header,
 .result-row-cols {
   display: grid;
-  grid-template-columns:20% 22% 24% 4.5% 3% 6% 8%;
+  grid-template-columns:20% 23% 28% 5% 5% 3% 8%;
   gap: 0 2rem;
   align-items: center;
 }
@@ -976,6 +997,22 @@ body {
 
 .results-table-header-grid {
   display: contents;
+}
+
+/* Keep global 2rem spacing; tighten State→Code to 1rem. */
+.results-table-header-grid > :nth-child(5),
+.result-row-cols > :nth-child(5) {
+  margin-left: -2rem;
+}
+
+/* Pull FY left so Code→FY effectively shrinks by 2rem. */
+.results-table-header-grid > :nth-child(6),
+.result-row-cols > :nth-child(6) {
+  margin-left: -4rem;
+}
+.results-table-header-grid > :nth-child(7),
+.result-row-cols > :nth-child(7) {
+  margin-left: -4rem;
 }
 
 .results-table-th {
@@ -1294,10 +1331,10 @@ body {
   width: 100%;
   max-width: none;
   margin: 0;
-  padding: 0.9rem 1rem 1rem;
+  padding: 1.1rem 1.5rem;
   display: flex;
   flex-direction: column;
-  gap: 0.85rem;
+  gap: 0;
 }
 
 .dashboard-search-section {
@@ -1308,12 +1345,14 @@ body {
 .dashboard-search-section .header-search {
   width: 100%;
   max-width: none;
+
 }
 
 .dashboard-grid-2 {
   display: grid;
   grid-template-columns: minmax(0, 1fr) minmax(0, 2fr);
   gap: 0.85rem;
+  
 }
 
 /* Activity code full width; year + top orgs paired below; avg grant full width */
@@ -1347,6 +1386,7 @@ body {
   display: grid;
   grid-template-columns: repeat(3, minmax(0, 1fr));
   gap: 0.75rem;
+  margin-top: 0.75rem;
 }
 
 @media (max-width: 900px) {
@@ -1446,4 +1486,5 @@ body {
 .chart-tooltip-row,
 .map-tooltip-row {
   color: var(--text-secondary);
+}
 }
