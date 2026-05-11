@@ -1429,6 +1429,7 @@ body {
   background: var(--surface);
   border: 1px solid var(--border);
   border-radius: var(--radius-lg);
+  width: 100%;
   padding: 0.9rem 1rem;
   min-height: 310px;
 }
