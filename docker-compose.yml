@@ -6,7 +6,7 @@ services:
       - discovery.type=single-node
       - DISABLE_SECURITY_PLUGIN=true
       - DISABLE_INSTALL_DEMO_CONFIG=true
-      - OPENSEARCH_JAVA_OPTS=-Xms512m -Xmx512m
+      - OPENSEARCH_JAVA_OPTS=-Xms2g -Xmx2g
     ulimits:
       memlock:
         soft: -1
@@ -30,12 +30,20 @@ services:
       - OPENSEARCH_HOST=opensearch
       - OPENSEARCH_PORT=9200
       - OPENSEARCH_INDEX=project_data
+      - EMBEDDING_MODEL=sentence-transformers/all-MiniLM-L6-v2
+      - HF_HOME=/root/.cache/huggingface
     ports:
       - "8000:8000"
     volumes:
       - ./backend:/app
+      - huggingface-cache:/root/.cache/huggingface
 
-      - ./backend/2025_ProjectData.csv:/app/2025_ProjectData.csv:ro
+      - ./backend/2020_data.csv:/app/2020_data.csv:ro
+      - ./backend/2021_data.csv:/app/2021_data.csv:ro
+      - ./backend/2022_data.csv:/app/2022_data.csv:ro
+      - ./backend/2023_data.csv:/app/2023_data.csv:ro
+      - ./backend/2024_data.csv:/app/2024_data.csv:ro
+      - ./backend/2025_data.csv:/app/2025_data.csv:ro
     depends_on:
       opensearch:
         condition: service_healthy
@@ -55,3 +63,4 @@ services:
 
 volumes:
   opensearch-data:
+  huggingface-cache:
