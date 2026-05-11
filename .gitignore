@@ -4,7 +4,7 @@
 .env.*.local
 
 # Data (large; obtain separately or use symlink)
-2025_ProjectData.csv
+2025_data.csv
 merged_project_data.csv
 
 # Node / frontend
