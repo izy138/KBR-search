@@ -4,6 +4,12 @@
 .env.*.local
 
 # Data (large; obtain separately or use symlink)
+backend/2020_data.csv
+backend/2021_data.csv
+backend/2022_data.csv
+backend/2023_data.csv
+backend/2024_data.csv
+backend/2025_data.csv
 2025_ProjectData.csv
 merged_project_data.csv
 
@@ -13,8 +19,6 @@ dist/
 .vite/
 
 # Python
-2025_ProjectData2.csv
-merged_project_data.csv
 __pycache__/
 **/__pycache__/
 *.py[cod]

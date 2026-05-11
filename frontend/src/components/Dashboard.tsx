@@ -124,6 +124,8 @@ export default function Dashboard() {
   const [selectedState, setSelectedState] = useState("");
   const [fyMin, setFyMin] = useState("");
   const [fyMax, setFyMax] = useState("");
+  /** Log scale for Projects by Institute (IC) bar chart — matches prior default. */
+  const [icProjectsLogScale, setIcProjectsLogScale] = useState(true);
 
   useEffect(() => {
     let cancelled = false;
@@ -249,19 +251,54 @@ export default function Dashboard() {
       {/* State map + IC bar chart */}
       <div className="dashboard-grid-2">
         <StateMap data={stateData} />
-        <BarChartPanel
-          title="Projects by Institute (IC)"
-          data={icChartData as unknown as Array<Record<string, unknown>>}
-          dataKey="value"
-          labelKey="short_label"
-          tooltipLabelKey="full_label"
-          layout="horizontal"
-          valueScale="log"
-          valueDomain={[5, 12000]}
-          valueTicks={[5, 10, 100, 500, 1000, 3000, 6000, 12000]}
-          formatter={formatHybridCountTick}
-          tooltipFormatter={formatCount}
-        />
+        <div className="dashboard-ic-chart-stack">
+          <div className="dashboard-ic-chart-scale">
+            <span className="dashboard-ic-chart-scale-label" id="ic-projects-scale-label">
+              Count axis
+            </span>
+            <div
+              className="dashboard-ic-chart-scale-toggle"
+              role="group"
+              aria-labelledby="ic-projects-scale-label"
+            >
+              <button
+                type="button"
+                className={icProjectsLogScale ? "" : "active"}
+                onClick={() => setIcProjectsLogScale(false)}
+              >
+                Linear
+              </button>
+              <button
+                type="button"
+                className={icProjectsLogScale ? "active" : ""}
+                onClick={() => setIcProjectsLogScale(true)}
+              >
+                Log
+              </button>
+            </div>
+          </div>
+          <BarChartPanel
+            title="Projects by Institute (IC)"
+            data={icChartData as unknown as Array<Record<string, unknown>>}
+            dataKey="value"
+            labelKey="short_label"
+            tooltipLabelKey="full_label"
+            layout="horizontal"
+            {...(icProjectsLogScale
+              ? {
+                  valueScale: "log" as const,
+                  valueDomain: [5, 12000] as [number, number],
+                  valueTicks: [5, 10, 100, 500, 1000, 3000, 6000, 12000],
+                  formatter: formatHybridCountTick,
+                  tooltipFormatter: formatCount,
+                }
+              : {
+                  valueScale: "linear" as const,
+                  formatter: formatCount,
+                  tooltipFormatter: formatCount,
+                })}
+          />
+        </div>
       </div>
 
       {/* Activity full width; year + orgs in a row; avg grant full width */}

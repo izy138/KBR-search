@@ -8,7 +8,7 @@ This repo runs three services together:
 
 ## Project Structure
 
-# Commands to connect merged_project_data.csv
+# Data: place `2020_data.csv` … `2025_data.csv` under `backend/` (see docker-compose mounts).
 for first time use, to start up docker use
 
 docker compose up --build -d
@@ -45,7 +45,7 @@ frontend/
       Charts.tsx
   Dockerfile
 docker-compose.yml
-2025_ProjectData.csv
+backend/2020_data.csv … backend/2025_data.csv
 ```
 
 ## Prerequisites
@@ -69,10 +69,10 @@ Services:
 
 ## Load Data Into OpenSearch
 
-After the stack is up, run indexing once:
+After the stack is up, run indexing once (defaults to `2025_data.csv`; pass another path as needed):
 
 ```bash
-docker compose exec backend python indexer/index_data.py
+docker compose exec backend python indexer/index_data.py /app/2025_data.csv --with-embeddings
 ```
 
 Verify:
