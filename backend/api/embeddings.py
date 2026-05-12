@@ -14,6 +14,11 @@ text is encoded, so the resulting vectors aren't dominated by words like
 ABSTRACT_TEXT is appended after title and terms when present. Very long
 abstracts are truncated by default (EMBEDDING_ABSTRACT_MAX_CHARS); set to 0 for
 no truncation.
+
+Device selection (``EMBEDDING_DEVICE``): ``auto`` uses CUDA when available, else
+Apple MPS, else CPU. Set to ``cuda``, ``cuda:1``, ``mps``, or ``cpu`` to force a
+backend. GPU indexing requires a CUDA-enabled PyTorch wheel (see PyTorch install
+docs); the slim Docker image is CPU-only unless you swap the base image.
 """
 
 from __future__ import annotations
@@ -25,7 +30,7 @@ from pathlib import Path
 from typing import Any
 
 EMBEDDING_FIELD = "embedding"
-DEFAULT_MODEL_NAME = "sentence-transformers/all-MiniLM-L6-v2"
+DEFAULT_MODEL_NAME = "sentence-transformers/all-mpnet-base-v2"
 
 DEFAULT_TERM_STATS_PATH = "term_stats.json"
 DEFAULT_TERM_MAX_DF_RATIO = 0.20
@@ -38,6 +43,7 @@ _TEXT_FIELDS = ("PROJECT_TITLE", TERM_FIELD, ABSTRACT_FIELD)
 _model_lock = threading.Lock()
 _cached_model: Any = None
 _cached_dimension: int | None = None
+_cached_device: str | None = None
 
 _generic_lock = threading.Lock()
 _cached_generic_terms: frozenset[str] | None = None
@@ -45,6 +51,28 @@ _cached_generic_terms: frozenset[str] | None = None
 
 def get_model_name() -> str:
   return os.getenv("EMBEDDING_MODEL", DEFAULT_MODEL_NAME)
+
+
+def resolve_embedding_device() -> str:
+  """Torch device string for the embedding model: cpu, cuda, cuda:N, or mps."""
+  raw = os.getenv("EMBEDDING_DEVICE", "auto").strip().lower()
+  if raw not in ("auto", ""):
+    return raw
+  try:
+    import torch
+
+    if torch.cuda.is_available():
+      return "cuda"
+    if hasattr(torch.backends, "mps") and torch.backends.mps.is_available():
+      return "mps"
+  except Exception:
+    pass
+  return "cpu"
+
+
+def get_embedding_device() -> str | None:
+  """Device used by the loaded model, or None before first ``get_model()`` call."""
+  return _cached_device
 
 
 def _configure_torch_threads() -> None:
@@ -68,24 +96,43 @@ def _configure_torch_threads() -> None:
 
 def get_model() -> Any:
   """Load and memoize the SentenceTransformer model on first call."""
-  global _cached_model, _cached_dimension
+  global _cached_model, _cached_dimension, _cached_device
   if _cached_model is not None:
     return _cached_model
   with _model_lock:
     if _cached_model is not None:
       return _cached_model
-    _configure_torch_threads()
+    import torch
+
+    device_str = resolve_embedding_device()
+    if device_str == "cpu":
+      _configure_torch_threads()
     from sentence_transformers import SentenceTransformer
 
     model_name = get_model_name()
     print(f"Loading embedding model '{model_name}'...", flush=True)
     model = SentenceTransformer(model_name)
     try:
+      model = model.to(torch.device(device_str))
+    except Exception as exc:
+      if device_str != "cpu":
+        print(
+          f"Warning: could not move model to '{device_str}' ({exc}); using CPU.",
+          flush=True,
+        )
+        device_str = "cpu"
+        _configure_torch_threads()
+        model = model.to(torch.device("cpu"))
+    try:
       _cached_dimension = int(model.get_embedding_dimension())
     except AttributeError:  # pragma: no cover - older sentence-transformers
       _cached_dimension = int(model.get_sentence_embedding_dimension())
     _cached_model = model
-    print(f"Embedding model ready (dimension={_cached_dimension}).", flush=True)
+    _cached_device = str(next(model.parameters()).device)
+    print(
+      f"Embedding model ready (device={_cached_device}, dimension={_cached_dimension}).",
+      flush=True,
+    )
     return _cached_model
 
 
@@ -208,20 +255,36 @@ def build_text_for_record(record: dict[str, Any]) -> str:
   return "\n".join(parts)
 
 
-def embed_texts(texts: list[str], *, batch_size: int = 32) -> list[list[float]]:
+def _encode_batch_size(explicit: int | None) -> int:
+  if explicit is not None:
+    return max(1, explicit)
+  raw = os.getenv("EMBEDDING_ENCODE_BATCH_SIZE")
+  if raw is not None:
+    try:
+      return max(1, int(raw))
+    except ValueError:
+      pass
+  return 32
+
+
+def embed_texts(texts: list[str], *, batch_size: int | None = None) -> list[list[float]]:
   """Encode a list of strings to embedding vectors.
 
   Returns plain Python lists so the result can be JSON-serialized straight
   into OpenSearch bulk actions. ``EMBEDDING_SHOW_PROGRESS=1`` enables the
   per-batch progress bar for diagnostics during long ingests.
+
+  Batch size defaults to ``EMBEDDING_ENCODE_BATCH_SIZE`` or 32; pass
+  ``batch_size`` to override for a single call.
   """
   if not texts:
     return []
   model = get_model()
+  bs = _encode_batch_size(batch_size)
   show_progress = os.getenv("EMBEDDING_SHOW_PROGRESS") == "1"
   vectors = model.encode(
     texts,
-    batch_size=batch_size,
+    batch_size=bs,
     show_progress_bar=show_progress,
     convert_to_numpy=True,
     normalize_embeddings=True,

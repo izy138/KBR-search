@@ -41,8 +41,8 @@ from load_data import iter_csv_chunks  # noqa: E402
 
 
 BULK_CHUNK_SIZE = 1_000
-BULK_THREAD_COUNT = 4
-BULK_QUEUE_SIZE = 4
+BULK_THREAD_COUNT = 8
+BULK_QUEUE_SIZE = 8
 ID_FIELD = "APPLICATION_ID"
 
 

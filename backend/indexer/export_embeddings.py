@@ -12,12 +12,13 @@ Usage (on the GPU machine, from the repo root):
     #   pip install sentence-transformers pandas tqdm torch
     #
     # Run (EMBEDDING_MODEL must match what the main indexer uses):
-    EMBEDDING_MODEL=sentence-transformers/all-MiniLM-L6-v2 \\
+    EMBEDDING_MODEL=sentence-transformers/all-mpnet-base-v2 \\
     python indexer/export_embeddings.py 2025_data.csv --out 2025_data_embedded.ndjson
 
 Env vars honoured:
     EMBEDDING_MODEL          sentence-transformers model name (required to
-                             match the main indexer — default: MiniLM-L6-v2)
+                             match the main indexer — default: all-mpnet-base-v2)
+    EMBEDDING_DEVICE         auto | cuda | cuda:N | mps | cpu (default: auto)
     EMBEDDING_SHOW_PROGRESS  set to "1" to show per-batch tqdm bar
     EMBEDDING_TERM_STATS_PATH  path to term_stats.json (default: term_stats.json)
     EMBEDDING_TERM_MAX_DF_RATIO  df_ratio cut-off for generic terms (default: 0.20)
@@ -36,7 +37,11 @@ from pathlib import Path
 # Allow running as  python indexer/export_embeddings.py  from repo root.
 sys.path.insert(0, str(Path(__file__).resolve().parent.parent))
 
-from api.embeddings import build_text_for_record, get_model  # noqa: E402
+from api.embeddings import (  # noqa: E402
+  build_text_for_record,
+  get_embedding_device,
+  get_model,
+)
 from load_data import iter_csv_chunks  # noqa: E402
 
 CHUNK_SIZE = 2_000
@@ -65,6 +70,7 @@ def _encode_chunk(
 def export(data_file: Path, out_file: Path, batch_size: int) -> None:
   show_progress = os.getenv("EMBEDDING_SHOW_PROGRESS") == "1"
   model = get_model()
+  print(f"Encode device: {get_embedding_device()}", flush=True)
 
   total = 0
   t_start = time.perf_counter()
@@ -121,7 +127,7 @@ def main() -> None:
     data_file.stem + "_embedded.ndjson"
   )
 
-  print(f"Model : {os.getenv('EMBEDDING_MODEL', 'sentence-transformers/all-MiniLM-L6-v2')}")
+  print(f"Model : {os.getenv('EMBEDDING_MODEL', 'sentence-transformers/all-mpnet-base-v2')}")
   print(f"Input : {data_file}")
   print(f"Output: {out_file}")
   print(f"Batch : {args.batch_size}")
