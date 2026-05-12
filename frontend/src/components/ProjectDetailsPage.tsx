@@ -1,5 +1,7 @@
 import { useEffect, useState } from "react";
+import { useNavigate } from "react-router-dom";
 import type { SearchResultRecord } from "../api";
+import { searchSimilarToProjectId } from "../api";
 import { getOrderedPiNames } from "../utils/piNames";
 import ProjectActivityTermsChart from "./ProjectActivityTermsChart";
 
@@ -7,9 +9,11 @@ type ProjectDetailsPageProps = {
   item: SearchResultRecord;
   onBack: () => void;
   onOpenInvestigator?: (name: string) => void;
+  onOpenDetails?: (item: SearchResultRecord) => void;
 };
 
 const ABSTRACT_PREVIEW_LENGTH = 1500;
+const SIMILAR_PANEL_K = 10;
 
 function parseSemicolonTerms(rawTerms: string | undefined): string[] {
   if (!rawTerms) return [];
@@ -53,7 +57,13 @@ function getProjectAbstract(item: SearchResultRecord): string | null {
   return normalized.length > 0 ? normalized : null;
 }
 
-export default function ProjectDetailsPage({ item, onBack, onOpenInvestigator }: ProjectDetailsPageProps) {
+export default function ProjectDetailsPage({
+  item,
+  onBack,
+  onOpenInvestigator,
+  onOpenDetails,
+}: ProjectDetailsPageProps) {
+  const navigate = useNavigate();
   const piNames = getOrderedPiNames(item.PI_NAMEs);
   const projectTerms = parseSemicolonTerms(item.PROJECT_TERMS);
   const projectAbstract = getProjectAbstract(item);
@@ -62,6 +72,9 @@ export default function ProjectDetailsPage({ item, onBack, onOpenInvestigator }:
   const projectDates = [item.PROJECT_START, item.PROJECT_END].filter(Boolean).join(" to ") || "—";
   const activityId = typeof item.ACTIVITY === "string" ? item.ACTIVITY.trim() : "";
   const projectId = typeof item._id === "string" ? item._id : typeof item.id === "string" ? item.id : "";
+  const [similarNeighbors, setSimilarNeighbors] = useState<SearchResultRecord[]>([]);
+  const [similarLoading, setSimilarLoading] = useState<boolean>(false);
+  const [similarError, setSimilarError] = useState<string>("");
   const isLongAbstract =
     projectAbstract != null && projectAbstract.length > ABSTRACT_PREVIEW_LENGTH;
   const abstractPreview =
@@ -73,11 +86,57 @@ export default function ProjectDetailsPage({ item, onBack, onOpenInvestigator }:
     setIsAbstractExpanded(false);
   }, [item._id, item.APPLICATION_ID, item.PROJECT_TITLE]);
 
+  useEffect(() => {
+    if (!projectId) {
+      setSimilarNeighbors([]);
+      setSimilarError("");
+      setSimilarLoading(false);
+      return;
+    }
+    let cancelled = false;
+    setSimilarLoading(true);
+    setSimilarError("");
+    setSimilarNeighbors([]);
+    void (async () => {
+      try {
+        const payload = await searchSimilarToProjectId(projectId, SIMILAR_PANEL_K);
+        if (!cancelled) {
+          setSimilarNeighbors(payload.results ?? []);
+        }
+      } catch (err) {
+        if (!cancelled) {
+          const msg = err instanceof Error ? err.message : "Similarity search failed.";
+          setSimilarError(msg);
+          setSimilarNeighbors([]);
+        }
+      } finally {
+        if (!cancelled) {
+          setSimilarLoading(false);
+        }
+      }
+    })();
+    return () => {
+      cancelled = true;
+    };
+  }, [projectId]);
+
   return (
+    <div className="project-details-layout">
     <div className="project-details-card">
-      <button type="button" className="project-back-link" onClick={onBack}>
-        Back to results
-      </button>
+      <div className="project-details-top-row">
+        <button type="button" className="project-back-link" onClick={onBack}>
+          Back to results
+        </button>
+        {projectId ? (
+          <button
+            type="button"
+            className="project-vector-link"
+            onClick={() => navigate(`/semantic/similar/${encodeURIComponent(projectId)}`)}
+          >
+            Similar grants (vectors)
+          </button>
+        ) : null}
+      </div>
 
       <h1 className="project-details-title">{item.PROJECT_TITLE ?? "Untitled Project"}</h1>
 
@@ -179,6 +238,90 @@ export default function ProjectDetailsPage({ item, onBack, onOpenInvestigator }:
       </section>
 
       {activityId && projectId ? <ProjectActivityTermsChart activityId={activityId} projectId={projectId} /> : null}
+    </div>
+
+    <aside className="project-details-similar" aria-labelledby="project-details-similar-heading">
+      {projectId ? (
+        <div className="project-details-similar-more-wrap">
+          <button
+            type="button"
+            className="project-details-similar-more"
+            onClick={() => navigate(`/semantic/similar/${encodeURIComponent(projectId)}`)}
+          >
+            Show more similar projects
+          </button>
+        </div>
+      ) : null}
+      <h2 id="project-details-similar-heading" className="project-details-similar-heading">
+        Similar projects
+      </h2>
+      <p className="project-details-similar-lede">
+        Nearest neighbors using indexed sentence embeddings (same data as the vector lab).
+      </p>
+      {!projectId ? (
+        <p className="project-details-similar-muted">No document id on this record; vector similarity is unavailable.</p>
+      ) : similarLoading ? (
+        <p className="project-details-similar-muted" role="status">
+          Loading similar grants…
+        </p>
+      ) : similarError ? (
+        <div className="project-details-similar-alert" role="alert">
+          <p>{similarError}</p>
+          {similarError.toLowerCase().includes("embedding") ? (
+            <p className="project-details-similar-muted">
+              Reindex with embeddings enabled so k-NN can run for this document.
+            </p>
+          ) : null}
+        </div>
+      ) : similarNeighbors.length === 0 ? (
+        <p className="project-details-similar-muted">No similar projects returned.</p>
+      ) : (
+        <ol className="project-details-similar-list">
+          {similarNeighbors.map((neighbor, index) => {
+            const nid = neighbor._id ?? neighbor.id ?? "";
+            const score = typeof neighbor._score === "number" ? neighbor._score : null;
+            return (
+              <li key={nid || String(index)} className="project-details-similar-item">
+                <div className="project-details-similar-item-head">
+                  <span className="project-details-similar-rank">{index + 1}</span>
+                  {score != null ? (
+                    <span className="project-details-similar-score" title="OpenSearch k-NN score">
+                      {score.toFixed(3)}
+                    </span>
+                  ) : null}
+                </div>
+                <p className="project-details-similar-item-title">{neighbor.PROJECT_TITLE ?? "Untitled"}</p>
+                <div className="project-details-similar-item-meta">
+                  {neighbor.ACTIVITY ? <span className="tag activity">{neighbor.ACTIVITY}</span> : null}
+                  {neighbor.FY != null ? <span className="tag fy">FY {neighbor.FY}</span> : null}
+                </div>
+                <p className="project-details-similar-item-cost">{formatCurrency(neighbor.TOTAL_COST as number | undefined)}</p>
+                {onOpenDetails && nid ? (
+                  <button
+                    type="button"
+                    className="project-details-similar-open"
+                    onClick={() => onOpenDetails(neighbor)}
+                  >
+                    View project
+                  </button>
+                ) : null}
+              </li>
+            );
+          })}
+        </ol>
+      )}
+      {projectId ? (
+        <div className="project-details-similar-more-wrap project-details-similar-more-wrap--bottom">
+          <button
+            type="button"
+            className="project-details-similar-more"
+            onClick={() => navigate(`/semantic/similar/${encodeURIComponent(projectId)}`)}
+          >
+            Show more similar projects
+          </button>
+        </div>
+      ) : null}
+    </aside>
     </div>
   );
 }
