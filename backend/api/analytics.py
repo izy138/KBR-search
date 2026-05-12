@@ -2,12 +2,25 @@
 
 from __future__ import annotations
 
-from fastapi import APIRouter
+from fastapi import APIRouter, HTTPException, Query
 
 from .opensearch_client import get_client, get_index_name
 
 router = APIRouter()
 INDEX_NAME = get_index_name()
+
+
+def get_funding_value(source: dict[str, object]) -> float:
+  """Use first available numeric funding field."""
+  for field in ("TOTAL_COST", "TOTAL_COST_SUB_PROJECT", "DIRECT_COST_AMT", "INDIRECT_COST_AMT"):
+    raw = source.get(field)
+    if raw is None or raw == "":
+      continue
+    try:
+      return float(raw)
+    except (TypeError, ValueError):
+      continue
+  return 0.0
 
 
 @router.get("/summary")
@@ -209,3 +222,125 @@ def analytics_avg_grant_by_ic() -> list[dict[str, object]]:
     }
     for b in buckets
   ]
+
+
+@router.get("/by-activity-terms")
+def analytics_by_activity_terms(
+  activity_id: str = Query(..., description="Activity code, e.g. R01"),
+  limit: int = Query(default=25, ge=1, le=100),
+) -> dict[str, object]:
+  client = get_client()
+  body = {
+    "size": 0,
+    "query": {
+      "bool": {
+        "filter": [
+          {"term": {"ACTIVITY.keyword": activity_id}},
+        ],
+      },
+    },
+    "aggs": {
+      "by_term": {
+        "terms": {
+          "field": "PROJECT_TERMS.keyword",
+          "size": limit,
+        },
+        "aggs": {
+          "total_funding": {"sum": {"field": "TOTAL_COST"}},
+        },
+      },
+    },
+  }
+  response = client.search(index=INDEX_NAME, body=body)
+  buckets = response.get("aggregations", {}).get("by_term", {}).get("buckets", [])
+
+  data = [
+    {
+      "label": b["key"],
+      "count": b["doc_count"],
+      "total_funding": b.get("total_funding", {}).get("value", 0.0),
+    }
+    for b in buckets
+  ]
+  data.sort(key=lambda x: x["total_funding"], reverse=True)
+
+  return {
+    "activity_id": activity_id,
+    "limit": limit,
+    "data": data,
+  }
+
+
+@router.get("/by-activity-project-compare")
+def analytics_by_activity_project_compare(
+  project_id: str = Query(..., description="OpenSearch document ID for selected project"),
+  activity_id: str = Query(..., description="Activity code, e.g. R01"),
+  limit: int = Query(default=20, ge=1, le=20),
+) -> dict[str, object]:
+  client = get_client()
+
+  try:
+    selected = client.get(index=INDEX_NAME, id=project_id)
+  except Exception as exc:
+    raise HTTPException(status_code=404, detail="Selected project not found") from exc
+
+  source = selected.get("_source", {})
+  selected_title = source.get("PROJECT_TITLE") or f"Project {project_id}"
+  selected_cost_value = get_funding_value(source)
+
+  peers_response = client.search(
+    index=INDEX_NAME,
+    body={
+      "size": limit,
+      "_source": [
+        "PROJECT_TITLE",
+        "TOTAL_COST",
+        "TOTAL_COST_SUB_PROJECT",
+        "DIRECT_COST_AMT",
+        "INDIRECT_COST_AMT",
+        "ACTIVITY",
+      ],
+      "query": {
+        "bool": {
+          "filter": [
+            {"term": {"ACTIVITY.keyword": activity_id}},
+          ],
+          "must_not": [
+            {"ids": {"values": [project_id]}},
+          ],
+        },
+      },
+      "sort": [{"TOTAL_COST": {"order": "desc"}}],
+    },
+  )
+
+  peers_hits = peers_response.get("hits", {}).get("hits", [])
+  peers_data = []
+  for item in peers_hits:
+    peer_source = item.get("_source", {})
+    peer_title = peer_source.get("PROJECT_TITLE") or f"Project {item.get('_id', '')}"
+    peer_cost_value = get_funding_value(peer_source)
+    peers_data.append(
+      {
+        "project_id": item.get("_id"),
+        "label": str(peer_title),
+        "total_funding": peer_cost_value,
+        "is_selected": False,
+      },
+    )
+
+  data = [
+    {
+      "project_id": project_id,
+      "label": f"Selected: {selected_title}",
+      "total_funding": selected_cost_value,
+      "is_selected": True,
+    },
+    *peers_data,
+  ]
+
+  return {
+    "project_id": project_id,
+    "activity_id": activity_id,
+    "data": data,
+  }

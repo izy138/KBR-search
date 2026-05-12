@@ -18,6 +18,7 @@ import type {
   YearDataPoint,
 } from "../api";
 import BarChartPanel from "./BarChartPanel";
+import Filters from "./Filters";
 import LineChartPanel from "./LineChartPanel";
 import SearchBar from "./SearchBar";
 import StateMap from "./StateMap";
@@ -117,6 +118,14 @@ export default function Dashboard() {
   const [data, setData] = useState<DashboardData | null>(null);
   const [error, setError] = useState<string | null>(null);
   const [dashboardQuery, setDashboardQuery] = useState("");
+  const [selectedPI, setSelectedPI] = useState("");
+  const [selectedIC, setSelectedIC] = useState("");
+  const [selectedActivity, setSelectedActivity] = useState("");
+  const [selectedState, setSelectedState] = useState("");
+  const [fyMin, setFyMin] = useState("");
+  const [fyMax, setFyMax] = useState("");
+  /** Log scale for Projects by Institute (IC) bar chart — matches prior default. */
+  const [icProjectsLogScale, setIcProjectsLogScale] = useState(true);
 
   useEffect(() => {
     let cancelled = false;
@@ -168,6 +177,9 @@ export default function Dashboard() {
   }
 
   const { summary, stateData, icData, activityData, yearData, topOrgs, avgGrant } = data;
+  const icNames = icData.map((point) => point.label);
+  const activityCodes = activityData.map((point) => point.label);
+  const states = stateData.map((point) => point.state);
 
   const avgGrantValue =
     summary.total_documents > 0
@@ -195,9 +207,39 @@ export default function Dashboard() {
 
   return (
     <div className="dashboard">
-      <section className="dashboard-search-section" aria-label="Dashboard search">
-        <SearchBar onSearch={setDashboardQuery} initialQuery={dashboardQuery} />
-      </section>
+      <Filters
+        icNames={icNames}
+        activityCodes={activityCodes}
+        states={states}
+        selectedPI={selectedPI}
+        selectedIC={selectedIC}
+        selectedActivity={selectedActivity}
+        selectedState={selectedState}
+        fyMin={fyMin}
+        fyMax={fyMax}
+        onApply={(filters) => {
+          setSelectedPI(filters.pi);
+          setSelectedIC(filters.ic);
+          setSelectedActivity(filters.activity);
+          setSelectedState(filters.state);
+          setFyMin(filters.fyMin);
+          setFyMax(filters.fyMax);
+        }}
+        onClear={() => {
+          setSelectedPI("");
+          setSelectedIC("");
+          setSelectedActivity("");
+          setSelectedState("");
+          setFyMin("");
+          setFyMax("");
+        }}
+      />
+
+      <div className="search-row">
+        <div className="search-row-inner">
+          <SearchBar onSearch={setDashboardQuery} initialQuery={dashboardQuery} />
+        </div>
+      </div>
 
       {/* KPI cards */}
       <div className="kpi-cards">
@@ -209,19 +251,54 @@ export default function Dashboard() {
       {/* State map + IC bar chart */}
       <div className="dashboard-grid-2">
         <StateMap data={stateData} />
-        <BarChartPanel
-          title="Projects by Institute (IC)"
-          data={icChartData as unknown as Array<Record<string, unknown>>}
-          dataKey="value"
-          labelKey="short_label"
-          tooltipLabelKey="full_label"
-          layout="horizontal"
-          valueScale="log"
-          valueDomain={[5, 12000]}
-          valueTicks={[5, 10, 100, 500, 1000, 3000, 6000, 12000]}
-          formatter={formatHybridCountTick}
-          tooltipFormatter={formatCount}
-        />
+        <div className="dashboard-ic-chart-stack">
+          <div className="dashboard-ic-chart-scale">
+            <span className="dashboard-ic-chart-scale-label" id="ic-projects-scale-label">
+              Count axis
+            </span>
+            <div
+              className="dashboard-ic-chart-scale-toggle"
+              role="group"
+              aria-labelledby="ic-projects-scale-label"
+            >
+              <button
+                type="button"
+                className={icProjectsLogScale ? "" : "active"}
+                onClick={() => setIcProjectsLogScale(false)}
+              >
+                Linear
+              </button>
+              <button
+                type="button"
+                className={icProjectsLogScale ? "active" : ""}
+                onClick={() => setIcProjectsLogScale(true)}
+              >
+                Log
+              </button>
+            </div>
+          </div>
+          <BarChartPanel
+            title="Projects by Institute (IC)"
+            data={icChartData as unknown as Array<Record<string, unknown>>}
+            dataKey="value"
+            labelKey="short_label"
+            tooltipLabelKey="full_label"
+            layout="horizontal"
+            {...(icProjectsLogScale
+              ? {
+                  valueScale: "log" as const,
+                  valueDomain: [5, 12000] as [number, number],
+                  valueTicks: [5, 10, 100, 500, 1000, 3000, 6000, 12000],
+                  formatter: formatHybridCountTick,
+                  tooltipFormatter: formatCount,
+                }
+              : {
+                  valueScale: "linear" as const,
+                  formatter: formatCount,
+                  tooltipFormatter: formatCount,
+                })}
+          />
+        </div>
       </div>
 
       {/* Activity full width; year + orgs in a row; avg grant full width */}

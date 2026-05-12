@@ -78,8 +78,6 @@ export type SearchProjectsOptions = {
   state?: string;
   fyMin?: string;
   fyMax?: string;
-  costMin?: string;
-  costMax?: string;
 };
 
 export async function searchProjects(
@@ -96,8 +94,6 @@ export async function searchProjects(
     state = "",
     fyMin = "",
     fyMax = "",
-    costMin = "",
-    costMax = "",
   } = options;
   const url = new URL(`${API_BASE_URL}/search/`);
   url.searchParams.set("q", query);
@@ -112,8 +108,6 @@ export async function searchProjects(
   if (state) url.searchParams.set("state", state);
   if (fyMin) url.searchParams.set("fy_min", fyMin);
   if (fyMax) url.searchParams.set("fy_max", fyMax);
-  if (costMin) url.searchParams.set("cost_min", costMin);
-  if (costMax) url.searchParams.set("cost_max", costMax);
   const response = await fetch(url.toString());
   if (!response.ok) {
     throw new Error(`Search request failed: ${response.status}`);
@@ -196,6 +190,31 @@ export interface AvgGrantDataPoint {
   avg_grant: number;
 }
 
+export interface ActivityTermDataPoint {
+  label: string;
+  count: number;
+  total_funding: number;
+}
+
+export interface ActivityTermsResponse {
+  activity_id: string;
+  limit: number;
+  data: ActivityTermDataPoint[];
+}
+
+export interface ActivityProjectCompareDataPoint {
+  project_id?: string;
+  label: string;
+  total_funding: number;
+  is_selected: boolean;
+}
+
+export interface ActivityProjectCompareResponse {
+  project_id: string;
+  activity_id: string;
+  data: ActivityProjectCompareDataPoint[];
+}
+
 export interface DashboardSummary {
   total_documents: number;
   total_funding: number;
@@ -241,4 +260,26 @@ export function getAvgGrantByIc(): Promise<AvgGrantDataPoint[]> {
 
 export function getDashboardSummary(): Promise<DashboardSummary> {
   return fetchAnalytics<DashboardSummary>("/analytics/summary");
+}
+
+export function getActivityTermsData(
+  activityId: string,
+  limit = 15,
+): Promise<ActivityTermsResponse> {
+  const encodedId = encodeURIComponent(activityId);
+  return fetchAnalytics<ActivityTermsResponse>(
+    `/analytics/by-activity-terms?activity_id=${encodedId}&limit=${limit}`,
+  );
+}
+
+export function getActivityProjectCompareData(
+  projectId: string,
+  activityId: string,
+  limit = 20,
+): Promise<ActivityProjectCompareResponse> {
+  const encodedProjectId = encodeURIComponent(projectId);
+  const encodedActivityId = encodeURIComponent(activityId);
+  return fetchAnalytics<ActivityProjectCompareResponse>(
+    `/analytics/by-activity-project-compare?project_id=${encodedProjectId}&activity_id=${encodedActivityId}&limit=${limit}`,
+  );
 }

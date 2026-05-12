@@ -1,6 +1,7 @@
 import { useEffect, useState } from "react";
 import type { SearchResultRecord } from "../api";
 import { getOrderedPiNames } from "../utils/piNames";
+import ProjectActivityTermsChart from "./ProjectActivityTermsChart";
 
 type ProjectDetailsPageProps = {
   item: SearchResultRecord;
@@ -59,6 +60,8 @@ export default function ProjectDetailsPage({ item, onBack, onOpenInvestigator }:
   const [isAbstractExpanded, setIsAbstractExpanded] = useState<boolean>(false);
   const fiscalYears = item.FY != null ? String(item.FY) : "—";
   const projectDates = [item.PROJECT_START, item.PROJECT_END].filter(Boolean).join(" to ") || "—";
+  const activityId = typeof item.ACTIVITY === "string" ? item.ACTIVITY.trim() : "";
+  const projectId = typeof item._id === "string" ? item._id : typeof item.id === "string" ? item.id : "";
   const isLongAbstract =
     projectAbstract != null && projectAbstract.length > ABSTRACT_PREVIEW_LENGTH;
   const abstractPreview =
@@ -174,6 +177,8 @@ export default function ProjectDetailsPage({ item, onBack, onOpenInvestigator }:
           )}
         </div>
       </section>
+
+      {activityId && projectId ? <ProjectActivityTermsChart activityId={activityId} projectId={projectId} /> : null}
     </div>
   );
 }

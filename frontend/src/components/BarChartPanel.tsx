@@ -30,6 +30,7 @@ interface BarChartPanelProps {
   tooltipFormatter?: (value: number) => string;
   formatter?: (value: number) => string;
   color?: string;
+  height?: number;
 }
 
 /**
@@ -50,6 +51,7 @@ export default function BarChartPanel({
   valueTicks,
   tooltipFormatter,
   formatter,
+  height = 500,
   color = "#1a56db",
 }: BarChartPanelProps) {
   const renderTooltip = (props: TooltipContentProps<ValueType, NameType>) => {
@@ -83,7 +85,7 @@ export default function BarChartPanel({
   return (
     <div className="chart-panel">
       <div className="chart-panel-title">{title}</div>
-      <ResponsiveContainer width="100%" height={275}>
+      <ResponsiveContainer width="100%" height={height}>
         {isVertical ? (
           <BarChart data={data} layout="vertical" margin={{ top: 4, right: 16, bottom: 4, left: 8 }}>
             <CartesianGrid strokeDasharray="3 3" horizontal={false} stroke="var(--border)" />
@@ -120,6 +122,7 @@ export default function BarChartPanel({
             <XAxis
               type="category"
               dataKey={labelKey}
+              height={90}
               tick={{ fontSize: 11, fill: "var(--text-secondary)" }}
               angle={-40}
               textAnchor="end"
@@ -128,6 +131,8 @@ export default function BarChartPanel({
               tickLine={false}
             />
             <YAxis
+              width={100}
+              tickMargin={9}
               tick={{ fontSize: 11, fill: "var(--text-secondary)" }}
               tickFormatter={formatter ?? ((v: number) => v.toLocaleString())}
               scale={useLogScale ? "log" : "auto"}

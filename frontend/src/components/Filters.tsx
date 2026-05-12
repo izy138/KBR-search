@@ -1,7 +1,6 @@
 import React, { useEffect, useState } from "react";
 
 type FiltersProps = {
-  piNames: string[];
   icNames: string[];
   activityCodes: string[];
   states: string[];
@@ -11,8 +10,6 @@ type FiltersProps = {
   selectedState: string;
   fyMin: string;
   fyMax: string;
-  costMin: string;
-  costMax: string;
   onApply: (filters: {
     pi: string;
     ic: string;
@@ -20,8 +17,6 @@ type FiltersProps = {
     state: string;
     fyMin: string;
     fyMax: string;
-    costMin: string;
-    costMax: string;
   }) => void;
   onClear: () => void;
 };
@@ -50,7 +45,6 @@ const formatDropdownLabel = (value: string): string => {
 const formatAllCapsLabel = (value: string): string => value.trim().toUpperCase();
 
 const Filters: React.FC<FiltersProps> = ({
-  piNames,
   icNames,
   activityCodes,
   states,
@@ -60,8 +54,6 @@ const Filters: React.FC<FiltersProps> = ({
   selectedState,
   fyMin,
   fyMax,
-  costMin,
-  costMax,
   onApply,
   onClear,
 }) => {
@@ -71,8 +63,6 @@ const Filters: React.FC<FiltersProps> = ({
   const [localState, setLocalState] = useState(selectedState);
   const [localFyMin, setLocalFyMin] = useState(fyMin);
   const [localFyMax, setLocalFyMax] = useState(fyMax);
-  const [localCostMin, setLocalCostMin] = useState(costMin);
-  const [localCostMax, setLocalCostMax] = useState(costMax);
 
   useEffect(() => {
     setLocalPI(selectedPI);
@@ -81,11 +71,9 @@ const Filters: React.FC<FiltersProps> = ({
     setLocalState(selectedState);
     setLocalFyMin(fyMin);
     setLocalFyMax(fyMax);
-    setLocalCostMin(costMin);
-    setLocalCostMax(costMax);
-  }, [selectedPI, selectedIC, selectedActivity, selectedState, fyMin, fyMax, costMin, costMax]);
+  }, [selectedPI, selectedIC, selectedActivity, selectedState, fyMin, fyMax]);
 
-  const hasFilters = localPI || localIC || localActivity || localState || localFyMin || localFyMax || localCostMin || localCostMax;
+  const hasFilters = localPI || localIC || localActivity || localState || localFyMin || localFyMax;
 
   const handleApply = () => {
     onApply({
@@ -95,8 +83,6 @@ const Filters: React.FC<FiltersProps> = ({
       state: localState,
       fyMin: localFyMin,
       fyMax: localFyMax,
-      costMin: localCostMin,
-      costMax: localCostMax,
     });
   };
 
@@ -107,8 +93,6 @@ const Filters: React.FC<FiltersProps> = ({
     setLocalState("");
     setLocalFyMin("");
     setLocalFyMax("");
-    setLocalCostMin("");
-    setLocalCostMax("");
     onClear();
   };
 
@@ -116,16 +100,19 @@ const Filters: React.FC<FiltersProps> = ({
     <section className="app-sidebar">
       <div className="sidebar-section">
         <div className="sidebar-label">Principal Investigator</div>
-        <select
-          className="sidebar-select"
+        <input
+          className="sidebar-text-input"
+          type="text"
+          placeholder="Type PI name"
           value={localPI}
           onChange={(e) => setLocalPI(e.target.value)}
-        >
-          <option value="">All PIs</option>
-          {piNames.map((pi) => (
-            <option key={pi} value={pi}>{formatDropdownLabel(pi)}</option>
-          ))}
-        </select>
+          onKeyDown={(e) => {
+            if (e.key === "Enter") {
+              e.preventDefault();
+              handleApply();
+            }
+          }}
+        />
       </div>
 
       <div className="sidebar-section">
@@ -188,26 +175,6 @@ const Filters: React.FC<FiltersProps> = ({
             onChange={(e) => setLocalFyMax(e.target.value)}
             min="1990"
             max="2030"
-          />
-        </div>
-      </div>
-
-      <div className="sidebar-section">
-        <div className="sidebar-label">Total Cost (USD)</div>
-        <div className="sidebar-range-row">
-          <input
-            type="number"
-            placeholder="Min"
-            value={localCostMin}
-            onChange={(e) => setLocalCostMin(e.target.value)}
-            min="0"
-          />
-          <input
-            type="number"
-            placeholder="Max"
-            value={localCostMax}
-            onChange={(e) => setLocalCostMax(e.target.value)}
-            min="0"
           />
         </div>
       </div>

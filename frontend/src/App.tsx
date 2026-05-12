@@ -20,7 +20,6 @@ import {
   type SearchResultRecord,
   searchProjects,
 } from "./api";
-import { getOrderedPiNames } from "./utils/piNames";
 
 type View = "search" | "dashboard";
 
@@ -46,7 +45,7 @@ function getPageNumbers(page: number, totalPageCount: number): Array<number | ".
 }
 
 export default function App() {
-  type SortOption = "relevant" | "alphaAsc" | "alphaDesc" | "dateDesc" | "dateAsc";
+  type SortOption = "relevant" | "alphaAsc" | "alphaDesc";
   type Theme = "light" | "dark";
   type LightTheme = "default" | "blueAccent" | "yellowBeige" | "mintSlate" | "blueModified";
 
@@ -62,8 +61,6 @@ export default function App() {
   const [selectedState, setSelectedState] = useState("");
   const [fyMin, setFyMin] = useState("");
   const [fyMax, setFyMax] = useState("");
-  const [costMin, setCostMin] = useState("");
-  const [costMax, setCostMax] = useState("");
 
   // Pagination
   const [resultsPerPage, setResultsPerPage] = useState(25);
@@ -71,7 +68,7 @@ export default function App() {
   const [jumpToPageInput, setJumpToPageInput] = useState("1");
   const [total, setTotal] = useState(0);
   const [visibleTotal, setVisibleTotal] = useState(0);
-  const [sortOption, setSortOption] = useState<SortOption>("dateDesc");
+  const [sortOption, setSortOption] = useState<SortOption>("relevant");
   const [selectedProject, setSelectedProject] = useState<SearchResultRecord | null>(null);
   const [projectLoading, setProjectLoading] = useState(false);
   const [projectError, setProjectError] = useState<string>("");
@@ -129,17 +126,6 @@ export default function App() {
     return Array.from(set).sort();
   }, [results]);
 
-  const piNames = useMemo(() => {
-    const set = new Set<string>();
-    results.forEach((r) => {
-      const ordered = getOrderedPiNames(r.PI_NAMEs);
-      ordered.forEach((name) => {
-        if (name) set.add(name);
-      });
-    });
-    return Array.from(set).sort((a, b) => a.localeCompare(b, undefined, { sensitivity: "base" }));
-  }, [results]);
-
   const activityCodes = useMemo(() => {
     const set = new Set<string>();
     results.forEach((r) => {
@@ -169,8 +155,6 @@ export default function App() {
           state: selectedState,
           fyMin,
           fyMax,
-          costMin,
-          costMax,
         });
         setResults(payload.results ?? []);
         setTotal(payload.total ?? 0);
@@ -179,7 +163,7 @@ export default function App() {
         setLoading(false);
       }
     },
-    [selectedPI, selectedIC, selectedActivity, selectedState, fyMin, fyMax, costMin, costMax],
+    [selectedPI, selectedIC, selectedActivity, selectedState, fyMin, fyMax],
   );
 
   useEffect(() => {
@@ -234,8 +218,6 @@ export default function App() {
     state: string;
     fyMin: string;
     fyMax: string;
-    costMin: string;
-    costMax: string;
   }) => {
     setSelectedPI(filters.pi);
     setSelectedIC(filters.ic);
@@ -243,8 +225,6 @@ export default function App() {
     setSelectedState(filters.state);
     setFyMin(filters.fyMin);
     setFyMax(filters.fyMax);
-    setCostMin(filters.costMin);
-    setCostMax(filters.costMax);
     setCurrentPage(1);
   };
 
@@ -255,8 +235,6 @@ export default function App() {
     setSelectedState("");
     setFyMin("");
     setFyMax("");
-    setCostMin("");
-    setCostMax("");
     setCurrentPage(1);
   };
 
@@ -530,7 +508,6 @@ export default function App() {
         ) : (
           <>
             <Filters
-              piNames={piNames}
               icNames={icNames}
               activityCodes={activityCodes}
               states={states}
@@ -540,8 +517,6 @@ export default function App() {
               selectedState={selectedState}
               fyMin={fyMin}
               fyMax={fyMax}
-              costMin={costMin}
-              costMax={costMax}
               onApply={handleApplyFilters}
               onClear={handleClearFilters}
             />
@@ -575,8 +550,6 @@ export default function App() {
                   aria-label="Sort results"
                 >
                   <option value="relevant">Most Relevant</option>
-                  <option value="dateDesc">Date: Most Recent</option>
-                  <option value="dateAsc">Date: Least Recent</option>
                   <option value="alphaAsc">Title: A to Z</option>
                   <option value="alphaDesc">Title: Z to A</option>
                 </select>
