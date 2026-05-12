@@ -283,3 +283,106 @@ export function getActivityProjectCompareData(
     `/analytics/by-activity-project-compare?project_id=${encodedProjectId}&activity_id=${encodedActivityId}&limit=${limit}`,
   );
 }
+
+// ─── Vector / semantic search (k-NN + hybrid) ─────────────────────────────────
+
+export interface SimilarSearchResponse {
+  query: string;
+  k: number;
+  results: SearchResultRecord[];
+}
+
+export interface SimilarToProjectResponse {
+  project_id: string;
+  k: number;
+  results: SearchResultRecord[];
+}
+
+export interface HybridSearchResponse {
+  query: string;
+  k: number;
+  keyword_total: number;
+  keyword_returned: number;
+  vector_returned: number;
+  fetch_size_per_side: number;
+  results: SearchResultRecord[];
+}
+
+export type HybridSearchOptions = {
+  k?: number;
+  category?: string;
+  pi?: string;
+  ic?: string;
+  activity?: string;
+  state?: string;
+  fyMin?: string;
+  fyMax?: string;
+};
+
+async function readErrorDetail(response: Response): Promise<string> {
+  let detail = `Request failed (${response.status})`;
+  try {
+    const body = (await response.json()) as { detail?: unknown };
+    if (typeof body.detail === "string") {
+      detail = body.detail;
+    }
+  } catch {
+    /* ignore */
+  }
+  return detail;
+}
+
+export async function searchSimilarByText(query: string, k = 10): Promise<SimilarSearchResponse> {
+  const url = new URL(`${API_BASE_URL}/search/similar`);
+  url.searchParams.set("q", query);
+  url.searchParams.set("k", String(k));
+  const response = await fetch(url.toString());
+  if (!response.ok) {
+    throw new Error(await readErrorDetail(response));
+  }
+  return response.json() as Promise<SimilarSearchResponse>;
+}
+
+export async function searchSimilarToProjectId(
+  projectId: string,
+  k = 10,
+): Promise<SimilarToProjectResponse> {
+  const url = new URL(`${API_BASE_URL}/search/similar/${encodeURIComponent(projectId)}`);
+  url.searchParams.set("k", String(k));
+  const response = await fetch(url.toString());
+  if (!response.ok) {
+    throw new Error(await readErrorDetail(response));
+  }
+  return response.json() as Promise<SimilarToProjectResponse>;
+}
+
+export async function searchHybrid(
+  query: string,
+  options: HybridSearchOptions = {},
+): Promise<HybridSearchResponse> {
+  const {
+    k = 10,
+    category = "",
+    pi = "",
+    ic = "",
+    activity = "",
+    state = "",
+    fyMin = "",
+    fyMax = "",
+  } = options;
+  const url = new URL(`${API_BASE_URL}/search/hybrid`);
+  url.searchParams.set("q", query);
+  url.searchParams.set("k", String(k));
+  if (category) url.searchParams.set("category", category);
+  if (pi) url.searchParams.set("pi", pi);
+  if (ic) url.searchParams.set("ic", ic);
+  if (activity) url.searchParams.set("activity", activity);
+  if (state) url.searchParams.set("state", state);
+  if (fyMin) url.searchParams.set("fy_min", fyMin);
+  if (fyMax) url.searchParams.set("fy_max", fyMax);
+  const response = await fetch(url.toString());
+  if (!response.ok) {
+    throw new Error(await readErrorDetail(response));
+  }
+  return response.json() as Promise<HybridSearchResponse>;
+}
