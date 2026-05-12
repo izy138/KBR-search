@@ -4,12 +4,7 @@
 .env.*.local
 
 # Data (large; obtain separately or use symlink)
-backend/2020_data.csv
-backend/2021_data.csv
-backend/2022_data.csv
-backend/2023_data.csv
-backend/2024_data.csv
-backend/2025_data.csv
+backend/indexer/data/
 2025_ProjectData.csv
 merged_project_data.csv
 
