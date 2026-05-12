@@ -174,6 +174,36 @@ export interface ActivityDataPoint {
   count: number;
 }
 
+/** One slice of activity-code funding (pie API or merged "Other"). */
+export interface ActivityPieSlice {
+  label: string;
+  total_funding: number;
+  count: number;
+  percent_of_funding: number;
+}
+
+/** Funding in activity buckets not drawn as pie slices (when merge_other is false). */
+export interface ActivityPieRemainder {
+  codes_in_tail: number;
+  total_funding: number;
+  project_count: number;
+  percent_of_all_indexed: number;
+}
+
+/** JSON payload for the activity funding pie chart (`GET /analytics/by-activity-funding-pie`). */
+export interface ActivityFundingPieResponse {
+  total_funding_indexed: number;
+  activity_buckets_fetched: number;
+  pie_slices_cap: number;
+  merge_other: boolean;
+  denominator: string;
+  slices: ActivityPieSlice[];
+  other: ActivityPieSlice | null;
+  remainder: ActivityPieRemainder | null;
+  sum_other_doc_count: number;
+  more_activities_than_buckets: boolean;
+}
+
 export interface YearDataPoint {
   year: number;
   count: number;
@@ -242,8 +272,29 @@ export function getIcData(): Promise<IcDataPoint[]> {
   return fetchAnalytics<IcDataPoint[]>("/analytics/by-ic");
 }
 
-export function getActivityData(): Promise<ActivityDataPoint[]> {
-  return fetchAnalytics<ActivityDataPoint[]>("/analytics/by-activity");
+export function getActivityData(limit = 50): Promise<ActivityDataPoint[]> {
+  const q = new URLSearchParams({ limit: String(limit) });
+  return fetchAnalytics<ActivityDataPoint[]>(`/analytics/by-activity?${q.toString()}`);
+}
+
+export function getActivityFundingPie(options?: {
+  limit?: number;
+  pieSlices?: number;
+  mergeOther?: boolean;
+}): Promise<ActivityFundingPieResponse> {
+  const params = new URLSearchParams();
+  if (options?.limit != null) {
+    params.set("limit", String(options.limit));
+  }
+  if (options?.pieSlices != null) {
+    params.set("pie_slices", String(options.pieSlices));
+  }
+  if (options?.mergeOther != null) {
+    params.set("merge_other", options.mergeOther ? "true" : "false");
+  }
+  const qs = params.toString();
+  const path = qs ? `/analytics/by-activity-funding-pie?${qs}` : "/analytics/by-activity-funding-pie";
+  return fetchAnalytics<ActivityFundingPieResponse>(path);
 }
 
 export function getYearData(): Promise<YearDataPoint[]> {
