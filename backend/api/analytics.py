@@ -94,24 +94,45 @@ def analytics_by_ic(
   fy: int | None = Query(default=None, ge=2000, le=2100, description="Optional fiscal year filter"),
 ) -> list[dict[str, object]]:
   client = get_client()
-  body: dict[str, object] = {
+  all_ics_agg = {
+    "terms": {
+      "field": "IC_NAME.keyword",
+      "size": 100,
+      "order": {"_key": "asc"},
+    },
+  }
+
+  if fy is None:
+    body: dict[str, object] = {"size": 0, "aggs": {"all_ics": all_ics_agg}}
+    response = client.search(index=INDEX_NAME, body=body)
+    buckets = response.get("aggregations", {}).get("all_ics", {}).get("buckets", [])
+    return [{"label": b["key"], "value": b["doc_count"]} for b in buckets]
+
+  body = {
     "size": 0,
     "aggs": {
-      "by_ic": {
-        "terms": {
-          "field": "IC_NAME.keyword",
-          "size": 100,
-          "order": {"_count": "desc"},
+      "all_ics": all_ics_agg,
+      "fy_filter": {
+        "filter": {"term": {"FY": fy}},
+        "aggs": {
+          "by_ic": {
+            "terms": {"field": "IC_NAME.keyword", "size": 100},
+          },
         },
       },
     },
   }
-  if fy is not None:
-    body["query"] = {"term": {"FY": fy}}
   response = client.search(index=INDEX_NAME, body=body)
-  buckets = response.get("aggregations", {}).get("by_ic", {}).get("buckets", [])
+  all_buckets = response.get("aggregations", {}).get("all_ics", {}).get("buckets", [])
+  fy_buckets = (
+    response.get("aggregations", {})
+    .get("fy_filter", {})
+    .get("by_ic", {})
+    .get("buckets", [])
+  )
+  counts = {b["key"]: b["doc_count"] for b in fy_buckets}
 
-  return [{"label": b["key"], "value": b["doc_count"]} for b in buckets]
+  return [{"label": b["key"], "value": counts.get(b["key"], 0)} for b in all_buckets]
 
 
 def _activity_funding_buckets(client: object, *, bucket_size: int) -> tuple[list[dict[str, object]], dict[str, object]]:
