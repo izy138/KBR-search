@@ -22,7 +22,7 @@ import Filters from "./Filters";
 import LineChartPanel from "./LineChartPanel";
 import SearchBar from "./SearchBar";
 import StateMap from "./StateMap";
-
+import activityCodeDefinitions from "../../activityCodeDefinitions.json";
 // ─── Formatting helpers ───────────────────────────────────────────────────────
 
 /**
