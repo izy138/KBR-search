@@ -44,6 +44,30 @@ export interface ProjectResponse {
   project: SearchResultRecord;
 }
 
+export interface ProjectFiscalYear {
+  project_id: string;
+  application_id?: number;
+  fy?: number;
+  is_current?: boolean;
+}
+
+/** @deprecated Use ProjectFiscalYear */
+export type ProjectOtherYear = ProjectFiscalYear;
+
+export interface ProjectYearVariant {
+  project_id: string;
+  application_id?: number;
+  fy?: number;
+}
+
+export interface ProjectOtherYearsResponse {
+  project_id: string;
+  project_title?: string;
+  core_project_num?: string;
+  years: ProjectFiscalYear[];
+  other_years: ProjectFiscalYear[];
+}
+
 export interface InvestigatorProjectsResponse {
   investigator_name: string;
   limit: number;
@@ -138,6 +162,16 @@ export async function getProjectById(projectId: string): Promise<SearchResultRec
   }
   const payload = (await response.json()) as ProjectResponse;
   return payload.project;
+}
+
+export async function getProjectOtherYears(projectId: string): Promise<ProjectOtherYearsResponse> {
+  const response = await fetch(
+    `${API_BASE_URL}/search/project/${encodeURIComponent(projectId)}/other-years`,
+  );
+  if (!response.ok) {
+    throw new Error(`Other years request failed: ${response.status}`);
+  }
+  return response.json() as Promise<ProjectOtherYearsResponse>;
 }
 
 export async function getProjectsByInvestigator(

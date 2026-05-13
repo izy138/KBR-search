@@ -4,6 +4,7 @@ The model is loaded lazily on first use so the FastAPI process doesn't pay the
 ~2-3s import cost at startup, and the same singleton is reused for the lifetime
 of the process. Indexing and querying must use the same model — vectors from
 different models live in different geometric spaces and cannot be compared.
+The project standard is ``sentence-transformers/all-MiniLM-L6-v2`` (384-d).
 
 We also lazy-load a corpus-derived "generic terms" list (produced by
 indexer/term_stats.py). When present, terms whose document-frequency ratio
@@ -30,7 +31,7 @@ from pathlib import Path
 from typing import Any
 
 EMBEDDING_FIELD = "embedding"
-DEFAULT_MODEL_NAME = "sentence-transformers/all-mpnet-base-v2"
+DEFAULT_MODEL_NAME = "sentence-transformers/all-MiniLM-L6-v2"
 
 DEFAULT_TERM_STATS_PATH = "term_stats.json"
 DEFAULT_TERM_MAX_DF_RATIO = 0.20

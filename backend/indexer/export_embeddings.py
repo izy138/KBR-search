@@ -11,13 +11,12 @@ Usage (on the GPU machine, from the repo root):
     # Install deps once (into a venv or conda env):
     #   pip install sentence-transformers pandas tqdm torch
     #
-    # Run (EMBEDDING_MODEL must match what the main indexer uses):
-    EMBEDDING_MODEL=sentence-transformers/all-mpnet-base-v2 \\
+    # Run (uses EMBEDDING_MODEL; must match the indexer and OpenSearch mapping):
     python indexer/export_embeddings.py 2025_data.csv --out 2025_data_embedded.ndjson
 
 Env vars honoured:
-    EMBEDDING_MODEL          sentence-transformers model name (required to
-                             match the main indexer — default: all-mpnet-base-v2)
+    EMBEDDING_MODEL          sentence-transformers model name (default:
+                             sentence-transformers/all-MiniLM-L6-v2, 384-d)
     EMBEDDING_DEVICE         auto | cuda | cuda:N | mps | cpu (default: auto)
     EMBEDDING_SHOW_PROGRESS  set to "1" to show per-batch tqdm bar
     EMBEDDING_TERM_STATS_PATH  path to term_stats.json (default: term_stats.json)
@@ -41,6 +40,7 @@ from api.embeddings import (  # noqa: E402
   build_text_for_record,
   get_embedding_device,
   get_model,
+  get_model_name,
 )
 from load_data import iter_csv_chunks  # noqa: E402
 
@@ -127,7 +127,7 @@ def main() -> None:
     data_file.stem + "_embedded.ndjson"
   )
 
-  print(f"Model : {os.getenv('EMBEDDING_MODEL', 'sentence-transformers/all-mpnet-base-v2')}")
+  print(f"Model : {get_model_name()}")
   print(f"Input : {data_file}")
   print(f"Output: {out_file}")
   print(f"Batch : {args.batch_size}")
