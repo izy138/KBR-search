@@ -318,8 +318,12 @@ export function getStateData(): Promise<StateDataPoint[]> {
   return fetchAnalytics<StateDataPoint[]>("/analytics/by-state");
 }
 
-export function getIcData(): Promise<IcDataPoint[]> {
-  return fetchAnalytics<IcDataPoint[]>("/analytics/by-ic");
+export function getIcData(fy?: number): Promise<IcDataPoint[]> {
+  const path =
+    fy != null
+      ? `/analytics/by-ic?fy=${encodeURIComponent(String(fy))}`
+      : "/analytics/by-ic";
+  return fetchAnalytics<IcDataPoint[]>(path);
 }
 
 export function getActivityData(limit = 50): Promise<ActivityDataPoint[]> {

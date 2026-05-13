@@ -17,6 +17,10 @@ interface LineChartPanelProps {
   data: YearDataPoint[];
   /** Optional formatter for the funding axis/tooltip values */
   formatter?: (value: number) => string;
+  height?: number;
+  /** Extra class on the outer panel wrapper for chart-specific layout/CSS */
+  panelClassName?: string;
+  chartMargin?: { top?: number; right?: number; bottom?: number; left?: number };
 }
 
 const defaultFundingFormatter = (value: number): string => {
@@ -30,7 +34,14 @@ const defaultFundingFormatter = (value: number): string => {
  * Dual-axis line chart showing project count (left axis) and
  * total funding (right axis) over fiscal years.
  */
-export default function LineChartPanel({ title, data, formatter }: LineChartPanelProps) {
+export default function LineChartPanel({
+  title,
+  data,
+  formatter,
+  height = 300,
+  panelClassName,
+  chartMargin = { top: 4, right: 16, bottom: 4, left: 8 },
+}: LineChartPanelProps) {
   const fundingFmt = formatter ?? defaultFundingFormatter;
 
   const renderTooltip = (props: TooltipContentProps<ValueType, NameType>) => {
@@ -57,11 +68,15 @@ export default function LineChartPanel({ title, data, formatter }: LineChartPane
     );
   };
 
+  const panelClass = panelClassName
+    ? `chart-panel ${panelClassName}`
+    : "chart-panel";
+
   return (
-    <div className="chart-panel">
+    <div className={panelClass}>
       <div className="chart-panel-title">{title}</div>
-      <ResponsiveContainer width="100%" height={300}>
-        <LineChart data={data} margin={{ top: 4, right: 16, bottom: 4, left: 8 }}>
+      <ResponsiveContainer width="100%" height={height}>
+        <LineChart data={data} margin={chartMargin}>
           <CartesianGrid strokeDasharray="3 3" stroke="var(--border)" />
           <XAxis
             dataKey="year"

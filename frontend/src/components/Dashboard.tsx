@@ -58,6 +58,83 @@ function formatHybridCountTick(n: number): string {
   return n.toLocaleString();
 }
 
+/** Log below 20k; linear from 20k to axis max on the IC projects chart. */
+const IC_HYBRID_LINEAR_MIN = 20_000;
+const IC_HYBRID_LINEAR_MAX_ALL = 77_000;
+const IC_HYBRID_LOG_MIN = 10;
+const IC_HYBRID_LOG_RATIO = 0.38;
+
+function roundUpToThousand(value: number): number {
+  return Math.ceil(value / 1000) * 1000;
+}
+
+function icProjectsValueToPlot(value: number, linearMax: number): number {
+  const v = Math.max(value, IC_HYBRID_LOG_MIN);
+  const cappedMax = Math.max(linearMax, IC_HYBRID_LOG_MIN);
+
+  if (cappedMax <= IC_HYBRID_LINEAR_MIN) {
+    const logMin = Math.log10(IC_HYBRID_LOG_MIN);
+    const logMax = Math.log10(cappedMax);
+    return (Math.log10(Math.min(v, cappedMax)) - logMin) / (logMax - logMin);
+  }
+
+  if (v >= IC_HYBRID_LINEAR_MIN) {
+    return (
+      IC_HYBRID_LOG_RATIO +
+      (1 - IC_HYBRID_LOG_RATIO) *
+        (Math.min(v, cappedMax) - IC_HYBRID_LINEAR_MIN) /
+        (cappedMax - IC_HYBRID_LINEAR_MIN)
+    );
+  }
+  const logMin = Math.log10(IC_HYBRID_LOG_MIN);
+  const logMax = Math.log10(IC_HYBRID_LINEAR_MIN);
+  return (IC_HYBRID_LOG_RATIO * (Math.log10(v) - logMin)) / (logMax - logMin);
+}
+
+function icProjectsPlotToValue(plot: number, linearMax: number): number {
+  const cappedMax = Math.max(linearMax, IC_HYBRID_LOG_MIN);
+
+  if (cappedMax <= IC_HYBRID_LINEAR_MIN) {
+    const logMin = Math.log10(IC_HYBRID_LOG_MIN);
+    const logMax = Math.log10(cappedMax);
+    return 10 ** (logMin + plot * (logMax - logMin));
+  }
+
+  if (plot >= IC_HYBRID_LOG_RATIO) {
+    return (
+      IC_HYBRID_LINEAR_MIN +
+      ((plot - IC_HYBRID_LOG_RATIO) / (1 - IC_HYBRID_LOG_RATIO)) *
+        (cappedMax - IC_HYBRID_LINEAR_MIN)
+    );
+  }
+  const logMin = Math.log10(IC_HYBRID_LOG_MIN);
+  const logMax = Math.log10(IC_HYBRID_LINEAR_MIN);
+  return 10 ** (logMin + (plot / IC_HYBRID_LOG_RATIO) * (logMax - logMin));
+}
+
+const IC_HYBRID_TICK_VALUES_ALL = [
+  100, 500, 1000, 5000, 10000, 20000, 30000, 40000, 50000, 77000,
+] as const;
+
+function buildIcHybridTickValues(linearMax: number): number[] {
+  const cappedMax = Math.max(linearMax, 1000);
+  const logTicks = [100, 500, 1000, 5000, 10000].filter((tick) => tick < cappedMax);
+
+  if (cappedMax > IC_HYBRID_LINEAR_MIN) {
+    for (let tick = IC_HYBRID_LINEAR_MIN; tick < cappedMax; tick += 10_000) {
+      logTicks.push(tick);
+    }
+  }
+
+  if (!logTicks.includes(cappedMax)) {
+    logTicks.push(cappedMax);
+  }
+
+  return logTicks;
+}
+
+const IC_CHART_YEARS = [2020, 2021, 2022, 2023, 2024, 2025] as const;
+
 /**
  * Shortens long institute or organization names for chart axes; pair with
  * `full_label` on the same row for tooltips.
@@ -134,6 +211,40 @@ export default function Dashboard() {
   const [fyMax, setFyMax] = useState("");
   /** Log scale for Projects by Institute (IC) bar chart — matches prior default. */
   const [icProjectsLogScale, setIcProjectsLogScale] = useState(true);
+  const [selectedIcYear, setSelectedIcYear] = useState<number | "all">("all");
+  const [icChartData, setIcChartData] = useState<IcDataPoint[]>([]);
+  const [icChartLoading, setIcChartLoading] = useState(true);
+
+  useEffect(() => {
+    let cancelled = false;
+
+    const loadIcChart = async () => {
+      setIcChartLoading(true);
+      try {
+        const icYearData =
+          selectedIcYear === "all"
+            ? await getIcData()
+            : await getIcData(selectedIcYear);
+        if (!cancelled) {
+          setIcChartData(icYearData);
+        }
+      } catch {
+        if (!cancelled) {
+          setIcChartData([]);
+        }
+      } finally {
+        if (!cancelled) {
+          setIcChartLoading(false);
+        }
+      }
+    };
+
+    void loadIcChart();
+
+    return () => {
+      cancelled = true;
+    };
+  }, [selectedIcYear]);
 
   useEffect(() => {
     let cancelled = false;
@@ -214,13 +325,23 @@ export default function Dashboard() {
     summary.total_documents > 0
       ? summary.total_funding / summary.total_documents
       : 0;
-  const icChartData = icData
+  const icChartRows = icChartData
     .map((point) => ({
       ...point,
       short_label: abbreviateChartCategoryLabel(point.label),
       full_label: point.label,
     }))
     .sort((a, b) => a.full_label.localeCompare(b.full_label));
+
+  const icChartDataMax = icChartData.reduce((max, point) => Math.max(max, point.value), 0);
+  const icChartLinearMax =
+    selectedIcYear === "all"
+      ? IC_HYBRID_LINEAR_MAX_ALL
+      : Math.max(roundUpToThousand(icChartDataMax), 1000);
+  const icChartTickValues =
+    selectedIcYear === "all"
+      ? [...IC_HYBRID_TICK_VALUES_ALL]
+      : buildIcHybridTickValues(icChartLinearMax);
 
   const topOrgsChartData = topOrgs.map((point) => ({
     ...point,
@@ -280,44 +401,81 @@ export default function Dashboard() {
       {/* State map + IC bar chart */}
       <div className="dashboard-grid-2">
         <StateMap data={stateData} />
-        <div className="dashboard-ic-chart-stack">
-          <div className="dashboard-ic-chart-scale">
-            <span className="dashboard-ic-chart-scale-label" id="ic-projects-scale-label">
-              Count axis
-            </span>
-            <div
-              className="dashboard-ic-chart-scale-toggle"
-              role="group"
-              aria-labelledby="ic-projects-scale-label"
-            >
-              <button
-                type="button"
-                className={icProjectsLogScale ? "" : "active"}
-                onClick={() => setIcProjectsLogScale(false)}
-              >
-                Linear
-              </button>
-              <button
-                type="button"
-                className={icProjectsLogScale ? "active" : ""}
-                onClick={() => setIcProjectsLogScale(true)}
-              >
-                Log
-              </button>
-            </div>
-          </div>
+        <div className="dashboard-ic-chart-scroll">
           <BarChartPanel
             title="Projects by Institute (IC)"
-            data={icChartData as unknown as Array<Record<string, unknown>>}
-            dataKey="value"
-            labelKey="short_label"
-            tooltipLabelKey="full_label"
+            panelClassName="chart-panel-ic-projects"
+            headerCenter={
+              <div
+                className="chart-year-scroll"
+                role="listbox"
+                aria-label="Fiscal year"
+              >
+                <button
+                  type="button"
+                  role="option"
+                  aria-selected={selectedIcYear === "all"}
+                  className={selectedIcYear === "all" ? "active" : ""}
+                  onClick={() => setSelectedIcYear("all")}
+                >
+                  All
+                </button>
+                {IC_CHART_YEARS.map((year) => (
+                  <button
+                    key={year}
+                    type="button"
+                    role="option"
+                    aria-selected={selectedIcYear === year}
+                    className={selectedIcYear === year ? "active" : ""}
+                    onClick={() => setSelectedIcYear(year)}
+                  >
+                    {year}
+                  </button>
+                ))}
+              </div>
+            }
+            headerEnd={
+              <div className="chart-scale-toggle" role="group" aria-label="Count axis scale">
+                <button
+                  type="button"
+                  className={icProjectsLogScale ? "" : "active"}
+                  onClick={() => setIcProjectsLogScale(false)}
+                >
+                  Linear
+                </button>
+                <button
+                  type="button"
+                  className={icProjectsLogScale ? "active" : ""}
+                  onClick={() => setIcProjectsLogScale(true)}
+                >
+                  Log
+                </button>
+              </div>
+            }
+            data={
+              icChartLoading
+                ? []
+                : (icChartRows as unknown as Array<Record<string, unknown>>)
+            }
+              dataKey="value"
+              labelKey="short_label"
+              tooltipLabelKey="full_label"
             layout="horizontal"
+            height={360}
+            xAxisHeight={58}
+            xAxisAngle={-45}
+            xAxisFontSize={10}
+            yAxisWidth={60}
+            yAxisTickMargin={4}
+            chartMargin={{ top: 4, right: 4, bottom: 4, left: 0 }}
+            barSize={30}
             {...(icProjectsLogScale
               ? {
-                  valueScale: "log" as const,
-                  valueDomain: [5, 12000] as [number, number],
-                  valueTicks: [5, 10, 100, 500, 1000, 3000, 6000, 12000],
+                  valueTransform: (value: number) =>
+                    icProjectsValueToPlot(value, icChartLinearMax),
+                  plotToValue: (plot: number) =>
+                    icProjectsPlotToValue(plot, icChartLinearMax),
+                  valueTickValues: icChartTickValues,
                   formatter: formatHybridCountTick,
                   tooltipFormatter: formatCount,
                 }
@@ -334,6 +492,7 @@ export default function Dashboard() {
       <div className="dashboard-activity-section">
         <BarChartPanel
           title="Funding by Activity Code"
+          panelClassName="chart-panel-activity"
           data={activityData as unknown as Array<Record<string, unknown>>}
           dataKey="total_funding"
           labelKey="label"
@@ -346,11 +505,14 @@ export default function Dashboard() {
       <div className="dashboard-grid-3">
         <LineChartPanel
           title="Projects & Funding by Year"
+          panelClassName="chart-panel-year-trend"
           data={yearData}
+          height={300}
           formatter={formatDollars}
         />
         <BarChartPanel
           title="Top Organizations by Funding"
+          panelClassName="chart-panel-top-orgs"
           data={topOrgsChartData as unknown as Array<Record<string, unknown>>}
           dataKey="total_funding"
           labelKey="short_label"
@@ -360,6 +522,7 @@ export default function Dashboard() {
         />
         <BarChartPanel
           title="Average Grant by Institute (IC)"
+          panelClassName="chart-panel-avg-grant"
           data={avgGrantChartData as unknown as Array<Record<string, unknown>>}
           dataKey="avg_grant"
           labelKey="short_label"

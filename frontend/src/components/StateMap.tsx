@@ -1,5 +1,5 @@
 import { useRef, useState } from "react";
-import { scaleSequential } from "d3-scale";
+import { scaleThreshold } from "d3-scale";
 import {
   ComposableMap,
   Geographies,
@@ -10,6 +10,27 @@ import type { StateDataPoint } from "../api";
 
 /** TopoJSON source — US states at 1:10m resolution */
 const GEO_URL = "https://cdn.jsdelivr.net/npm/us-atlas@3/states-10m.json";
+
+/** GeoJSON source — Puerto Rico (not included in us-atlas states) */
+const PR_GEO_URL =
+  "https://raw.githubusercontent.com/PublicaMundi/MappingAPI/master/data/geojson/us-states.json";
+
+/** Project-count thresholds for choropleth buckets */
+const COUNT_THRESHOLDS = [1000, 5000, 10000, 20000, 30000, 40000, 50000] as const;
+
+/** Eight-step choropleth — mint → navy */
+const MAP_COLOR_STOPS = [
+  "#c0f0c4", // 0–1k #88c292 #7DB888
+  "#9ce6a7", // 1k–5k — medium green
+  "#72d497", // 5k–10k — clear teal shift #3A9EAA
+  "#3eb896", //10k–20k
+  "#18888c", //20k–30k
+  "#1c708f", //30k–40k
+  "#195182", //40k–50k
+  "#0d3763", // 50k+
+] as const;
+const HOVER_FILL = "#ffe259";
+const HOVER_STROKE = "#f97316";
 
 /**
  * Maps 2-letter USPS abbreviations to the full state name used in
@@ -67,29 +88,8 @@ const STATE_ABBREV_TO_NAME: Record<string, string> = {
   WI: "Wisconsin",
   WY: "Wyoming",
   DC: "District of Columbia",
+  PR: "Puerto Rico",
 };
-
-/**
- * Linear interpolation between two hex colors.
- * `t` should be in [0, 1].
- */
-function interpolateHex(colorA: string, colorB: string, t: number): string {
-  const parseHex = (hex: string): [number, number, number] => {
-    const cleaned = hex.replace("#", "");
-    return [
-      parseInt(cleaned.slice(0, 2), 16),
-      parseInt(cleaned.slice(2, 4), 16),
-      parseInt(cleaned.slice(4, 6), 16),
-    ];
-  };
-
-  const toHex = (n: number): string => Math.round(n).toString(16).padStart(2, "0");
-
-  const [r1, g1, b1] = parseHex(colorA);
-  const [r2, g2, b2] = parseHex(colorB);
-
-  return `#${toHex(r1 + (r2 - r1) * t)}${toHex(g1 + (g2 - g1) * t)}${toHex(b1 + (b2 - b1) * t)}`;
-}
 
 interface TooltipState {
   stateName: string;
@@ -109,11 +109,12 @@ const formatFunding = (n: number): string => {
 };
 
 /**
- * US choropleth map shaded by total NIH grant funding per state.
+ * US choropleth map shaded by NIH project count per state.
  * Uses react-simple-maps + d3-scale for the color scale.
  */
 export default function StateMap({ data }: StateMapProps) {
   const [tooltip, setTooltip] = useState<TooltipState | null>(null);
+  const [hoveredState, setHoveredState] = useState<string | null>(null);
   const tooltipRef = useRef<HTMLDivElement | null>(null);
 
   const updateTooltipPosition = (x: number, y: number): void => {
@@ -132,66 +133,114 @@ export default function StateMap({ data }: StateMapProps) {
     }
   }
 
-  const maxFunding = Math.max(...data.map((d) => d.total_funding), 1);
-
-  // d3-scale sequential scale (domain 0→max, output 0→1 for our interpolator)
-  const colorScale = scaleSequential<number>()
-    .domain([0, maxFunding])
-    .range([0, 1] as unknown as [number, number]);
+  const colorScale = scaleThreshold<string>()
+    .domain([...COUNT_THRESHOLDS])
+    .range([...MAP_COLOR_STOPS]);
 
   const getFill = (geoName: string): string => {
     const point = stateByName.get(geoName);
-    if (!point) return "var(--border)";
-    const t = colorScale(point.total_funding) as unknown as number;
-    return interpolateHex("#dbeafe", "#1a56db", Math.min(1, Math.max(0, t)));
+    if (!point) return MAP_COLOR_STOPS[0];
+    return colorScale(point.count);
+  };
+
+  const renderGeography = (geo: GeographyType, hoveredLayer = false): JSX.Element => {
+    const geoName = geo.properties.name as string;
+    const point = stateByName.get(geoName);
+    const isHovered = hoveredLayer || hoveredState === geoName;
+
+    return (
+      <Geography
+        key={hoveredLayer ? `${geo.rsmKey}-hover` : geo.rsmKey}
+        geography={geo}
+        fill={isHovered ? HOVER_FILL : getFill(geoName)}
+        stroke={isHovered ? HOVER_STROKE : "#ffffff"}
+        strokeWidth={isHovered ? 3 : 1}
+        style={{
+          default: {
+            outline: "none",
+            transition: "fill 0.15s ease, stroke 0.15s ease",
+            strokeLinejoin: "round",
+            strokeLinecap: "round",
+          },
+          hover: { outline: "none" },
+          pressed: { outline: "none" },
+        }}
+        onMouseEnter={(e) => {
+          setHoveredState(geoName);
+          updateTooltipPosition(e.clientX + 12, e.clientY - 8);
+          setTooltip({
+            stateName: geoName,
+            count: point?.count ?? 0,
+            totalFunding: point?.total_funding ?? 0,
+          });
+        }}
+        onMouseMove={(e) => {
+          updateTooltipPosition(e.clientX + 12, e.clientY - 8);
+        }}
+        onMouseLeave={() => {
+          setHoveredState(null);
+          setTooltip(null);
+        }}
+      />
+    );
+  };
+
+  const renderGeographyLayers = (geographies: GeographyType[]): JSX.Element[] => {
+    const geoName = (geo: GeographyType): string => geo.properties.name as string;
+
+    const baseLayer = geographies
+      .filter((geo) => geoName(geo) !== hoveredState)
+      .map((geo) => renderGeography(geo));
+
+    const hoverLayer = hoveredState
+      ? geographies
+          .filter((geo) => geoName(geo) === hoveredState)
+          .map((geo) => renderGeography(geo, true))
+      : [];
+
+    return [...baseLayer, ...hoverLayer];
   };
 
   return (
-    <div className="chart-panel" style={{ position: "relative" }}>
-      <div className="chart-panel-title">Funding by State</div>
-      <ComposableMap
-        projection="geoAlbersUsa"
-        projectionConfig={{ scale: 900 }}
-        width={800}
-        height={500}
-        style={{ width: "100%", height: "auto" }}
-      >
-        <Geographies geography={GEO_URL}>
-          {({ geographies }: { geographies: GeographyType[] }) =>
-            geographies.map((geo) => {
-              const geoName = geo.properties.name as string;
-              const point = stateByName.get(geoName);
+    <div className="chart-panel state-map-panel">
+      <div className="chart-panel-title">Projects by State</div>
+      <div className="state-map-canvas">
+        <ComposableMap
+          projection="geoAlbersUsa"
+          projectionConfig={{ scale: 900 }}
+          width={700}
+          height={500}
+          style={{ width: "100%", height: "auto" }}
+        >
+          <Geographies geography={GEO_URL}>
+            {({ geographies }: { geographies: GeographyType[] }) =>
+              renderGeographyLayers(geographies)
+            }
+          </Geographies>
+        </ComposableMap>
 
-              return (
-                <Geography
-                  key={geo.rsmKey}
-                  geography={geo}
-                  fill={getFill(geoName)}
-                  stroke="var(--surface)"
-                  strokeWidth={1}
-                  style={{
-                    default: { outline: "none" },
-                    hover: { outline: "none", filter: "brightness(0.88)" },
-                    pressed: { outline: "none" },
-                  }}
-                  onMouseEnter={(e) => {
-                    updateTooltipPosition(e.clientX + 12, e.clientY - 8);
-                    setTooltip({
-                      stateName: geoName,
-                      count: point?.count ?? 0,
-                      totalFunding: point?.total_funding ?? 0,
-                    });
-                  }}
-                  onMouseMove={(e) => {
-                    updateTooltipPosition(e.clientX + 12, e.clientY - 8);
-                  }}
-                  onMouseLeave={() => setTooltip(null)}
-                />
-              );
-            })
-          }
-        </Geographies>
-      </ComposableMap>
+        <div className="state-map-pr-inset">
+          <ComposableMap
+            projection="geoConicEqualArea"
+            projectionConfig={{
+              rotate: [66, 0],
+              center: [0, 18],
+              parallels: [8, 18],
+              scale: 3400,
+            }}
+            width={26}
+            height={16}
+          >
+            <Geographies geography={PR_GEO_URL}>
+              {({ geographies }: { geographies: GeographyType[] }) =>
+                renderGeographyLayers(
+                  geographies.filter((geo) => (geo.properties.name as string) === "Puerto Rico"),
+                )
+              }
+            </Geographies>
+          </ComposableMap>
+        </div>
+      </div>
 
       {tooltip && (
         <div
