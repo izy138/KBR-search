@@ -1949,6 +1949,8 @@ body {
 .chart-pie-size-host {
   width: 100%;
   min-width: 0;
+}
+
 .state-map-panel {
   position: relative;
 }
