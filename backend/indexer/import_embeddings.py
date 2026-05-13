@@ -20,6 +20,7 @@ Env vars honoured (same as the rest of the indexer):
     OPENSEARCH_HOST   default: localhost
     OPENSEARCH_PORT   default: 9200
     OPENSEARCH_INDEX  default: project_data
+    EMBEDDING_MODEL   default: sentence-transformers/all-MiniLM-L6-v2 (384-d vectors)
 """
 from __future__ import annotations
 

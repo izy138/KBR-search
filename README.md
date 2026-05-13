@@ -69,7 +69,7 @@ Services:
 
 ## Load Data Into OpenSearch
 
-After the stack is up, run indexing once (defaults to `2025_data.csv`; pass another path as needed):
+After the stack is up, run indexing once (defaults to `2025_data.csv`; pass another path as needed). Vector search uses `sentence-transformers/all-MiniLM-L6-v2` (384-d) via `EMBEDDING_MODEL` in `docker-compose.yml`:
 
 ```bash
 docker compose exec backend python indexer/index_data.py /app/2025_data.csv --with-embeddings

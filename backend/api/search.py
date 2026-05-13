@@ -7,7 +7,7 @@ from typing import Any
 
 from fastapi import APIRouter, HTTPException, Path, Query
 
-from .embeddings import EMBEDDING_FIELD, embed_query
+from .embeddings import EMBEDDING_FIELD, embed_query, get_dimension, get_model_name
 from .opensearch_client import get_client, get_index_name
 
 router = APIRouter()
@@ -30,6 +30,39 @@ HYBRID_MAX_K = 50
 RRF_K_CONST = 60  # Standard smoothing constant from the original RRF paper.
 HYBRID_FETCH_MULTIPLIER = 4  # Pull this many * k from each side before fusing.
 HYBRID_MAX_FETCH = 100
+
+_index_embedding_dimension: int | None = None
+
+
+def _require_matching_embedding_dimension(client: Any) -> None:
+    """Fail fast when the runtime model does not match the index mapping."""
+    global _index_embedding_dimension
+    if _index_embedding_dimension is None:
+        try:
+            mapping = client.indices.get_mapping(index=INDEX_NAME)
+            index_block = mapping.get(INDEX_NAME, {})
+            properties = index_block.get("mappings", {}).get("properties", {})
+            embedding = properties.get(EMBEDDING_FIELD, {})
+            dimension = embedding.get("dimension")
+            if isinstance(dimension, int):
+                _index_embedding_dimension = dimension
+        except Exception:
+            return
+
+    if _index_embedding_dimension is None:
+        return
+
+    model_dimension = get_dimension()
+    if model_dimension != _index_embedding_dimension:
+        raise HTTPException(
+            status_code=409,
+            detail=(
+                f"Embedding model produces {model_dimension}-d vectors but index "
+                f"'{INDEX_NAME}' expects {_index_embedding_dimension}-d. Set "
+                f"EMBEDDING_MODEL to the model used at index time (current: "
+                f"{get_model_name()})."
+            ),
+        )
 
 
 @router.get("/")
@@ -148,6 +181,180 @@ def get_project(project_id: str = Path(..., description="OpenSearch document ID"
     return {"project": source}
 
 
+def _recurrence_core_num(source: dict[str, object]) -> str | None:
+    core = source.get("CORE_PROJECT_NUM")
+    if isinstance(core, str):
+        stripped = core.strip()
+        if stripped:
+            return stripped
+    return None
+
+
+def _recurrence_title(source: dict[str, object]) -> str | None:
+    title = source.get("PROJECT_TITLE")
+    if isinstance(title, str):
+        stripped = title.strip()
+        if stripped:
+            return stripped
+    return None
+
+
+def _recurrence_match_query(source: dict[str, object]) -> dict[str, object]:
+    """OpenSearch query matching other fiscal years of the same recurring award."""
+    core = _recurrence_core_num(source)
+    if core:
+        return {"term": {"CORE_PROJECT_NUM.keyword": core}}
+    title = _recurrence_title(source)
+    if title:
+        return {"term": {"PROJECT_TITLE.keyword": title}}
+    raise HTTPException(
+        status_code=400,
+        detail="Project has no CORE_PROJECT_NUM or PROJECT_TITLE for recurrence lookup.",
+    )
+
+
+def _recurrence_must_not(source: dict[str, object]) -> list[dict[str, object]]:
+    """Exclude sibling years of the same recurring award from similarity results."""
+    clauses: list[dict[str, object]] = []
+    core = _recurrence_core_num(source)
+    if core:
+        clauses.append({"term": {"CORE_PROJECT_NUM.keyword": core}})
+    title = _recurrence_title(source)
+    if title:
+        clauses.append({"term": {"PROJECT_TITLE.keyword": title}})
+    return clauses
+
+
+def _recurrence_group_key(record: dict[str, object]) -> str:
+    """Stable key for deduplicating recurring awards across fiscal years."""
+    core = _recurrence_core_num(record)
+    if core:
+        return f"core:{core}"
+    title = _recurrence_title(record)
+    if title:
+        return f"title:{title}"
+    record_id = record.get("_id")
+    if record_id is not None:
+        return f"id:{record_id}"
+    return f"row:{id(record)}"
+
+
+def _group_similar_results(
+    results: list[dict[str, object]],
+    *,
+    limit: int,
+) -> list[dict[str, object]]:
+    """Collapse recurring fiscal-year rows into one hit with year_variants."""
+    groups: dict[str, dict[str, object]] = {}
+    order: list[str] = []
+
+    for record in results:
+        key = _recurrence_group_key(record)
+        variant: dict[str, object] = {
+            "project_id": record.get("_id"),
+            "application_id": record.get("APPLICATION_ID"),
+            "fy": record.get("FY"),
+        }
+
+        if key not in groups:
+            grouped = dict(record)
+            grouped["year_variants"] = [variant]
+            groups[key] = grouped
+            order.append(key)
+            continue
+
+        grouped = groups[key]
+        variants = grouped.get("year_variants")
+        if not isinstance(variants, list):
+            variants = []
+        variant_ids = {
+            item.get("project_id")
+            for item in variants
+            if isinstance(item, dict) and item.get("project_id") is not None
+        }
+        if variant.get("project_id") not in variant_ids:
+            variants.append(variant)
+        grouped["year_variants"] = variants
+
+        record_score = record.get("_score")
+        group_score = grouped.get("_score")
+        if isinstance(record_score, (int, float)) and (
+            not isinstance(group_score, (int, float)) or record_score > group_score
+        ):
+            preserved_variants = grouped["year_variants"]
+            groups[key] = dict(record)
+            groups[key]["year_variants"] = preserved_variants
+
+    grouped_results: list[dict[str, object]] = []
+    for key in order[:limit]:
+        grouped = groups[key]
+        variants = grouped.get("year_variants")
+        if isinstance(variants, list):
+            grouped["year_variants"] = sorted(
+                variants,
+                key=lambda item: (
+                    not isinstance(item, dict) or item.get("fy") is None,
+                    item.get("fy") if isinstance(item, dict) else 0,
+                ),
+            )
+        grouped_results.append(grouped)
+    return grouped_results
+
+
+@router.get("/project/{project_id}/other-years")
+def get_project_other_years(
+    project_id: str = Path(..., description="OpenSearch document ID"),
+) -> dict[str, object]:
+    """Return other fiscal-year records for the same recurring NIH project."""
+    client = get_client()
+    try:
+        source_doc = client.get(index=INDEX_NAME, id=project_id)
+    except Exception as exc:
+        error_body = getattr(exc, "info", {})
+        status_code = error_body.get("status") if isinstance(error_body, dict) else None
+        if status_code == 404:
+            raise HTTPException(status_code=404, detail="Project not found") from exc
+        raise
+
+    source = source_doc.get("_source", {})
+    if not isinstance(source, dict):
+        source = {}
+
+    response = client.search(
+        index=INDEX_NAME,
+        body={
+            "size": 50,
+            "query": _recurrence_match_query(source),
+            "_source": {"includes": ["FY", "APPLICATION_ID", "PROJECT_TITLE", "CORE_PROJECT_NUM"]},
+            "sort": [{"FY": {"order": "asc", "unmapped_type": "long"}}],
+        },
+    )
+    hits = response.get("hits", {}).get("hits", [])
+    years: list[dict[str, object]] = []
+    for hit in hits:
+        hit_id = hit.get("_id")
+        hit_source = hit.get("_source", {})
+        if not isinstance(hit_source, dict):
+            continue
+        fy = hit_source.get("FY")
+        years.append(
+            {
+                "project_id": hit_id,
+                "application_id": hit_source.get("APPLICATION_ID"),
+                "fy": fy,
+                "is_current": hit_id == project_id,
+            }
+        )
+
+    return {
+        "project_id": project_id,
+        "project_title": _recurrence_title(source),
+        "core_project_num": _recurrence_core_num(source),
+        "years": years,
+        "other_years": [year for year in years if not year.get("is_current")],
+    }
+
+
 def _format_knn_hits(
     hits: list[dict[str, object]],
     *,
@@ -174,6 +381,7 @@ def search_similar(
 ) -> dict[str, object]:
     """Semantic search: find projects whose embedding is closest to the query."""
     client = get_client()
+    _require_matching_embedding_dimension(client)
     query_vector = embed_query(q)
     response = client.search(
         index=INDEX_NAME,
@@ -198,6 +406,7 @@ def search_similar_to_project(
     top-k nearest neighbours (excluding the source document itself).
     """
     client = get_client()
+    _require_matching_embedding_dimension(client)
     try:
         source_doc = client.get(index=INDEX_NAME, id=project_id)
     except Exception as exc:
@@ -218,20 +427,30 @@ def search_similar_to_project(
             ),
         )
 
+    knn_clause: dict[str, object] = {"vector": vector, "k": k + 1}
+    if isinstance(source, dict):
+        must_not = _recurrence_must_not(source)
+        if must_not:
+            knn_clause["filter"] = {"bool": {"must_not": must_not}}
+
+    # Over-fetch so we can return k unique recurring projects after year deduplication.
+    fetch_k = min(SIMILAR_MAX_K, max(k * 4, k + 15))
+    knn_clause["k"] = fetch_k + 1
+
     response = client.search(
         index=INDEX_NAME,
         body={
-            # Request k+1 so we still return k results after removing the source.
-            "size": k + 1,
+            "size": fetch_k + 1,
             "_source": {"excludes": [EMBEDDING_FIELD]},
-            "query": {"knn": {EMBEDDING_FIELD: {"vector": vector, "k": k + 1}}},
+            "query": {"knn": {EMBEDDING_FIELD: knn_clause}},
         },
     )
     hits = response.get("hits", {}).get("hits", [])
+    formatted = _format_knn_hits(hits, exclude_id=project_id)
     return {
         "project_id": project_id,
         "k": k,
-        "results": _format_knn_hits(hits, exclude_id=project_id)[:k],
+        "results": _group_similar_results(formatted, limit=k),
     }
 
 
@@ -406,6 +625,7 @@ def search_hybrid(
     transparency.
     """
     client = get_client()
+    _require_matching_embedding_dimension(client)
 
     filters = _build_hybrid_filters(
         category=category,

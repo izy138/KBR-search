@@ -127,6 +127,8 @@ TOTAL_COST        TOTAL_COST_SUB_PROJECT
 | `OPENSEARCH_PORT` | `9200` | OpenSearch port |
 | `OPENSEARCH_INDEX` | `project_data` | Index name |
 | `DATA_FILE` | `2025_data.csv` | Path to data file (relative to working dir) |
+| `EMBEDDING_MODEL` | `sentence-transformers/all-MiniLM-L6-v2` | Sentence-transformers model for indexing and vector search (384-d) |
+| `EMBEDDING_DEVICE` | `auto` | `auto`, `cpu`, `cuda`, or `mps` for embedding inference |
 
 Copy `.env.example` → `.env` when running the backend directly (outside Docker).
 
@@ -137,3 +139,4 @@ Copy `.env.example` → `.env` when running the backend directly (outside Docker
 3. **`category.keyword` aggregation:** `analytics.py` aggregates on `category.keyword` but the CSV has no `category` column — this returns empty buckets until a field is mapped to `category` in the indexer.
 4. **Hardcoded index name:** `INDEX_NAME = "project_data"` is set in both `search.py:10` and `analytics.py:8`. If you rename the index, update both files and the `OPENSEARCH_INDEX` env var.
 5. **Double `get_client()`:** `indexer/index_data.py` defines its own `get_client()` that duplicates `api/opensearch_client.py`. They are functionally identical; `reindex.py` imports from `index_data.py`.
+6. **Embedding model vs index:** Indexed vectors are 384-d from `all-MiniLM-L6-v2`. `EMBEDDING_MODEL` must match at index time and query time; do not switch to mpnet (768-d) without a full reindex.
