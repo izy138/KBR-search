@@ -1,7 +1,7 @@
 import { useEffect, useState } from "react";
 import { useNavigate } from "react-router-dom";
-import type { SearchResultRecord } from "../api";
-import { searchSimilarToProjectId } from "../api";
+import type { ProjectFiscalYear, ProjectYearVariant, SearchResultRecord } from "../api";
+import { getProjectOtherYears, searchSimilarToProjectId } from "../api";
 import { getOrderedPiNames } from "../utils/piNames";
 import ProjectActivityTermsChart from "./ProjectActivityTermsChart";
 
@@ -57,6 +57,29 @@ function getProjectAbstract(item: SearchResultRecord): string | null {
   return normalized.length > 0 ? normalized : null;
 }
 
+function getYearVariants(record: SearchResultRecord): ProjectYearVariant[] {
+  const raw = record.year_variants;
+  if (Array.isArray(raw)) {
+    return raw.filter(
+      (item): item is ProjectYearVariant =>
+        item != null &&
+        typeof item === "object" &&
+        typeof (item as ProjectYearVariant).project_id === "string",
+    );
+  }
+  const recordId = record._id ?? record.id;
+  if (typeof recordId === "string") {
+    return [
+      {
+        project_id: recordId,
+        fy: typeof record.FY === "number" ? record.FY : undefined,
+        application_id: typeof record.APPLICATION_ID === "number" ? record.APPLICATION_ID : undefined,
+      },
+    ];
+  }
+  return [];
+}
+
 export default function ProjectDetailsPage({
   item,
   onBack,
@@ -75,6 +98,7 @@ export default function ProjectDetailsPage({
   const [similarNeighbors, setSimilarNeighbors] = useState<SearchResultRecord[]>([]);
   const [similarLoading, setSimilarLoading] = useState<boolean>(false);
   const [similarError, setSimilarError] = useState<string>("");
+  const [projectYears, setProjectYears] = useState<ProjectFiscalYear[]>([]);
   const isLongAbstract =
     projectAbstract != null && projectAbstract.length > ABSTRACT_PREVIEW_LENGTH;
   const abstractPreview =
@@ -120,6 +144,51 @@ export default function ProjectDetailsPage({
     };
   }, [projectId]);
 
+  useEffect(() => {
+    if (!projectId) {
+      setProjectYears([]);
+      return;
+    }
+    let cancelled = false;
+    void (async () => {
+      try {
+        const payload = await getProjectOtherYears(projectId);
+        if (!cancelled) {
+          setProjectYears(payload.years ?? payload.other_years ?? []);
+        }
+      } catch {
+        if (!cancelled) {
+          setProjectYears([]);
+        }
+      }
+    })();
+    return () => {
+      cancelled = true;
+    };
+  }, [projectId]);
+
+  const handleOpenProjectYear = (year: ProjectFiscalYear): void => {
+    if (!year.project_id || year.project_id === projectId) return;
+    if (onOpenDetails) {
+      onOpenDetails({ _id: year.project_id, FY: year.fy, APPLICATION_ID: year.application_id });
+      return;
+    }
+    navigate(`/projects/${encodeURIComponent(year.project_id)}`);
+  };
+
+  const handleOpenYearVariant = (variant: ProjectYearVariant): void => {
+    if (!variant.project_id) return;
+    if (onOpenDetails) {
+      onOpenDetails({
+        _id: variant.project_id,
+        FY: variant.fy,
+        APPLICATION_ID: variant.application_id,
+      });
+      return;
+    }
+    navigate(`/projects/${encodeURIComponent(variant.project_id)}`);
+  };
+
   return (
     <div className="project-details-layout">
     <div className="project-details-card">
@@ -127,6 +196,36 @@ export default function ProjectDetailsPage({
         <button type="button" className="project-back-link" onClick={onBack}>
           Back to results
         </button>
+        {projectYears.length > 1 ? (
+          <div className="project-details-year-tags" aria-label="Fiscal years for this project">
+            {projectYears.map((year) => {
+              const isActive = year.project_id === projectId || year.is_current === true;
+              if (isActive) {
+                return (
+                  <span
+                    key={year.project_id}
+                    className="project-details-year-tag project-details-year-tag--active"
+                    aria-current="page"
+                  >
+                    {year.fy != null ? `FY ${year.fy}` : "Current year"}
+                  </span>
+                );
+              }
+              return (
+                <button
+                  key={year.project_id}
+                  type="button"
+                  className="project-details-year-tag"
+                  onClick={() => handleOpenProjectYear(year)}
+                >
+                  {year.fy != null ? `FY ${year.fy}` : "Other year"}
+                </button>
+              );
+            })}
+          </div>
+        ) : (
+          <div className="project-details-year-tags" aria-hidden="true" />
+        )}
         {projectId ? (
           <button
             type="button"
@@ -135,7 +234,9 @@ export default function ProjectDetailsPage({
           >
             Similar grants (vectors)
           </button>
-        ) : null}
+        ) : (
+          <span />
+        )}
       </div>
 
       <h1 className="project-details-title">{item.PROJECT_TITLE ?? "Untitled Project"}</h1>
@@ -278,25 +379,40 @@ export default function ProjectDetailsPage({
       ) : (
         <ol className="project-details-similar-list">
           {similarNeighbors.map((neighbor, index) => {
-            const nid = neighbor._id ?? neighbor.id ?? "";
-            const score = typeof neighbor._score === "number" ? neighbor._score : null;
+            const yearVariants = getYearVariants(neighbor);
+            const listKey = yearVariants.map((variant) => variant.project_id).join("-") || String(index);
+            const primaryId = yearVariants[0]?.project_id ?? neighbor._id ?? neighbor.id ?? "";
             return (
-              <li key={nid || String(index)} className="project-details-similar-item">
-                <div className="project-details-similar-item-head">
-                  <span className="project-details-similar-rank">{index + 1}</span>
-                  {score != null ? (
-                    <span className="project-details-similar-score" title="OpenSearch k-NN score">
-                      {score.toFixed(3)}
+              <li key={listKey} className="project-details-similar-item">
+                <div className="project-details-similar-item-top">
+                  {yearVariants.length > 0 ? (
+                    <div
+                      className="project-details-similar-year-tags"
+                      aria-label="Fiscal years for this similar project"
+                    >
+                      {yearVariants.map((variant) => (
+                        <button
+                          key={variant.project_id}
+                          type="button"
+                          className="project-details-similar-year-tag"
+                          onClick={() => handleOpenYearVariant(variant)}
+                        >
+                          {variant.fy != null ? `FY ${variant.fy}` : "Year"}
+                        </button>
+                      ))}
+                    </div>
+                  ) : (
+                    <div className="project-details-similar-year-tags" aria-hidden="true" />
+                  )}
+                  <div className="project-details-similar-item-trailing">
+                    {neighbor.ACTIVITY ? <span className="tag activity">{neighbor.ACTIVITY}</span> : null}
+                    <span className="project-details-similar-item-cost">
+                      {formatCurrency(neighbor.TOTAL_COST as number | undefined)}
                     </span>
-                  ) : null}
+                  </div>
                 </div>
                 <p className="project-details-similar-item-title">{neighbor.PROJECT_TITLE ?? "Untitled"}</p>
-                <div className="project-details-similar-item-meta">
-                  {neighbor.ACTIVITY ? <span className="tag activity">{neighbor.ACTIVITY}</span> : null}
-                  {neighbor.FY != null ? <span className="tag fy">FY {neighbor.FY}</span> : null}
-                </div>
-                <p className="project-details-similar-item-cost">{formatCurrency(neighbor.TOTAL_COST as number | undefined)}</p>
-                {onOpenDetails && nid ? (
+                {onOpenDetails && primaryId ? (
                   <button
                     type="button"
                     className="project-details-similar-open"
