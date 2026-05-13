@@ -10,6 +10,19 @@ import {
 } from "recharts";
 import type { TooltipContentProps } from "recharts/types/component/Tooltip";
 import type { NameType, ValueType } from "recharts/types/component/DefaultTooltipContent";
+import {
+  clearVerticalBarHeightStore,
+  useVerticalBarShapeRenderer,
+} from "./VerticalOnlyBarShape";
+
+let lastBarAnimationSnapKey: string | undefined;
+
+function syncVerticalBarSnapKey(snapKey: string): void {
+  if (lastBarAnimationSnapKey !== snapKey) {
+    lastBarAnimationSnapKey = snapKey;
+    clearVerticalBarHeightStore();
+  }
+}
 
 interface BarChartPanelProps {
   title: string;
@@ -55,6 +68,16 @@ interface BarChartPanelProps {
   barSize?: number;
   /** When true, bar width scales with category count instead of maxBarSize */
   dynamicBarSize?: boolean;
+  /** Gap between bar categories (Recharts barCategoryGap) */
+  barCategoryGap?: string | number;
+  /** Remount the chart when this key changes (e.g. scale mode) to avoid cross-scale animation */
+  chartKey?: string;
+  /** `vertical` animates bar height only; `default` uses Recharts' built-in animation */
+  barAnimation?: "default" | "vertical";
+  /** Animate bar size changes (only applies when barAnimation is `default`) */
+  animateBars?: boolean;
+  /** Bars snap instantly when this key changes (pass scale mode for linear/log toggles) */
+  barAnimationSnapKey?: string;
   /** Recharts outer margin */
   chartMargin?: { top?: number; right?: number; bottom?: number; left?: number };
 }
@@ -93,6 +116,11 @@ export default function BarChartPanel({
   maxBarSize = 40,
   barSize,
   dynamicBarSize = false,
+  barCategoryGap = "2%",
+  chartKey,
+  barAnimation = "default",
+  animateBars = true,
+  barAnimationSnapKey = "default",
   chartMargin = { top: 4, right: 16, bottom: 24, left: 8 },
 }: BarChartPanelProps) {
   const renderTooltip = (props: TooltipContentProps<ValueType, NameType>) => {
@@ -125,17 +153,16 @@ export default function BarChartPanel({
   const usesValueTransform = valueTransform != null;
   const useLogScale = valueScale === "log" && !usesValueTransform;
   const plotDataKey = `${dataKey}__plot`;
-  const chartData = usesValueTransform
-    ? data.map((row) => {
-        const raw = Number(row[dataKey]);
-        return {
-          ...row,
-          [`${dataKey}__raw`]: raw,
-          [plotDataKey]: valueTransform(raw),
-        };
-      })
-    : data;
-  const barDataKey = usesValueTransform ? plotDataKey : dataKey;
+  const chartData = data.map((row) => {
+    const raw = Number(row[dataKey]);
+    const plotValue = usesValueTransform ? valueTransform(raw) : raw;
+    return {
+      ...row,
+      [`${dataKey}__raw`]: raw,
+      [plotDataKey]: plotValue,
+    };
+  });
+  const barDataKey = plotDataKey;
 
   const axisDomain: [number | "auto", number | "auto"] = usesValueTransform
     ? [0, 1]
@@ -173,6 +200,16 @@ export default function BarChartPanel({
     ? `chart-panel ${panelClassName}`
     : "chart-panel";
 
+  const useVerticalBarAnimation = barAnimation === "vertical";
+  const verticalBarShape = useVerticalBarShapeRenderer(
+    tooltipLabelKey ?? labelKey,
+    barAnimationSnapKey,
+  );
+
+  if (useVerticalBarAnimation) {
+    syncVerticalBarSnapKey(barAnimationSnapKey);
+  }
+
   return (
     <div className={panelClass}>
       {headerCenter != null || headerEnd != null ? (
@@ -209,11 +246,18 @@ export default function BarChartPanel({
           </BarChart>
         ) : (
           <BarChart
+            key={chartKey}
             data={chartData}
             margin={chartMargin}
-            barCategoryGap="2%"
+            barCategoryGap={barCategoryGap}
+            {...(resolvedBarSize == null && !dynamicBarSize ? { maxBarSize } : {})}
           >
-            <CartesianGrid strokeDasharray="3 3" vertical={false} stroke="var(--border)" />
+            <CartesianGrid
+              strokeDasharray="3 3"
+              vertical={false}
+              stroke="var(--border)"
+              animationDuration={useVerticalBarAnimation ? 0 : undefined}
+            />
             <XAxis
               type="category"
               dataKey={labelKey}
@@ -230,6 +274,7 @@ export default function BarChartPanel({
               width={yAxisWidth}
               tickMargin={yAxisTickMargin}
               type="number"
+              animationDuration={useVerticalBarAnimation ? 0 : undefined}
               {...valueAxisProps}
             />
             <Tooltip
@@ -241,6 +286,8 @@ export default function BarChartPanel({
               dataKey={barDataKey}
               fill={color}
               radius={[3, 3, 0, 0]}
+              isAnimationActive={!useVerticalBarAnimation && animateBars}
+              shape={useVerticalBarAnimation ? verticalBarShape : undefined}
               {...(resolvedBarSize != null
                 ? { barSize: resolvedBarSize }
                 : { maxBarSize })}

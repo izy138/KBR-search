@@ -1605,6 +1605,11 @@ body {
   overflow: hidden;
 }
 
+.dashboard-ic-chart-scroll--loading .chart-panel-ic-projects {
+  opacity: 0.92;
+  transition: opacity 0.15s ease;
+}
+
 .dashboard-ic-chart-scroll .chart-panel-ic-projects {
   min-height: 0;
   width: 100%;
