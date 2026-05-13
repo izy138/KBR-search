@@ -238,6 +238,22 @@ export interface ActivityFundingPieResponse {
   more_activities_than_buckets: boolean;
 }
 
+/** One bucket for the PROJECT_TERMS theme word cloud (precomputed JSON). */
+export interface ThemeBucket {
+  label: string;
+  weight: number;
+}
+
+/** `GET /analytics/project-term-theme-cloud` — from notebook `project_term_theme_counts.json`. */
+export interface ProjectTermThemeCloudResponse {
+  generated_at: string | null;
+  method: string | null;
+  low_confidence_cosine?: number | null;
+  buckets: ThemeBucket[];
+  source_path?: string;
+  message?: string;
+}
+
 export interface YearDataPoint {
   year: number;
   count: number;
@@ -329,6 +345,10 @@ export function getActivityFundingPie(options?: {
   const qs = params.toString();
   const path = qs ? `/analytics/by-activity-funding-pie?${qs}` : "/analytics/by-activity-funding-pie";
   return fetchAnalytics<ActivityFundingPieResponse>(path);
+}
+
+export function getProjectTermThemeCloud(): Promise<ProjectTermThemeCloudResponse> {
+  return fetchAnalytics<ProjectTermThemeCloudResponse>("/analytics/project-term-theme-cloud");
 }
 
 export function getYearData(): Promise<YearDataPoint[]> {

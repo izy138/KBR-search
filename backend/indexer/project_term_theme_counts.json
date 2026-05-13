@@ -1,0 +1,7 @@
+{
+  "generated_at": null,
+  "method": null,
+  "low_confidence_cosine": null,
+  "buckets": [],
+  "note": "Run proj_data_analysis.ipynb → 'Auto-route all ;-split terms' cell to populate. Writes theme masses for GET /analytics/project-term-theme-cloud."
+}

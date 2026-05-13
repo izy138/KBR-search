@@ -1656,6 +1656,10 @@ body {
   margin-right: auto;
 }
 
+.dashboard-term-themes {
+  margin-top: 0.85rem;
+}
+
 @media (max-width: 1024px) {
   .dashboard-pie-footer {
     max-width: none;
@@ -1769,6 +1773,45 @@ body {
 .chart-panel-summary strong {
   color: var(--text-primary);
   font-weight: 600;
+}
+
+.chart-panel-meta {
+  color: var(--text-muted);
+  font-size: 0.75rem;
+  white-space: nowrap;
+}
+
+/* Flex “tag cloud” (no canvas wordcloud dependency) */
+.term-theme-cloud {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  justify-content: center;
+  gap: 0.55rem 0.65rem;
+  padding: 1rem 0.5rem 1.25rem;
+  min-height: 8rem;
+}
+
+.term-theme-cloud__tag {
+  display: inline-flex;
+  align-items: baseline;
+  gap: 0.35rem;
+  font-weight: 600;
+  line-height: 1.2;
+  padding: 0.35rem 0.65rem;
+  border-radius: var(--radius-md);
+  border: 1px solid var(--border);
+  box-shadow: var(--shadow-sm);
+}
+
+.term-theme-cloud__count {
+  font-size: 0.68em;
+  font-weight: 500;
+  opacity: 0.85;
+}
+
+.chart-panel--term-cloud {
+  min-height: 0;
 }
 
 .chart-json-download {

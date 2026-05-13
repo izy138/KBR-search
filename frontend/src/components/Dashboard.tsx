@@ -5,6 +5,7 @@ import {
   getAvgGrantByIc,
   getDashboardSummary,
   getIcData,
+  getProjectTermThemeCloud,
   getStateData,
   getTopOrgs,
   getYearData,
@@ -16,6 +17,7 @@ import type {
   DashboardSummary,
   IcDataPoint,
   OrgDataPoint,
+  ProjectTermThemeCloudResponse,
   StateDataPoint,
   YearDataPoint,
 } from "../api";
@@ -23,6 +25,7 @@ import ActivityFundingPiePanel from "./ActivityFundingPiePanel";
 import BarChartPanel from "./BarChartPanel";
 import Filters from "./Filters";
 import LineChartPanel from "./LineChartPanel";
+import ProjectTermsThemeCloud from "./ProjectTermsThemeCloud";
 import SearchBar from "./SearchBar";
 import StateMap from "./StateMap";
 
@@ -91,6 +94,7 @@ interface DashboardData {
   icData: IcDataPoint[];
   activityData: ActivityDataPoint[];
   activityPie: ActivityFundingPieResponse;
+  termThemeCloud: ProjectTermThemeCloudResponse;
   yearData: YearDataPoint[];
   topOrgs: OrgDataPoint[];
   avgGrant: AvgGrantDataPoint[];
@@ -142,6 +146,7 @@ export default function Dashboard() {
           icData,
           activityData,
           activityPie,
+          termThemeCloud,
           yearData,
           topOrgs,
           avgGrant,
@@ -151,6 +156,7 @@ export default function Dashboard() {
           getIcData(),
           getActivityData(80),
           getActivityFundingPie({ limit: 150, pieSlices: 12 }),
+          getProjectTermThemeCloud(),
           getYearData(),
           getTopOrgs(),
           getAvgGrantByIc(),
@@ -163,6 +169,7 @@ export default function Dashboard() {
             icData,
             activityData,
             activityPie,
+            termThemeCloud,
             yearData,
             topOrgs,
             avgGrant,
@@ -198,7 +205,7 @@ export default function Dashboard() {
     );
   }
 
-  const { summary, stateData, icData, activityData, activityPie, yearData, topOrgs, avgGrant } = data;
+  const { summary, stateData, icData, activityData, activityPie, termThemeCloud, yearData, topOrgs, avgGrant } = data;
   const icNames = icData.map((point) => point.label);
   const activityCodes = activityData.map((point) => point.label);
   const states = stateData.map((point) => point.state);
@@ -361,6 +368,10 @@ export default function Dashboard() {
           formatter={formatDollars}
           color="#7c3aed"
         />
+      </div>
+
+      <div className="dashboard-term-themes">
+        <ProjectTermsThemeCloud payload={termThemeCloud} />
       </div>
 
       <div className="dashboard-pie-footer">

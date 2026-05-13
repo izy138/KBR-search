@@ -2,12 +2,18 @@
 
 from __future__ import annotations
 
+import json
+from pathlib import Path
+
 from fastapi import APIRouter, HTTPException, Query
 
 from .opensearch_client import get_client, get_index_name
 
 router = APIRouter()
 INDEX_NAME = get_index_name()
+
+# Precomputed in `proj_data_analysis.ipynb` (embedding→theme cell): theme masses for dashboard word cloud.
+_THEME_COUNTS_PATH = Path(__file__).resolve().parent.parent / "indexer" / "project_term_theme_counts.json"
 
 
 def get_funding_value(source: dict[str, object]) -> float:
@@ -242,6 +248,39 @@ def analytics_by_activity_funding_pie(
     "remainder": remainder,
     "sum_other_doc_count": sum_other_doc_count,
     "more_activities_than_buckets": sum_other_doc_count > 0,
+  }
+
+
+@router.get("/project-term-theme-cloud")
+def analytics_project_term_theme_cloud() -> dict[str, object]:
+  """Precomputed theme masses for the dashboard word cloud.
+
+  Generated offline by ``proj_data_analysis.ipynb`` (embedding nearest-anchor cell),
+  which writes ``backend/indexer/project_term_theme_counts.json``.
+  """
+  path = _THEME_COUNTS_PATH
+  if not path.is_file():
+    return {
+      "generated_at": None,
+      "method": None,
+      "buckets": [],
+      "source_path": str(path),
+      "message": "No project_term_theme_counts.json yet — run the notebook theme cell to create it.",
+    }
+  try:
+    payload = json.loads(path.read_text(encoding="utf-8"))
+  except (OSError, json.JSONDecodeError) as exc:
+    raise HTTPException(status_code=500, detail=f"Invalid theme JSON: {exc}") from exc
+
+  buckets = payload.get("buckets")
+  if not isinstance(buckets, list):
+    buckets = []
+  return {
+    "generated_at": payload.get("generated_at"),
+    "method": payload.get("method"),
+    "low_confidence_cosine": payload.get("low_confidence_cosine"),
+    "buckets": buckets,
+    "source_path": str(path.resolve()),
   }
 
 
