@@ -1,4 +1,4 @@
-import { useRef, useState } from "react";
+import { useState } from "react";
 import { scaleThreshold } from "d3-scale";
 import {
   ComposableMap,
@@ -10,6 +10,9 @@ import type { StateDataPoint } from "../api";
 
 /** TopoJSON source — US states at 1:10m resolution */
 const GEO_URL = "https://cdn.jsdelivr.net/npm/us-atlas@3/states-10m.json";
+
+/** TopoJSON source — US outer boundary for the full-map silhouette */
+const NATION_GEO_URL = "https://cdn.jsdelivr.net/npm/us-atlas@3/nation-10m.json";
 
 /** GeoJSON source — Puerto Rico (not included in us-atlas states) */
 const PR_GEO_URL =
@@ -31,6 +34,10 @@ const MAP_COLOR_STOPS = [
 ] as const;
 const HOVER_FILL = "#ffe259";
 const HOVER_STROKE = "#f97316";
+/** Subtle outline for small/inset territories so they read against the map background */
+const INSET_STATE_STROKE = "#2f6b52";
+const MAP_OUTLINE_STROKE = INSET_STATE_STROKE;
+const INSET_STATE_NAMES = new Set(["Alaska", "Hawaii", "Puerto Rico"]);
 
 /**
  * Maps 2-letter USPS abbreviations to the full state name used in
@@ -95,6 +102,8 @@ interface TooltipState {
   stateName: string;
   count: number;
   totalFunding: number;
+  x: number;
+  y: number;
 }
 
 interface StateMapProps {
@@ -115,13 +124,30 @@ const formatFunding = (n: number): string => {
 export default function StateMap({ data }: StateMapProps) {
   const [tooltip, setTooltip] = useState<TooltipState | null>(null);
   const [hoveredState, setHoveredState] = useState<string | null>(null);
-  const tooltipRef = useRef<HTMLDivElement | null>(null);
 
-  const updateTooltipPosition = (x: number, y: number): void => {
-    const el = tooltipRef.current;
-    if (!el) return;
-    el.style.left = `${x}px`;
-    el.style.top = `${y}px`;
+  const tooltipOffset = (clientX: number, clientY: number): { x: number; y: number } => ({
+    x: clientX + 12,
+    y: clientY - 8,
+  });
+
+  const clearHover = (): void => {
+    setHoveredState(null);
+    setTooltip(null);
+  };
+
+  const isPointerStillOverMap = (
+    event: React.MouseEvent<SVGPathElement>,
+  ): boolean => {
+    const canvas = event.currentTarget.closest(".state-map-canvas");
+    if (!canvas) return false;
+
+    const related = event.relatedTarget;
+    if (related instanceof Node && canvas.contains(related)) {
+      return true;
+    }
+
+    const underPointer = document.elementFromPoint(event.clientX, event.clientY);
+    return underPointer instanceof Node && canvas.contains(underPointer);
   };
 
   // Build lookup from full state name → data point
@@ -133,7 +159,7 @@ export default function StateMap({ data }: StateMapProps) {
     }
   }
 
-  const colorScale = scaleThreshold<string>()
+  const colorScale = scaleThreshold<number, string>()
     .domain([...COUNT_THRESHOLDS])
     .range([...MAP_COLOR_STOPS]);
 
@@ -143,68 +169,115 @@ export default function StateMap({ data }: StateMapProps) {
     return colorScale(point.count);
   };
 
-  const renderGeography = (geo: GeographyType, hoveredLayer = false): JSX.Element => {
+  const getStroke = (geoName: string, isHovered: boolean): string => {
+    if (isHovered) return HOVER_STROKE;
+    if (INSET_STATE_NAMES.has(geoName)) return INSET_STATE_STROKE;
+    return "#ffffff";
+  };
+
+  const getStrokeWidth = (geoName: string, isHovered: boolean, insetMap: boolean): number => {
+    if (isHovered) return 3;
+    if (insetMap || geoName === "Puerto Rico") return 0.8;
+    return 1;
+  };
+
+  const renderGeography = (
+    geo: GeographyType,
+    hoveredLayer = false,
+    insetMap = false,
+  ): JSX.Element => {
     const geoName = geo.properties.name as string;
     const point = stateByName.get(geoName);
     const isHovered = hoveredLayer || hoveredState === geoName;
+    const nonScalingStroke = insetMap
+      ? ({ vectorEffect: "non-scaling-stroke" } as const)
+      : {};
 
     return (
       <Geography
         key={hoveredLayer ? `${geo.rsmKey}-hover` : geo.rsmKey}
         geography={geo}
         fill={isHovered ? HOVER_FILL : getFill(geoName)}
-        stroke={isHovered ? HOVER_STROKE : "#ffffff"}
-        strokeWidth={isHovered ? 3 : 1}
+        stroke={getStroke(geoName, isHovered)}
+        strokeWidth={getStrokeWidth(geoName, isHovered, insetMap)}
         style={{
           default: {
             outline: "none",
             transition: "fill 0.15s ease, stroke 0.15s ease",
             strokeLinejoin: "round",
             strokeLinecap: "round",
+            ...nonScalingStroke,
           },
-          hover: { outline: "none" },
-          pressed: { outline: "none" },
+          hover: { outline: "none", ...nonScalingStroke },
+          pressed: { outline: "none", ...nonScalingStroke },
         }}
         onMouseEnter={(e) => {
+          const { x, y } = tooltipOffset(e.clientX, e.clientY);
           setHoveredState(geoName);
-          updateTooltipPosition(e.clientX + 12, e.clientY - 8);
           setTooltip({
             stateName: geoName,
             count: point?.count ?? 0,
             totalFunding: point?.total_funding ?? 0,
+            x,
+            y,
           });
         }}
         onMouseMove={(e) => {
-          updateTooltipPosition(e.clientX + 12, e.clientY - 8);
+          const { x, y } = tooltipOffset(e.clientX, e.clientY);
+          setTooltip((prev) => (prev ? { ...prev, x, y } : null));
         }}
-        onMouseLeave={() => {
-          setHoveredState(null);
-          setTooltip(null);
+        onMouseLeave={(e) => {
+          if (isPointerStillOverMap(e)) return;
+          clearHover();
         }}
       />
     );
   };
 
-  const renderGeographyLayers = (geographies: GeographyType[]): JSX.Element[] => {
+  const splitGeographyLayers = (
+    geographies: GeographyType[],
+    insetMap = false,
+  ): { baseLayer: JSX.Element[]; hoverLayer: JSX.Element[] } => {
     const geoName = (geo: GeographyType): string => geo.properties.name as string;
 
     const baseLayer = geographies
       .filter((geo) => geoName(geo) !== hoveredState)
-      .map((geo) => renderGeography(geo));
+      .map((geo) => renderGeography(geo, false, insetMap));
 
     const hoverLayer = hoveredState
       ? geographies
           .filter((geo) => geoName(geo) === hoveredState)
-          .map((geo) => renderGeography(geo, true))
+          .map((geo) => renderGeography(geo, true, insetMap))
       : [];
 
-    return [...baseLayer, ...hoverLayer];
+    return { baseLayer, hoverLayer };
   };
+
+  const renderNationOutline = (geographies: GeographyType[]): JSX.Element[] =>
+    geographies.map((geo) => (
+      <Geography
+        key={`outline-${geo.rsmKey}`}
+        geography={geo}
+        fill="none"
+        stroke={MAP_OUTLINE_STROKE}
+        strokeWidth={1.25}
+        style={{
+          default: {
+            outline: "none",
+            pointerEvents: "none",
+            strokeLinejoin: "round",
+            strokeLinecap: "round",
+          },
+          hover: { outline: "none", pointerEvents: "none" },
+          pressed: { outline: "none", pointerEvents: "none" },
+        }}
+      />
+    ));
 
   return (
     <div className="chart-panel state-map-panel">
       <div className="chart-panel-title">Projects by State</div>
-      <div className="state-map-canvas">
+      <div className="state-map-canvas" onMouseLeave={clearHover}>
         <ComposableMap
           projection="geoAlbersUsa"
           projectionConfig={{ scale: 900 }}
@@ -213,9 +286,20 @@ export default function StateMap({ data }: StateMapProps) {
           style={{ width: "100%", height: "auto" }}
         >
           <Geographies geography={GEO_URL}>
-            {({ geographies }: { geographies: GeographyType[] }) =>
-              renderGeographyLayers(geographies)
-            }
+            {({ geographies }: { geographies: GeographyType[] }) => {
+              const { baseLayer, hoverLayer } = splitGeographyLayers(geographies);
+              return (
+                <>
+                  {baseLayer}
+                  <Geographies geography={NATION_GEO_URL}>
+                    {({ geographies: nationGeographies }: { geographies: GeographyType[] }) =>
+                      renderNationOutline(nationGeographies)
+                    }
+                  </Geographies>
+                  {hoverLayer}
+                </>
+              );
+            }}
           </Geographies>
         </ComposableMap>
 
@@ -226,17 +310,25 @@ export default function StateMap({ data }: StateMapProps) {
               rotate: [66, 0],
               center: [0, 18],
               parallels: [8, 18],
-              scale: 3400,
+              scale: 1400,
             }}
-            width={26}
+            width={30}
             height={16}
+            style={{ overflow: "visible" }}
           >
             <Geographies geography={PR_GEO_URL}>
-              {({ geographies }: { geographies: GeographyType[] }) =>
-                renderGeographyLayers(
+              {({ geographies }: { geographies: GeographyType[] }) => {
+                const { baseLayer, hoverLayer } = splitGeographyLayers(
                   geographies.filter((geo) => (geo.properties.name as string) === "Puerto Rico"),
-                )
-              }
+                  true,
+                );
+                return (
+                  <>
+                    {baseLayer}
+                    {hoverLayer}
+                  </>
+                );
+              }}
             </Geographies>
           </ComposableMap>
         </div>
@@ -244,9 +336,8 @@ export default function StateMap({ data }: StateMapProps) {
 
       {tooltip && (
         <div
-          ref={tooltipRef}
           className="map-tooltip"
-          style={{ left: 0, top: 0 }}
+          style={{ left: tooltip.x, top: tooltip.y }}
         >
           <div className="map-tooltip-state">{tooltip.stateName}</div>
           <div className="map-tooltip-row">Projects: {tooltip.count.toLocaleString()}</div>

@@ -1830,6 +1830,7 @@ body {
 
 .state-map-pr-inset {
   left: 90%;
+  overflow: visible;
   pointer-events: auto;
   position: absolute;
   top: 90%;
@@ -1839,6 +1840,7 @@ body {
 .state-map-pr-inset svg {
   display: block;
   height: auto;
+  overflow: visible;
   width: 100%;
 }
 
