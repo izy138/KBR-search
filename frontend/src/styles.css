@@ -1589,36 +1589,115 @@ body {
   display: grid;
   grid-template-columns: minmax(0, 1fr) minmax(0, 2fr);
   gap: 0.85rem;
-}
-
-.dashboard-ic-chart-stack {
-  display: flex;
-  flex-direction: column;
-  gap: 0.45rem;
+  width: 100%;
+  max-width: 100%;
   min-width: 0;
 }
 
-.dashboard-ic-chart-scale {
-  display: flex;
-  align-items: center;
-  justify-content: flex-end;
-  flex-wrap: wrap;
-  gap: 0.5rem;
+.dashboard-grid-2 > .dashboard-ic-chart-scroll {
+  align-self: start;
 }
 
-.dashboard-ic-chart-scale-label {
-  font-size: 0.8125rem;
-  color: var(--text-secondary);
-}
-
-.dashboard-ic-chart-scale-toggle {
-  display: inline-flex;
-  border: 1px solid var(--border);
-  border-radius: var(--radius-sm);
+.dashboard-ic-chart-scroll {
+  width: 100%;
+  max-width: 100%;
+  min-width: 0;
   overflow: hidden;
 }
 
-.dashboard-ic-chart-scale-toggle button {
+.dashboard-ic-chart-scroll .chart-panel-ic-projects {
+  min-height: 0;
+  width: 100%;
+  max-width: 100%;
+  padding: 0.9rem 1rem 0.05rem;
+  box-sizing: border-box;
+}
+
+.chart-panel-ic-projects .recharts-responsive-container {
+  margin-left: -12px;
+  margin-bottom: -0.35rem;
+  width: calc(100% + 12px) !important;
+}
+
+.chart-panel-year-trend {
+  min-height: 310px;
+}
+
+.chart-panel-activity,
+.chart-panel-top-orgs,
+.chart-panel-avg-grant {
+  min-height: 310px;
+}
+
+.chart-panel-header {
+  align-items: center;
+  display: grid;
+  gap: 0.75rem;
+  grid-template-columns: auto minmax(0, 1fr) auto;
+  margin-bottom: 0.65rem;
+}
+
+.chart-panel-header .chart-panel-title {
+  margin-bottom: 0;
+  white-space: nowrap;
+}
+
+.chart-panel-header-center {
+  justify-self: center;
+  min-width: 0;
+  width: 100%;
+}
+
+.chart-panel-header-end {
+  justify-self: end;
+}
+
+.chart-year-scroll {
+  display: flex;
+  gap: 0.35rem;
+  justify-content: center;
+  min-width: 0;
+  overflow-x: auto;
+  overscroll-behavior-x: contain;
+  padding: 0.1rem 0;
+  scrollbar-width: thin;
+  -webkit-overflow-scrolling: touch;
+}
+
+.chart-year-scroll button {
+  background: var(--surface);
+  border: 1px solid var(--border);
+  border-radius: var(--radius-sm);
+  color: var(--text-secondary);
+  cursor: pointer;
+  flex-shrink: 0;
+  font: inherit;
+  font-size: 0.8125rem;
+  font-weight: 500;
+  padding: 0.3rem 0.6rem;
+  transition: background 0.15s, border-color 0.15s, color 0.15s;
+}
+
+.chart-year-scroll button:hover {
+  background: var(--surface-hover);
+  color: var(--text-primary);
+}
+
+.chart-year-scroll button.active {
+  background: var(--accent-light);
+  border-color: var(--accent);
+  color: var(--accent);
+}
+
+.chart-scale-toggle {
+  display: inline-flex;
+  border: 1px solid var(--border);
+  border-radius: var(--radius-sm);
+  flex-shrink: 0;
+  overflow: hidden;
+}
+
+.chart-scale-toggle button {
   background: var(--surface);
   border: none;
   color: var(--text-secondary);
@@ -1630,17 +1709,17 @@ body {
   transition: background 0.15s, color 0.15s;
 }
 
-.dashboard-ic-chart-scale-toggle button:hover {
+.chart-scale-toggle button:hover {
   background: var(--surface-hover);
   color: var(--text-primary);
 }
 
-.dashboard-ic-chart-scale-toggle button.active {
+.chart-scale-toggle button.active {
   background: var(--accent);
   color: #fff;
 }
 
-.dashboard-ic-chart-scale-toggle button + button {
+.chart-scale-toggle button + button {
   border-left: 1px solid var(--border);
 }
 
@@ -1676,6 +1755,7 @@ body {
   grid-template-columns: repeat(3, minmax(0, 1fr));
   gap: 0.75rem;
   margin-top: 0.75rem;
+  margin-bottom: 0.75rem;
 }
 
 @media (max-width: 900px) {
@@ -1728,6 +1808,33 @@ body {
   font-size: 0.9rem;
   font-weight: 600;
   margin-bottom: 0.65rem;
+}
+
+.state-map-panel {
+  position: relative;
+}
+
+.state-map-panel .chart-panel-title {
+  margin-bottom: 0.25rem;
+}
+
+.state-map-canvas {
+  margin-top: -0.2rem;
+  position: relative;
+}
+
+.state-map-pr-inset {
+  left: 90%;
+  pointer-events: auto;
+  position: absolute;
+  top: 90%;
+  width: 14px;
+}
+
+.state-map-pr-inset svg {
+  display: block;
+  height: auto;
+  width: 100%;
 }
 
 /* ─── Dashboard loading / error states ─────────────────────────────────────── */
