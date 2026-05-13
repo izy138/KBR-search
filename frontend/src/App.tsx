@@ -14,6 +14,8 @@ import InvestigatorPage from "./components/InvestigatorPage";
 import ProjectDetailsPage from "./components/ProjectDetailsPage";
 import ResultsList from "./components/ResultsList";
 import SearchBar from "./components/SearchBar";
+import SemanticSimilarProjectPage from "./components/SemanticSimilarProjectPage";
+import SemanticVectorLabPage from "./components/SemanticVectorLabPage";
 import {
   getProjectsByInvestigator,
   getProjectById,
@@ -109,6 +111,11 @@ export default function App() {
   const mainRef = useRef<HTMLElement | null>(null);
   const projectRouteMatch = matchPath("/projects/:projectId", location.pathname);
   const selectedProjectId = projectRouteMatch?.params.projectId ?? null;
+  const semanticSimilarMatch = matchPath("/semantic/similar/:projectId", location.pathname);
+  const semanticSimilarProjectId = semanticSimilarMatch?.params.projectId ?? null;
+  const isSemanticHub =
+    location.pathname === "/semantic" || location.pathname === "/semantic/";
+  const isSemanticRoute = isSemanticHub || Boolean(semanticSimilarProjectId);
   const investigatorRouteMatch = matchPath("/investigators/:investigatorName", location.pathname);
   const selectedInvestigatorName = investigatorRouteMatch?.params.investigatorName
     ? decodeURIComponent(investigatorRouteMatch.params.investigatorName)
@@ -167,11 +174,27 @@ export default function App() {
   );
 
   useEffect(() => {
-    if (view === "dashboard" || selectedProjectId || selectedInvestigatorName) {
+    if (
+      view === "dashboard"
+      || selectedProjectId
+      || selectedInvestigatorName
+      || semanticSimilarProjectId
+      || isSemanticHub
+    ) {
       return;
     }
     void runSearch(query, currentPage, resultsPerPage);
-  }, [query, currentPage, resultsPerPage, runSearch, view, selectedProjectId, selectedInvestigatorName]);
+  }, [
+    query,
+    currentPage,
+    resultsPerPage,
+    runSearch,
+    view,
+    selectedProjectId,
+    selectedInvestigatorName,
+    semanticSimilarProjectId,
+    isSemanticHub,
+  ]);
 
   useEffect(() => {
     setJumpToPageInput(String(currentPage));
@@ -375,20 +398,33 @@ export default function App() {
         <nav className="nav-tabs" aria-label="Main navigation">
           <button
             type="button"
-            className={`nav-tab${view === "search" ? " active" : ""}`}
-            onClick={() => setView("search")}
+            className={`nav-tab${view === "search" && !isSemanticRoute ? " active" : ""}`}
+            onClick={() => {
+              navigate("/");
+              setView("search");
+            }}
           >
             Search
           </button>
-
-
-
           <button
             type="button"
-            className={`nav-tab${view === "dashboard" ? " active" : ""}`}
-            onClick={() => setView("dashboard")}
+            className={`nav-tab${view === "dashboard" && !isSemanticRoute ? " active" : ""}`}
+            onClick={() => {
+              navigate("/");
+              setView("dashboard");
+            }}
           >
             Dashboard
+          </button>
+          <button
+            type="button"
+            className={`nav-tab${isSemanticRoute ? " active" : ""}`}
+            onClick={() => {
+              navigate("/semantic");
+              setView("search");
+            }}
+          >
+            Vector lab
           </button>
         </nav>
 
@@ -440,18 +476,27 @@ export default function App() {
 
       {/* Main content */}
       <section
-        style={view === "dashboard" ? undefined : { display: "none" }}
-        aria-hidden={view !== "dashboard"}
+        style={view === "dashboard" && !isSemanticRoute ? undefined : { display: "none" }}
+        aria-hidden={view !== "dashboard" || isSemanticRoute}
       >
         <Dashboard />
       </section>
       <main
         className="app-main"
         ref={mainRef}
-        style={view === "dashboard" ? { display: "none" } : undefined}
-        aria-hidden={view === "dashboard"}
+        style={view === "dashboard" && !isSemanticRoute ? { display: "none" } : undefined}
+        aria-hidden={view === "dashboard" && !isSemanticRoute}
       >
-        {selectedProjectId ? (
+        {semanticSimilarProjectId ? (
+          <SemanticSimilarProjectPage
+            projectId={decodeURIComponent(semanticSimilarProjectId)}
+            onBackToLab={() => navigate("/semantic")}
+            onOpenFullProject={(id) => navigate(`/projects/${encodeURIComponent(id)}`)}
+            onOpenInvestigator={handleOpenInvestigator}
+          />
+        ) : isSemanticHub ? (
+          <SemanticVectorLabPage />
+        ) : selectedProjectId ? (
           projectLoading ? (
             <div className="empty-state" role="status" aria-live="polite">
               <strong style={{ color: "var(--text-secondary)", fontSize: 15 }}>Loading project…</strong>
@@ -475,6 +520,7 @@ export default function App() {
               item={selectedProject}
               onBack={() => navigate("/")}
               onOpenInvestigator={handleOpenInvestigator}
+              onOpenDetails={handleOpenDetails}
             />
           ) : (
             <div className="empty-state" role="status" aria-live="polite">
