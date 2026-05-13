@@ -90,20 +90,24 @@ def analytics_by_state() -> list[dict[str, object]]:
 
 
 @router.get("/by-ic")
-def analytics_by_ic() -> list[dict[str, object]]:
+def analytics_by_ic(
+  fy: int | None = Query(default=None, ge=2000, le=2100, description="Optional fiscal year filter"),
+) -> list[dict[str, object]]:
   client = get_client()
-  body = {
+  body: dict[str, object] = {
     "size": 0,
     "aggs": {
       "by_ic": {
         "terms": {
           "field": "IC_NAME.keyword",
-          "size": 40,
+          "size": 100,
           "order": {"_count": "desc"},
         },
       },
     },
   }
+  if fy is not None:
+    body["query"] = {"term": {"FY": fy}}
   response = client.search(index=INDEX_NAME, body=body)
   buckets = response.get("aggregations", {}).get("by_ic", {}).get("buckets", [])
 
@@ -355,7 +359,7 @@ def analytics_avg_grant_by_ic() -> list[dict[str, object]]:
       "by_ic": {
         "terms": {
           "field": "IC_NAME.keyword",
-          "size": 30,
+          "size": 100,
           "order": {"avg_grant": "desc"},
         },
         "aggs": {
