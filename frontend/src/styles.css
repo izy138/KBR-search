@@ -429,7 +429,7 @@ body {
 }
 
 .sidebar-select:hover {
-  border-color: var(#334eb0);
+  border-color: color-mix(in srgb, var(--accent) 40%, var(--border) 60%);
 }
 
 .sidebar-text-input {
@@ -450,7 +450,7 @@ body {
 }
 
 .sidebar-text-input:hover {
-  border-color: var(#334eb0);
+  border-color: color-mix(in srgb, var(--accent) 40%, var(--border) 60%);
 }
 
 .sidebar-range-row {
@@ -1143,7 +1143,7 @@ body {
 }
 
 .page-jump-input:focus {
-  outline: 2px solid var(--accent-soft);
+  outline: 2px solid color-mix(in srgb, var(--accent) 42%, transparent);
   outline-offset: 1px;
   border-color: var(--accent);
 }
@@ -1863,6 +1863,7 @@ body {
 /* Explicit box so Recharts ResponsiveContainer gets a real height in CSS grid */
 .chart-pie-size-host {
   width: 100%;
+  min-width: 0;
 }
 
 /* ─── Dashboard loading / error states ─────────────────────────────────────── */
