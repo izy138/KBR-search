@@ -1,13 +1,11 @@
-fastapi
-uvicorn[standard]
-pandas
-openpyxl
-opensearch-py
-python-dotenv
-jupyterlab
 fastapi==0.136.1
 uvicorn[standard]==0.46.0
 pandas==3.0.2
 openpyxl==3.1.5
 opensearch-py==3.2.0
 python-dotenv==1.2.2
+jupyterlab==4.4.3
+torch>=2.6.0
+sentence-transformers==5.4.1
+# For NVIDIA GPU encoding/search outside Docker, install a CUDA build of torch first:
+# https://pytorch.org/get-started/locally/  (default pip torch is CPU-only)

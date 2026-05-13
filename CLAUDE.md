@@ -38,7 +38,7 @@ KBR-Internship/
 │           └── Charts.tsx
 ├── docker-compose.yml
 ├── .env.example                 # Template for running backend outside Docker
-└── 2025_ProjectData.csv         # NIH data (184 MB, 76 219 rows, 46 fields)
+└── backend/2020_data.csv … 2025_data.csv   # Yearly NIH exports (mounted at /app/)
 ```
 
 ## Running Locally
@@ -48,10 +48,10 @@ KBR-Internship/
 docker compose up --build
 
 # 2a. First-time load (skip if already indexed)
-docker compose exec backend python indexer/index_data.py
+docker compose exec backend python indexer/index_data.py /app/2025_data.csv
 
 # 2b. Wipe and rebuild (mapping change, corrupt index, fresh start)
-docker compose exec backend python indexer/reindex.py
+docker compose exec backend python indexer/reindex.py /app/2025_data.csv --with-embeddings
 ```
 
 Verify data loaded:
@@ -63,7 +63,7 @@ curl http://localhost:9200/project_data/_count
 
 - **Index name:** `project_data`
 - **Mapping:** dynamic (OpenSearch infers types from CSV values)
-- **Data source:** `2025_ProjectData.csv` — mounted read-only at `/2025_ProjectData.csv` inside the backend container
+- **Data source:** `2020_data.csv` … `2025_data.csv` in `backend/` — each mounted read-only at `/app/<name>` inside the backend container. Default indexer path is `2025_data.csv` (override with CLI arg or `DATA_FILE`).
 
 ### CSV Fields (46 columns)
 
@@ -126,7 +126,9 @@ TOTAL_COST        TOTAL_COST_SUB_PROJECT
 | `OPENSEARCH_HOST` | `localhost` | `opensearch` inside Docker; `localhost` outside |
 | `OPENSEARCH_PORT` | `9200` | OpenSearch port |
 | `OPENSEARCH_INDEX` | `project_data` | Index name |
-| `DATA_FILE` | `2025_ProjectData.csv` | Path to data file (relative to working dir) |
+| `DATA_FILE` | `2025_data.csv` | Path to data file (relative to working dir) |
+| `EMBEDDING_MODEL` | `sentence-transformers/all-MiniLM-L6-v2` | Sentence-transformers model for indexing and vector search (384-d) |
+| `EMBEDDING_DEVICE` | `auto` | `auto`, `cpu`, `cuda`, or `mps` for embedding inference |
 
 Copy `.env.example` → `.env` when running the backend directly (outside Docker).
 
@@ -137,3 +139,4 @@ Copy `.env.example` → `.env` when running the backend directly (outside Docker
 3. **`category.keyword` aggregation:** `analytics.py` aggregates on `category.keyword` but the CSV has no `category` column — this returns empty buckets until a field is mapped to `category` in the indexer.
 4. **Hardcoded index name:** `INDEX_NAME = "project_data"` is set in both `search.py:10` and `analytics.py:8`. If you rename the index, update both files and the `OPENSEARCH_INDEX` env var.
 5. **Double `get_client()`:** `indexer/index_data.py` defines its own `get_client()` that duplicates `api/opensearch_client.py`. They are functionally identical; `reindex.py` imports from `index_data.py`.
+6. **Embedding model vs index:** Indexed vectors are 384-d from `all-MiniLM-L6-v2`. `EMBEDDING_MODEL` must match at index time and query time; do not switch to mpnet (768-d) without a full reindex.

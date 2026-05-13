@@ -4,7 +4,7 @@
 .env.*.local
 
 # Data (large; obtain separately or use symlink)
-2025_ProjectData.csv
+backend/indexer/data/
 
 # Node / frontend
 node_modules/
@@ -12,6 +12,7 @@ dist/
 .vite/
 
 # Python
+*.csv
 __pycache__/
 **/__pycache__/
 *.py[cod]
@@ -25,7 +26,10 @@ venv/
 .ruff_cache/
 .coverage
 htmlcov/
+*.ndjson
 
 # OS / editor
 .DS_Store
 .idea/
+
+isa.md

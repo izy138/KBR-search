@@ -2,12 +2,65 @@
 
 from __future__ import annotations
 
-from fastapi import APIRouter, Query
+from concurrent.futures import ThreadPoolExecutor
+from typing import Any
 
-from .opensearch_client import get_client
+from fastapi import APIRouter, HTTPException, Path, Query
+
+from .embeddings import EMBEDDING_FIELD, embed_query, get_dimension, get_model_name
+from .opensearch_client import get_client, get_index_name
 
 router = APIRouter()
-INDEX_NAME = "project_data"
+INDEX_NAME = get_index_name()
+MAX_RESULT_WINDOW = 10_000
+SEARCH_FIELDS = [
+    "PROJECT_TITLE^4",
+    "PROJECT_TERMS^2",
+    "PI_NAMEs^2",
+    "ORG_NAME",
+    "IC_NAME",
+    "ACTIVITY",
+]
+SIMILAR_DEFAULT_K = 10
+SIMILAR_MAX_K = 50
+HYBRID_DEFAULT_K = 10
+HYBRID_MAX_K = 50
+RRF_K_CONST = 60  # Standard smoothing constant from the original RRF paper.
+HYBRID_FETCH_MULTIPLIER = 4  # Pull this many * k from each side before fusing.
+HYBRID_MAX_FETCH = 100
+
+_index_embedding_dimension: int | None = None
+
+
+def _require_matching_embedding_dimension(client: Any) -> None:
+    """Fail fast when the runtime model does not match the index mapping."""
+    global _index_embedding_dimension
+    if _index_embedding_dimension is None:
+        try:
+            mapping = client.indices.get_mapping(index=INDEX_NAME)
+            index_block = mapping.get(INDEX_NAME, {})
+            properties = index_block.get("mappings", {}).get("properties", {})
+            embedding = properties.get(EMBEDDING_FIELD, {})
+            dimension = embedding.get("dimension")
+            if isinstance(dimension, int):
+                _index_embedding_dimension = dimension
+        except Exception:
+            return
+
+    if _index_embedding_dimension is None:
+        return
+
+    model_dimension = get_dimension()
+    if model_dimension != _index_embedding_dimension:
+        raise HTTPException(
+            status_code=409,
+            detail=(
+                f"Embedding model produces {model_dimension}-d vectors but index "
+                f"'{INDEX_NAME}' expects {_index_embedding_dimension}-d. Set "
+                f"EMBEDDING_MODEL to the model used at index time (current: "
+                f"{get_model_name()})."
+            ),
+        )
 
 
 @router.get("/")
@@ -16,22 +69,76 @@ def search(
     limit: int = Query(default=10, ge=1, le=100),
     page: int = Query(default=1, ge=1, description="1-based page index"),
     category: str = Query(default="", description="Filter by category (category.keyword)"),
+    pi: str = Query(default="", description="Filter by PI_NAMEs"),
+    ic: str = Query(default="", description="Filter by IC_NAME"),
+    activity: str = Query(default="", description="Filter by ACTIVITY"),
+    state: str = Query(default="", description="Filter by ORG_STATE"),
+    fy_min: int | None = Query(default=None, description="Minimum fiscal year"),
+    fy_max: int | None = Query(default=None, description="Maximum fiscal year"),
 ) -> dict[str, object]:
     client = get_client()
     must: list[dict[str, object]] = []
+    filters: list[dict[str, object]] = []
     if q:
-        must.append({"multi_match": {"query": q, "fields": ["*"]}})
+        must.append(
+            {
+                "multi_match": {
+                    "query": q,
+                    "fields": SEARCH_FIELDS,
+                    "type": "best_fields",
+                    "operator": "and",
+                }
+            }
+        )
     else:
         must.append({"match_all": {}})
     if category:
         must.append({"term": {"category.keyword": category}})
-    os_query: dict[str, object] = (
-        must[0] if len(must) == 1 else {"bool": {"must": must}}
-    )
+    if pi:
+        # Support both "Last, First" and "First Last" user inputs.
+        # `match` with operator "and" keeps all terms required but does not
+        # force token order, while `match_phrase` preserves exact phrase behavior.
+        filters.append(
+            {
+                "bool": {
+                    "should": [
+                        {"match_phrase": {"PI_NAMEs": pi}},
+                        {"match": {"PI_NAMEs": {"query": pi, "operator": "and"}}},
+                    ],
+                    "minimum_should_match": 1,
+                }
+            }
+        )
+    if ic:
+        filters.append({"term": {"IC_NAME.keyword": ic}})
+    if activity:
+        filters.append({"term": {"ACTIVITY.keyword": activity}})
+    if state:
+        filters.append({"term": {"ORG_STATE.keyword": state}})
+    if fy_min is not None or fy_max is not None:
+        range_clause: dict[str, int] = {}
+        if fy_min is not None:
+            range_clause["gte"] = fy_min
+        if fy_max is not None:
+            range_clause["lte"] = fy_max
+        filters.append({"range": {"FY": range_clause}})
+    if len(must) == 1 and not filters:
+        os_query: dict[str, object] = must[0]
+    else:
+        bool_query: dict[str, object] = {"must": must}
+        if filters:
+            bool_query["filter"] = filters
+        os_query = {"bool": bool_query}
     from_ = (page - 1) * limit
+    if from_ >= MAX_RESULT_WINDOW:
+        raise HTTPException(
+            status_code=400,
+            detail=f"Requested page exceeds max result window ({MAX_RESULT_WINDOW}).",
+        )
+    size = min(limit, MAX_RESULT_WINDOW - from_)
     response = client.search(
         index=INDEX_NAME,
-        body={"from": from_, "size": limit, "query": os_query},
+        body={"from": from_, "size": size, "query": os_query, "track_total_hits": True},
     )
 
     hits = response.get("hits", {}).get("hits", [])
@@ -43,5 +150,549 @@ def search(
 
     total = response.get("hits", {}).get("total", {})
     total_value = total.get("value", 0) if isinstance(total, dict) else total
+    visible_total = min(total_value, MAX_RESULT_WINDOW)
 
-    return {"query": q, "limit": limit, "total": total_value, "results": results}
+    return {
+        "query": q,
+        "limit": limit,
+        "total": total_value,
+        "visible_total": visible_total,
+        "results": results,
+    }
+
+
+@router.get("/project/{project_id}")
+def get_project(project_id: str = Path(..., description="OpenSearch document ID")) -> dict[str, object]:
+    client = get_client()
+    try:
+        response = client.get(index=INDEX_NAME, id=project_id)
+    except Exception as exc:
+        error_body = getattr(exc, "info", {})
+        status_code = error_body.get("status") if isinstance(error_body, dict) else None
+        if status_code == 404:
+            raise HTTPException(status_code=404, detail="Project not found") from exc
+        raise
+
+    source = response.get("_source", {})
+    source["_id"] = response.get("_id")
+    return {"project": source}
+
+
+def _recurrence_core_num(source: dict[str, object]) -> str | None:
+    core = source.get("CORE_PROJECT_NUM")
+    if isinstance(core, str):
+        stripped = core.strip()
+        if stripped:
+            return stripped
+    return None
+
+
+def _recurrence_title(source: dict[str, object]) -> str | None:
+    title = source.get("PROJECT_TITLE")
+    if isinstance(title, str):
+        stripped = title.strip()
+        if stripped:
+            return stripped
+    return None
+
+
+def _recurrence_match_query(source: dict[str, object]) -> dict[str, object]:
+    """OpenSearch query matching other fiscal years of the same recurring award."""
+    core = _recurrence_core_num(source)
+    if core:
+        return {"term": {"CORE_PROJECT_NUM.keyword": core}}
+    title = _recurrence_title(source)
+    if title:
+        return {"term": {"PROJECT_TITLE.keyword": title}}
+    raise HTTPException(
+        status_code=400,
+        detail="Project has no CORE_PROJECT_NUM or PROJECT_TITLE for recurrence lookup.",
+    )
+
+
+def _recurrence_must_not(source: dict[str, object]) -> list[dict[str, object]]:
+    """Exclude sibling years of the same recurring award from similarity results."""
+    clauses: list[dict[str, object]] = []
+    core = _recurrence_core_num(source)
+    if core:
+        clauses.append({"term": {"CORE_PROJECT_NUM.keyword": core}})
+    title = _recurrence_title(source)
+    if title:
+        clauses.append({"term": {"PROJECT_TITLE.keyword": title}})
+    return clauses
+
+
+def _recurrence_group_key(record: dict[str, object]) -> str:
+    """Stable key for deduplicating recurring awards across fiscal years."""
+    core = _recurrence_core_num(record)
+    if core:
+        return f"core:{core}"
+    title = _recurrence_title(record)
+    if title:
+        return f"title:{title}"
+    record_id = record.get("_id")
+    if record_id is not None:
+        return f"id:{record_id}"
+    return f"row:{id(record)}"
+
+
+def _group_similar_results(
+    results: list[dict[str, object]],
+    *,
+    limit: int,
+) -> list[dict[str, object]]:
+    """Collapse recurring fiscal-year rows into one hit with year_variants."""
+    groups: dict[str, dict[str, object]] = {}
+    order: list[str] = []
+
+    for record in results:
+        key = _recurrence_group_key(record)
+        variant: dict[str, object] = {
+            "project_id": record.get("_id"),
+            "application_id": record.get("APPLICATION_ID"),
+            "fy": record.get("FY"),
+        }
+
+        if key not in groups:
+            grouped = dict(record)
+            grouped["year_variants"] = [variant]
+            groups[key] = grouped
+            order.append(key)
+            continue
+
+        grouped = groups[key]
+        variants = grouped.get("year_variants")
+        if not isinstance(variants, list):
+            variants = []
+        variant_ids = {
+            item.get("project_id")
+            for item in variants
+            if isinstance(item, dict) and item.get("project_id") is not None
+        }
+        if variant.get("project_id") not in variant_ids:
+            variants.append(variant)
+        grouped["year_variants"] = variants
+
+        record_score = record.get("_score")
+        group_score = grouped.get("_score")
+        if isinstance(record_score, (int, float)) and (
+            not isinstance(group_score, (int, float)) or record_score > group_score
+        ):
+            preserved_variants = grouped["year_variants"]
+            groups[key] = dict(record)
+            groups[key]["year_variants"] = preserved_variants
+
+    grouped_results: list[dict[str, object]] = []
+    for key in order[:limit]:
+        grouped = groups[key]
+        variants = grouped.get("year_variants")
+        if isinstance(variants, list):
+            grouped["year_variants"] = sorted(
+                variants,
+                key=lambda item: (
+                    not isinstance(item, dict) or item.get("fy") is None,
+                    item.get("fy") if isinstance(item, dict) else 0,
+                ),
+            )
+        grouped_results.append(grouped)
+    return grouped_results
+
+
+@router.get("/project/{project_id}/other-years")
+def get_project_other_years(
+    project_id: str = Path(..., description="OpenSearch document ID"),
+) -> dict[str, object]:
+    """Return other fiscal-year records for the same recurring NIH project."""
+    client = get_client()
+    try:
+        source_doc = client.get(index=INDEX_NAME, id=project_id)
+    except Exception as exc:
+        error_body = getattr(exc, "info", {})
+        status_code = error_body.get("status") if isinstance(error_body, dict) else None
+        if status_code == 404:
+            raise HTTPException(status_code=404, detail="Project not found") from exc
+        raise
+
+    source = source_doc.get("_source", {})
+    if not isinstance(source, dict):
+        source = {}
+
+    response = client.search(
+        index=INDEX_NAME,
+        body={
+            "size": 50,
+            "query": _recurrence_match_query(source),
+            "_source": {"includes": ["FY", "APPLICATION_ID", "PROJECT_TITLE", "CORE_PROJECT_NUM"]},
+            "sort": [{"FY": {"order": "asc", "unmapped_type": "long"}}],
+        },
+    )
+    hits = response.get("hits", {}).get("hits", [])
+    years: list[dict[str, object]] = []
+    for hit in hits:
+        hit_id = hit.get("_id")
+        hit_source = hit.get("_source", {})
+        if not isinstance(hit_source, dict):
+            continue
+        fy = hit_source.get("FY")
+        years.append(
+            {
+                "project_id": hit_id,
+                "application_id": hit_source.get("APPLICATION_ID"),
+                "fy": fy,
+                "is_current": hit_id == project_id,
+            }
+        )
+
+    return {
+        "project_id": project_id,
+        "project_title": _recurrence_title(source),
+        "core_project_num": _recurrence_core_num(source),
+        "years": years,
+        "other_years": [year for year in years if not year.get("is_current")],
+    }
+
+
+def _format_knn_hits(
+    hits: list[dict[str, object]],
+    *,
+    exclude_id: str | None = None,
+) -> list[dict[str, object]]:
+    """Strip the embedding vector from each hit and attach the relevance score."""
+    results: list[dict[str, object]] = []
+    for item in hits:
+        if exclude_id is not None and item.get("_id") == exclude_id:
+            continue
+        source = item.get("_source", {})
+        if isinstance(source, dict):
+            source.pop(EMBEDDING_FIELD, None)
+            source["_id"] = item.get("_id")
+            source["_score"] = item.get("_score")
+            results.append(source)
+    return results
+
+
+@router.get("/similar")
+def search_similar(
+    q: str = Query(..., min_length=1, description="Free-text query to embed"),
+    k: int = Query(default=SIMILAR_DEFAULT_K, ge=1, le=SIMILAR_MAX_K),
+) -> dict[str, object]:
+    """Semantic search: find projects whose embedding is closest to the query."""
+    client = get_client()
+    _require_matching_embedding_dimension(client)
+    query_vector = embed_query(q)
+    response = client.search(
+        index=INDEX_NAME,
+        body={
+            "size": k,
+            "_source": {"excludes": [EMBEDDING_FIELD]},
+            "query": {"knn": {EMBEDDING_FIELD: {"vector": query_vector, "k": k}}},
+        },
+    )
+    hits = response.get("hits", {}).get("hits", [])
+    return {"query": q, "k": k, "results": _format_knn_hits(hits)}
+
+
+@router.get("/similar/{project_id}")
+def search_similar_to_project(
+    project_id: str = Path(..., description="OpenSearch document ID"),
+    k: int = Query(default=SIMILAR_DEFAULT_K, ge=1, le=SIMILAR_MAX_K),
+) -> dict[str, object]:
+    """Find projects semantically similar to an existing project.
+
+    Looks up the source document, reuses its stored embedding, and returns the
+    top-k nearest neighbours (excluding the source document itself).
+    """
+    client = get_client()
+    _require_matching_embedding_dimension(client)
+    try:
+        source_doc = client.get(index=INDEX_NAME, id=project_id)
+    except Exception as exc:
+        error_body = getattr(exc, "info", {})
+        status_code = error_body.get("status") if isinstance(error_body, dict) else None
+        if status_code == 404:
+            raise HTTPException(status_code=404, detail="Project not found") from exc
+        raise
+
+    source = source_doc.get("_source", {})
+    vector = source.get(EMBEDDING_FIELD) if isinstance(source, dict) else None
+    if not vector:
+        raise HTTPException(
+            status_code=409,
+            detail=(
+                "This project has no embedding. Reindex with --with-embeddings to "
+                "enable similarity search."
+            ),
+        )
+
+    knn_clause: dict[str, object] = {"vector": vector, "k": k + 1}
+    if isinstance(source, dict):
+        must_not = _recurrence_must_not(source)
+        if must_not:
+            knn_clause["filter"] = {"bool": {"must_not": must_not}}
+
+    # Over-fetch so we can return k unique recurring projects after year deduplication.
+    fetch_k = min(SIMILAR_MAX_K, max(k * 4, k + 15))
+    knn_clause["k"] = fetch_k + 1
+
+    response = client.search(
+        index=INDEX_NAME,
+        body={
+            "size": fetch_k + 1,
+            "_source": {"excludes": [EMBEDDING_FIELD]},
+            "query": {"knn": {EMBEDDING_FIELD: knn_clause}},
+        },
+    )
+    hits = response.get("hits", {}).get("hits", [])
+    formatted = _format_knn_hits(hits, exclude_id=project_id)
+    return {
+        "project_id": project_id,
+        "k": k,
+        "results": _group_similar_results(formatted, limit=k),
+    }
+
+
+@router.get("/investigator/{pi_name}")
+def get_projects_for_investigator(
+    pi_name: str = Path(..., description="Principal investigator name"),
+    limit: int = Query(default=25, ge=1, le=100),
+    page: int = Query(default=1, ge=1, description="1-based page index"),
+) -> dict[str, object]:
+    client = get_client()
+    from_ = (page - 1) * limit
+    if from_ >= MAX_RESULT_WINDOW:
+        raise HTTPException(
+            status_code=400,
+            detail=f"Requested page exceeds max result window ({MAX_RESULT_WINDOW}).",
+        )
+    size = min(limit, MAX_RESULT_WINDOW - from_)
+    response = client.search(
+        index=INDEX_NAME,
+        body={
+            "from": from_,
+            "size": size,
+            "track_total_hits": True,
+            "sort": [{"FY": {"order": "desc"}}],
+            "query": {
+                "bool": {
+                    "should": [
+                        {"term": {"PI_NAMEs.keyword": pi_name}},
+                        {"match_phrase": {"PI_NAMEs": pi_name}},
+                        {"match": {"PI_NAMEs": {"query": pi_name, "operator": "and"}}},
+                    ],
+                    "minimum_should_match": 1,
+                }
+            },
+        },
+    )
+
+    hits = response.get("hits", {}).get("hits", [])
+    results: list[dict[str, object]] = []
+    for item in hits:
+        source = item.get("_source", {})
+        source["_id"] = item.get("_id")
+        results.append(source)
+
+    total = response.get("hits", {}).get("total", {})
+    total_value = total.get("value", 0) if isinstance(total, dict) else total
+    visible_total = min(total_value, MAX_RESULT_WINDOW)
+    return {
+        "investigator_name": pi_name,
+        "limit": limit,
+        "total": total_value,
+        "visible_total": visible_total,
+        "results": results,
+    }
+
+
+def _build_hybrid_filters(
+    *,
+    category: str,
+    pi: str,
+    ic: str,
+    activity: str,
+    state: str,
+    fy_min: int | None,
+    fy_max: int | None,
+) -> list[dict[str, Any]]:
+    """Build the shared filter clauses applied to both BM25 and k-NN sides.
+
+    These are non-scoring filters (term/range), so they shrink the candidate set
+    identically for both searches and don't interfere with relevance scoring.
+    """
+    filters: list[dict[str, Any]] = []
+    if category:
+        filters.append({"term": {"category.keyword": category}})
+    if pi:
+        filters.append(
+            {
+                "bool": {
+                    "should": [
+                        {"match_phrase": {"PI_NAMEs": pi}},
+                        {"match": {"PI_NAMEs": {"query": pi, "operator": "and"}}},
+                    ],
+                    "minimum_should_match": 1,
+                }
+            }
+        )
+    if ic:
+        filters.append({"term": {"IC_NAME.keyword": ic}})
+    if activity:
+        filters.append({"term": {"ACTIVITY.keyword": activity}})
+    if state:
+        filters.append({"term": {"ORG_STATE.keyword": state}})
+    if fy_min is not None or fy_max is not None:
+        range_clause: dict[str, int] = {}
+        if fy_min is not None:
+            range_clause["gte"] = fy_min
+        if fy_max is not None:
+            range_clause["lte"] = fy_max
+        filters.append({"range": {"FY": range_clause}})
+    return filters
+
+
+def _rrf_fuse(
+    keyword_hits: list[dict[str, Any]],
+    vector_hits: list[dict[str, Any]],
+    *,
+    top_k: int,
+    k_const: int = RRF_K_CONST,
+) -> list[dict[str, Any]]:
+    """Reciprocal Rank Fusion over the two ranked result lists.
+
+    Each document's fused score is the sum of 1 / (k_const + rank) for each list
+    it appears in. Documents absent from a list contribute 0 from that side.
+    Raw BM25 / cosine scores are intentionally discarded — only the rank order
+    of each list matters, which sidesteps the score-calibration problem.
+    """
+    scores: dict[str, float] = {}
+    by_id: dict[str, dict[str, Any]] = {}
+    keyword_rank: dict[str, int] = {}
+    vector_rank: dict[str, int] = {}
+
+    for rank, item in enumerate(keyword_hits, start=1):
+        doc_id = item.get("_id")
+        if doc_id is None:
+            continue
+        scores[doc_id] = scores.get(doc_id, 0.0) + 1.0 / (k_const + rank)
+        by_id.setdefault(doc_id, item)
+        keyword_rank[doc_id] = rank
+
+    for rank, item in enumerate(vector_hits, start=1):
+        doc_id = item.get("_id")
+        if doc_id is None:
+            continue
+        scores[doc_id] = scores.get(doc_id, 0.0) + 1.0 / (k_const + rank)
+        by_id.setdefault(doc_id, item)
+        vector_rank[doc_id] = rank
+
+    sorted_ids = sorted(scores, key=lambda d: scores[d], reverse=True)[:top_k]
+
+    fused: list[dict[str, Any]] = []
+    for doc_id in sorted_ids:
+        source_item = by_id[doc_id]
+        source = source_item.get("_source", {})
+        if not isinstance(source, dict):
+            continue
+        source.pop(EMBEDDING_FIELD, None)
+        source["_id"] = doc_id
+        source["_score"] = round(scores[doc_id], 6)
+        source["_rank_keyword"] = keyword_rank.get(doc_id)
+        source["_rank_vector"] = vector_rank.get(doc_id)
+        fused.append(source)
+    return fused
+
+
+@router.get("/hybrid")
+def search_hybrid(
+    q: str = Query(..., min_length=1, description="Free-text query"),
+    k: int = Query(default=HYBRID_DEFAULT_K, ge=1, le=HYBRID_MAX_K),
+    category: str = Query(default=""),
+    pi: str = Query(default=""),
+    ic: str = Query(default=""),
+    activity: str = Query(default=""),
+    state: str = Query(default=""),
+    fy_min: int | None = Query(default=None),
+    fy_max: int | None = Query(default=None),
+) -> dict[str, object]:
+    """Hybrid keyword + semantic search fused with Reciprocal Rank Fusion.
+
+    Runs a BM25 search and a k-NN search in parallel against the same set of
+    filters, then merges their rankings. Returns the top-k documents by RRF
+    score, each annotated with its rank in the individual lists for
+    transparency.
+    """
+    client = get_client()
+    _require_matching_embedding_dimension(client)
+
+    filters = _build_hybrid_filters(
+        category=category,
+        pi=pi,
+        ic=ic,
+        activity=activity,
+        state=state,
+        fy_min=fy_min,
+        fy_max=fy_max,
+    )
+
+    # Over-fetch from each side so RRF has enough candidates to work with;
+    # the fused top-k might not be in the top-k of either individual list.
+    fetch_size = min(max(k * HYBRID_FETCH_MULTIPLIER, 25), HYBRID_MAX_FETCH)
+
+    bm25_must: dict[str, Any] = {
+        "multi_match": {
+            "query": q,
+            "fields": SEARCH_FIELDS,
+            "type": "best_fields",
+            "operator": "and",
+        }
+    }
+    bm25_query: dict[str, Any]
+    if filters:
+        bm25_query = {"bool": {"must": [bm25_must], "filter": filters}}
+    else:
+        bm25_query = bm25_must
+    bm25_body: dict[str, Any] = {
+        "from": 0,
+        "size": fetch_size,
+        "_source": {"excludes": [EMBEDDING_FIELD]},
+        "query": bm25_query,
+    }
+
+    # Kick off BM25 in a worker so embedding the query runs in parallel.
+    with ThreadPoolExecutor(max_workers=2) as executor:
+        bm25_future = executor.submit(client.search, index=INDEX_NAME, body=bm25_body)
+
+        query_vector = embed_query(q)
+
+        knn_clause: dict[str, Any] = {"vector": query_vector, "k": fetch_size}
+        if filters:
+            knn_clause["filter"] = {"bool": {"filter": filters}}
+        knn_body: dict[str, Any] = {
+            "size": fetch_size,
+            "_source": {"excludes": [EMBEDDING_FIELD]},
+            "query": {"knn": {EMBEDDING_FIELD: knn_clause}},
+        }
+        knn_future = executor.submit(client.search, index=INDEX_NAME, body=knn_body)
+
+        bm25_response = bm25_future.result()
+        knn_response = knn_future.result()
+
+    keyword_hits = bm25_response.get("hits", {}).get("hits", [])
+    vector_hits = knn_response.get("hits", {}).get("hits", [])
+    fused = _rrf_fuse(keyword_hits, vector_hits, top_k=k)
+
+    keyword_total_raw = bm25_response.get("hits", {}).get("total", {})
+    if isinstance(keyword_total_raw, dict):
+        keyword_total = keyword_total_raw.get("value", 0)
+    else:
+        keyword_total = keyword_total_raw
+
+    return {
+        "query": q,
+        "k": k,
+        "keyword_total": keyword_total,
+        "keyword_returned": len(keyword_hits),
+        "vector_returned": len(vector_hits),
+        "fetch_size_per_side": fetch_size,
+        "results": fused,
+    }
