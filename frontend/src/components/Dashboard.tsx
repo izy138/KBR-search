@@ -1,25 +1,31 @@
 import { useEffect, useState } from "react";
 import {
   getActivityData,
+  getActivityFundingPie,
   getAvgGrantByIc,
   getDashboardSummary,
   getIcData,
+  getProjectTermThemeCloud,
   getStateData,
   getTopOrgs,
   getYearData,
 } from "../api";
 import type {
   ActivityDataPoint,
+  ActivityFundingPieResponse,
   AvgGrantDataPoint,
   DashboardSummary,
   IcDataPoint,
   OrgDataPoint,
+  ProjectTermThemeCloudResponse,
   StateDataPoint,
   YearDataPoint,
 } from "../api";
+import ActivityFundingPiePanel from "./ActivityFundingPiePanel";
 import BarChartPanel from "./BarChartPanel";
 import Filters from "./Filters";
 import LineChartPanel from "./LineChartPanel";
+import ProjectTermsThemeCloud from "./ProjectTermsThemeCloud";
 import SearchBar from "./SearchBar";
 import StateMap from "./StateMap";
 
@@ -164,6 +170,8 @@ interface DashboardData {
   stateData: StateDataPoint[];
   icData: IcDataPoint[];
   activityData: ActivityDataPoint[];
+  activityPie: ActivityFundingPieResponse;
+  termThemeCloud: ProjectTermThemeCloudResponse;
   yearData: YearDataPoint[];
   topOrgs: OrgDataPoint[];
   avgGrant: AvgGrantDataPoint[];
@@ -243,19 +251,40 @@ export default function Dashboard() {
 
     const load = async () => {
       try {
-        const [summary, stateData, icData, activityData, yearData, topOrgs, avgGrant] =
-          await Promise.all([
-            getDashboardSummary(),
-            getStateData(),
-            getIcData(),
-            getActivityData(),
-            getYearData(),
-            getTopOrgs(),
-            getAvgGrantByIc(),
-          ]);
+        const [
+          summary,
+          stateData,
+          icData,
+          activityData,
+          activityPie,
+          termThemeCloud,
+          yearData,
+          topOrgs,
+          avgGrant,
+        ] = await Promise.all([
+          getDashboardSummary(),
+          getStateData(),
+          getIcData(),
+          getActivityData(80),
+          getActivityFundingPie({ limit: 150, pieSlices: 12 }),
+          getProjectTermThemeCloud(),
+          getYearData(),
+          getTopOrgs(),
+          getAvgGrantByIc(),
+        ]);
 
         if (!cancelled) {
-          setData({ summary, stateData, icData, activityData, yearData, topOrgs, avgGrant });
+          setData({
+            summary,
+            stateData,
+            icData,
+            activityData,
+            activityPie,
+            termThemeCloud,
+            yearData,
+            topOrgs,
+            avgGrant,
+          });
         }
       } catch (err) {
         if (!cancelled) {
@@ -287,7 +316,7 @@ export default function Dashboard() {
     );
   }
 
-  const { summary, stateData, icData, activityData, yearData, topOrgs, avgGrant } = data;
+  const { summary, stateData, icData, activityData, activityPie, termThemeCloud, yearData, topOrgs, avgGrant } = data;
   const icNames = icData.map((point) => point.label);
   const activityCodes = activityData.map((point) => point.label);
   const states = stateData.map((point) => point.state);
@@ -459,8 +488,8 @@ export default function Dashboard() {
         </div>
       </div>
 
-      {/* Activity full width; year + orgs in a row; avg grant full width */}
-      <div className="dashboard-grid-3">
+      {/* Activity: funding by activity code (bar) */}
+      <div className="dashboard-activity-section">
         <BarChartPanel
           title="Funding by Activity Code"
           panelClassName="chart-panel-activity"
@@ -471,6 +500,9 @@ export default function Dashboard() {
           formatter={formatDollars}
           color="#0e9f6e"
         />
+      </div>
+
+      <div className="dashboard-grid-3">
         <LineChartPanel
           title="Projects & Funding by Year"
           panelClassName="chart-panel-year-trend"
@@ -498,6 +530,18 @@ export default function Dashboard() {
           layout="horizontal"
           formatter={formatDollars}
           color="#7c3aed"
+        />
+      </div>
+
+      <div className="dashboard-term-themes">
+        <ProjectTermsThemeCloud payload={termThemeCloud} />
+      </div>
+
+      <div className="dashboard-pie-footer">
+        <ActivityFundingPiePanel
+          title="Funding share by Activity"
+          pie={activityPie}
+          formatDollars={formatDollars}
         />
       </div>
     </div>

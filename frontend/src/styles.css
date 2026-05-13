@@ -429,7 +429,7 @@ body {
 }
 
 .sidebar-select:hover {
-  border-color: var(#334eb0);
+  border-color: color-mix(in srgb, var(--accent) 40%, var(--border) 60%);
 }
 
 .sidebar-text-input {
@@ -450,7 +450,7 @@ body {
 }
 
 .sidebar-text-input:hover {
-  border-color: var(#334eb0);
+  border-color: color-mix(in srgb, var(--accent) 40%, var(--border) 60%);
 }
 
 .sidebar-range-row {
@@ -1143,7 +1143,7 @@ body {
 }
 
 .page-jump-input:focus {
-  outline: 2px solid var(--accent-soft);
+  outline: 2px solid color-mix(in srgb, var(--accent) 42%, transparent);
   outline-offset: 1px;
   border-color: var(--accent);
 }
@@ -1723,18 +1723,35 @@ body {
   border-left: 1px solid var(--border);
 }
 
-/* Activity code full width; year + top orgs paired below; avg grant full width */
+/* Activity bar full width; pie moved to `.dashboard-pie-footer` */
+.dashboard-activity-section {
+  margin-top: 0.85rem;
+}
+
+.dashboard-pie-footer {
+  margin-top: 0.85rem;
+  max-width: 1000px;
+  margin-left: auto;
+  margin-right: auto;
+}
+
+.dashboard-term-themes {
+  margin-top: 0.85rem;
+}
+
+@media (max-width: 1024px) {
+  .dashboard-pie-footer {
+    max-width: none;
+  }
+}
+
 .dashboard-grid-3 {
   display: grid;
   grid-template-columns: repeat(2, minmax(0, 1fr));
   gap: 0.85rem;
 }
 
-.dashboard-grid-3 > *:first-child {
-  grid-column: 1 / -1;
-}
-
-.dashboard-grid-3 > *:nth-child(4) {
+.dashboard-grid-3 > *:last-child {
   grid-column: 1 / -1;
 }
 
@@ -1810,6 +1827,123 @@ body {
   margin-bottom: 0.65rem;
 }
 
+.chart-panel-header {
+  margin-bottom: 0.35rem;
+}
+
+.chart-panel-header--row {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 0.75rem;
+  flex-wrap: wrap;
+}
+
+.chart-panel-header--row .chart-panel-title {
+  margin-bottom: 0;
+}
+
+.chart-panel-summary {
+  color: var(--text-secondary);
+  font-size: 0.8125rem;
+  line-height: 1.45;
+  margin: 0 0 0.5rem;
+}
+
+.chart-panel-summary strong {
+  color: var(--text-primary);
+  font-weight: 600;
+}
+
+.chart-panel-meta {
+  color: var(--text-muted);
+  font-size: 0.75rem;
+  white-space: nowrap;
+}
+
+/* Flex “tag cloud” (no canvas wordcloud dependency) */
+.term-theme-cloud {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  justify-content: center;
+  gap: 0.55rem 0.65rem;
+  padding: 1rem 0.5rem 1.25rem;
+  min-height: 8rem;
+}
+
+.term-theme-cloud__tag {
+  display: inline-flex;
+  align-items: baseline;
+  gap: 0.35rem;
+  font-weight: 600;
+  line-height: 1.2;
+  padding: 0.35rem 0.65rem;
+  border-radius: var(--radius-md);
+  border: 1px solid var(--border);
+  box-shadow: var(--shadow-sm);
+}
+
+.term-theme-cloud__count {
+  font-size: 0.68em;
+  font-weight: 500;
+  opacity: 0.85;
+}
+
+.chart-panel--term-cloud {
+  min-height: 0;
+}
+
+.chart-json-download {
+  background: var(--surface);
+  border: 1px solid var(--border);
+  border-radius: var(--radius-sm);
+  color: var(--accent-text);
+  cursor: pointer;
+  font: inherit;
+  font-size: 0.8125rem;
+  font-weight: 500;
+  padding: 0.35rem 0.65rem;
+  white-space: nowrap;
+}
+
+.chart-json-download:hover {
+  background: var(--surface-hover);
+}
+
+.chart-panel-note {
+  color: var(--text-secondary);
+  font-size: 0.75rem;
+  line-height: 1.45;
+  margin: 0 0 0.5rem;
+}
+
+.chart-inline-code {
+  background: var(--tag-bg);
+  border-radius: 4px;
+  font-family: "DM Mono", ui-monospace, monospace;
+  font-size: 0.72rem;
+  padding: 0.1rem 0.3rem;
+}
+
+.chart-panel-empty {
+  color: var(--text-muted);
+  font-size: 0.875rem;
+  margin: 0.5rem 0 0;
+}
+
+.chart-panel--pie {
+  min-height: 0;
+}
+
+.chart-panel-body--pie {
+  min-width: 0;
+}
+
+/* Explicit box so Recharts ResponsiveContainer gets a real height in CSS grid */
+.chart-pie-size-host {
+  width: 100%;
+  min-width: 0;
 .state-map-panel {
   position: relative;
 }

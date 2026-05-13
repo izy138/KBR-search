@@ -2,12 +2,18 @@
 
 from __future__ import annotations
 
+import json
+from pathlib import Path
+
 from fastapi import APIRouter, HTTPException, Query
 
 from .opensearch_client import get_client, get_index_name
 
 router = APIRouter()
 INDEX_NAME = get_index_name()
+
+# Precomputed in `proj_data_analysis.ipynb` (embedding→theme cell): theme masses for dashboard word cloud.
+_THEME_COUNTS_PATH = Path(__file__).resolve().parent.parent / "indexer" / "project_term_theme_counts.json"
 
 
 def get_funding_value(source: dict[str, object]) -> float:
@@ -108,14 +114,21 @@ def analytics_by_ic(
   return [{"label": b["key"], "value": b["doc_count"]} for b in buckets]
 
 
-@router.get("/by-activity")
-def analytics_by_activity() -> list[dict[str, object]]:
-  client = get_client()
+def _activity_funding_buckets(client: object, *, bucket_size: int) -> tuple[list[dict[str, object]], dict[str, object]]:
+  """Return (activity buckets, root aggregations) from a single search."""
+  size = max(1, min(bucket_size, 500))
   body = {
     "size": 0,
+    "track_total_hits": True,
     "aggs": {
+      "total_funding_all": {"sum": {"field": "TOTAL_COST"}},
       "by_activity": {
-        "terms": {"field": "ACTIVITY.keyword", "size": 30},
+        "terms": {
+          "field": "ACTIVITY.keyword",
+          "size": size,
+          "order": {"total_funding": "desc"},
+          "show_term_doc_count_error": True,
+        },
         "aggs": {
           "total_funding": {"sum": {"field": "TOTAL_COST"}},
         },
@@ -123,7 +136,17 @@ def analytics_by_activity() -> list[dict[str, object]]:
     },
   }
   response = client.search(index=INDEX_NAME, body=body)
-  buckets = response.get("aggregations", {}).get("by_activity", {}).get("buckets", [])
+  aggs = response.get("aggregations", {})
+  buckets = aggs.get("by_activity", {}).get("buckets", [])
+  return buckets, aggs
+
+
+@router.get("/by-activity")
+def analytics_by_activity(
+  limit: int = Query(default=50, ge=1, le=200, description="Max activity codes to return"),
+) -> list[dict[str, object]]:
+  client = get_client()
+  buckets, _ = _activity_funding_buckets(client, bucket_size=limit)
 
   results = [
     {
@@ -133,8 +156,137 @@ def analytics_by_activity() -> list[dict[str, object]]:
     }
     for b in buckets
   ]
-  results.sort(key=lambda x: x["total_funding"], reverse=True)
   return results
+
+
+@router.get("/by-activity-funding-pie")
+def analytics_by_activity_funding_pie(
+  limit: int = Query(
+    default=80,
+    ge=10,
+    le=500,
+    description="How many activity buckets to pull from OpenSearch (ordered by funding)",
+  ),
+  pie_slices: int = Query(
+    default=12,
+    ge=3,
+    le=24,
+    description="Number of top-funded activity codes on the pie",
+  ),
+  merge_other: bool = Query(
+    default=False,
+    description=(
+      "If true, aggregate remaining buckets into one Other slice. "
+      "If false (default), pie shows only top codes; see remainder."
+    ),
+  ),
+) -> dict[str, object]:
+  """JSON for dashboard pie: activity code share of TOTAL_COST (indexed data = export pipeline)."""
+  client = get_client()
+  buckets, aggs = _activity_funding_buckets(client, bucket_size=limit)
+  global_total = float(aggs.get("total_funding_all", {}).get("value") or 0.0)
+
+  rows = [
+    {
+      "label": str(b["key"]),
+      "total_funding": float(b.get("total_funding", {}).get("value") or 0.0),
+      "count": int(b["doc_count"]),
+    }
+    for b in buckets
+  ]
+
+  denom = global_total if global_total > 0 else sum(r["total_funding"] for r in rows) or 1.0
+
+  def with_pct(r: dict[str, object]) -> dict[str, object]:
+    funding = float(r["total_funding"])
+    return {
+      **r,
+      "percent_of_funding": round(funding / denom, 6) if denom else 0.0,
+    }
+
+  other: dict[str, object] | None = None
+  remainder: dict[str, object] | None = None
+
+  if merge_other:
+    if len(rows) <= pie_slices:
+      slices = [with_pct(r) for r in rows]
+    else:
+      head = rows[:pie_slices]
+      tail = rows[pie_slices:]
+      other_funding = sum(r["total_funding"] for r in tail)
+      other_count = sum(r["count"] for r in tail)
+      slices = [with_pct(r) for r in head]
+      if other_funding > 0 or other_count > 0:
+        other = with_pct(
+          {
+            "label": f"Other ({len(tail)} codes)",
+            "total_funding": other_funding,
+            "count": other_count,
+          },
+        )
+  else:
+    head = rows[:pie_slices]
+    tail = rows[pie_slices:]
+    slices = [with_pct(r) for r in head]
+    if tail:
+      rem_funding = sum(r["total_funding"] for r in tail)
+      rem_count = sum(r["count"] for r in tail)
+      remainder = {
+        "codes_in_tail": len(tail),
+        "total_funding": rem_funding,
+        "project_count": rem_count,
+        "percent_of_all_indexed": round(rem_funding / denom, 6) if denom else 0.0,
+      }
+
+  by_activity_meta = aggs.get("by_activity", {})
+  sum_other_doc_count = int(by_activity_meta.get("sum_other_doc_count") or 0)
+
+  return {
+    "total_funding_indexed": global_total,
+    "activity_buckets_fetched": len(rows),
+    "pie_slices_cap": pie_slices,
+    "merge_other": merge_other,
+    "denominator": "total_funding_all" if global_total > 0 else "sum_of_returned_buckets",
+    "slices": slices,
+    "other": other,
+    "remainder": remainder,
+    "sum_other_doc_count": sum_other_doc_count,
+    "more_activities_than_buckets": sum_other_doc_count > 0,
+  }
+
+
+@router.get("/project-term-theme-cloud")
+def analytics_project_term_theme_cloud() -> dict[str, object]:
+  """Precomputed theme masses for the dashboard word cloud.
+
+  Generated offline — either ``indexer/build_project_term_theme_counts.py`` or the
+  matching cell in ``proj_data_analysis.ipynb`` — writing
+  ``backend/indexer/project_term_theme_counts.json``.
+  """
+  path = _THEME_COUNTS_PATH
+  if not path.is_file():
+    return {
+      "generated_at": None,
+      "method": None,
+      "buckets": [],
+      "source_path": str(path),
+      "message": "No project_term_theme_counts.json yet — run the notebook theme cell to create it.",
+    }
+  try:
+    payload = json.loads(path.read_text(encoding="utf-8"))
+  except (OSError, json.JSONDecodeError) as exc:
+    raise HTTPException(status_code=500, detail=f"Invalid theme JSON: {exc}") from exc
+
+  buckets = payload.get("buckets")
+  if not isinstance(buckets, list):
+    buckets = []
+  return {
+    "generated_at": payload.get("generated_at"),
+    "method": payload.get("method"),
+    "low_confidence_cosine": payload.get("low_confidence_cosine"),
+    "buckets": buckets,
+    "source_path": str(path.resolve()),
+  }
 
 
 @router.get("/by-year")
