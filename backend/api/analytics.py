@@ -255,8 +255,9 @@ def analytics_by_activity_funding_pie(
 def analytics_project_term_theme_cloud() -> dict[str, object]:
   """Precomputed theme masses for the dashboard word cloud.
 
-  Generated offline by ``proj_data_analysis.ipynb`` (embedding nearest-anchor cell),
-  which writes ``backend/indexer/project_term_theme_counts.json``.
+  Generated offline — either ``indexer/build_project_term_theme_counts.py`` or the
+  matching cell in ``proj_data_analysis.ipynb`` — writing
+  ``backend/indexer/project_term_theme_counts.json``.
   """
   path = _THEME_COUNTS_PATH
   if not path.is_file():

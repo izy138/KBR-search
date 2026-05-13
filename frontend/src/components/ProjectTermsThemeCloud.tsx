@@ -6,13 +6,7 @@ interface ProjectTermsThemeCloudProps {
 
 const HUES = [210, 160, 280, 25, 130, 340, 55, 190];
 
-/**
- * Tag-style “word cloud” for precomputed PROJECT_TERMS theme masses
- * (`GET /analytics/project-term-theme-cloud` → notebook-generated JSON).
- *
- * Implemented without the `wordcloud` npm package so Docker/Vite always resolve
- * (anonymous `node_modules` volumes often miss optional deps).
- */
+
 export default function ProjectTermsThemeCloud({ payload }: ProjectTermsThemeCloudProps) {
   const buckets: ThemeBucket[] = payload.buckets ?? [];
   const maxW = Math.max(...buckets.map((b) => b.weight), 1);
@@ -21,15 +15,9 @@ export default function ProjectTermsThemeCloud({ payload }: ProjectTermsThemeClo
     <div className="chart-panel chart-panel--term-cloud">
       <div className="chart-panel-header chart-panel-header--row">
         <h3 className="chart-panel-title">Project term themes</h3>
-        {payload.generated_at ? (
-          <span className="chart-panel-meta">Updated {payload.generated_at}</span>
-        ) : null}
       </div>
       <p className="chart-panel-note">
-        Each label is an <strong>umbrella theme</strong>; size reflects how many{" "}
-        <code className="chart-inline-code">;</code>-split term hits were assigned to that theme
-        (nearest anchor embedding in the notebook). Edit anchors in the notebook, re-run the cell,
-        then refresh the dashboard.
+        How many times was a term used in a project?
       </p>
       {buckets.length === 0 ? (
         <p className="chart-panel-empty">

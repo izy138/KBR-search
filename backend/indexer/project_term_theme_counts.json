@@ -1,7 +1,35 @@
 {
-  "generated_at": null,
-  "method": null,
-  "low_confidence_cosine": null,
-  "buckets": [],
-  "note": "Run proj_data_analysis.ipynb → 'Auto-route all ;-split terms' cell to populate. Writes theme masses for GET /analytics/project-term-theme-cloud."
+  "generated_at": "2026-05-13T17:43:45.759599+00:00",
+  "method": "embedding_nearest_anchor_v1",
+  "low_confidence_cosine": 0.15,
+  "buckets": [
+    {
+      "label": "Low_confidence",
+      "weight": 26614980
+    },
+    {
+      "label": "Health",
+      "weight": 7075556
+    },
+    {
+      "label": "Life_sci_basic",
+      "weight": 4731310
+    },
+    {
+      "label": "Social_Education",
+      "weight": 3097492
+    },
+    {
+      "label": "Computing_AI",
+      "weight": 1587878
+    },
+    {
+      "label": "Environment_Earth",
+      "weight": 966845
+    },
+    {
+      "label": "Engineering",
+      "weight": 959205
+    }
+  ]
 }
