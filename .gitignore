@@ -5,8 +5,6 @@
 
 # Data (large; obtain separately or use symlink)
 backend/indexer/data/
-2025_ProjectData.csv
-merged_project_data.csv
 
 # Node / frontend
 node_modules/
@@ -28,10 +26,10 @@ venv/
 .ruff_cache/
 .coverage
 htmlcov/
+*.ndjson
 
 # OS / editor
 .DS_Store
 .idea/
-backend/merged_project_data copy.csv
 
 isa.md
