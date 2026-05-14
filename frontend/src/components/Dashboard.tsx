@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useRef, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 import {
   getActivityData,
   getActivityFundingPie,
@@ -28,7 +28,6 @@ import LineChartPanel from "./LineChartPanel";
 import ProjectTermsThemeCloud from "./ProjectTermsThemeCloud";
 import SearchBar from "./SearchBar";
 import StateMap from "./StateMap";
-import activityCodeDefinitions from "../../activityCodeDefinitions.json";
 // ─── Formatting helpers ───────────────────────────────────────────────────────
 
 /**
@@ -63,10 +62,6 @@ const IC_HYBRID_LINEAR_MIN = 20_000;
 const IC_HYBRID_LINEAR_MAX_ALL = 77_000;
 const IC_HYBRID_LOG_MIN = 10;
 const IC_HYBRID_LOG_RATIO = 0.38;
-
-function roundUpToThousand(value: number): number {
-  return Math.ceil(value / 1000) * 1000;
-}
 
 function icProjectsValueToPlot(value: number, linearMax: number): number {
   const v = Math.max(value, IC_HYBRID_LOG_MIN);
@@ -116,25 +111,6 @@ const IC_HYBRID_TICK_VALUES_ALL = [
   100, 500, 1000, 5000, 10000, 20000, 30000, 40000, 50000, 77000,
 ] as const;
 
-function buildIcHybridTickValues(linearMax: number): number[] {
-  const cappedMax = Math.max(linearMax, 1000);
-  const logTicks = [100, 500, 1000, 5000, 10000].filter((tick) => tick < cappedMax);
-
-  if (cappedMax > IC_HYBRID_LINEAR_MIN) {
-    for (let tick = IC_HYBRID_LINEAR_MIN; tick < cappedMax; tick += 10_000) {
-      logTicks.push(tick);
-    }
-  }
-
-  if (!logTicks.includes(cappedMax)) {
-    logTicks.push(cappedMax);
-  }
-
-  return logTicks;
-}
-
-const IC_CHART_YEARS = [2020, 2021, 2022, 2023, 2024, 2025] as const;
-
 /**
  * Shortens long institute or organization names for chart axes; pair with
  * `full_label` on the same row for tooltips.
@@ -161,18 +137,6 @@ function abbreviateChartCategoryLabel(label: string): string {
   }
 
   return `${trimmed.slice(0, 10)}…`;
-}
-
-/** Ensures every institute from the master list appears, using 0 when absent in year data. */
-function mergeIcWithAllInstitutes(
-  masterList: IcDataPoint[],
-  yearData: IcDataPoint[],
-): IcDataPoint[] {
-  const counts = new Map(yearData.map((point) => [point.label, point.value]));
-  return masterList.map((point) => ({
-    label: point.label,
-    value: counts.get(point.label) ?? 0,
-  }));
 }
 
 // ─── Types for combined dashboard state ──────────────────────────────────────
@@ -223,127 +187,20 @@ export default function Dashboard() {
   const [fyMax, setFyMax] = useState("");
   /** Log scale for Projects by Institute (IC) bar chart — matches prior default. */
   const [icProjectsLogScale, setIcProjectsLogScale] = useState(true);
-  const [selectedIcYear, setSelectedIcYear] = useState<number | "all">("all");
-  const [icChartData, setIcChartData] = useState<IcDataPoint[]>([]);
-  const [icChartLoading, setIcChartLoading] = useState(true);
-  const icDataCacheRef = useRef<Map<string, IcDataPoint[]>>(new Map());
-  const icMasterListRef = useRef<IcDataPoint[]>([]);
 
-  const normalizeIcChartData = (
-    cacheKey: string,
-    fetched: IcDataPoint[],
-  ): IcDataPoint[] => {
-    if (cacheKey === "all") {
-      icMasterListRef.current = fetched.map((point) => ({
-        label: point.label,
-        value: point.value,
-      }));
-      return fetched;
-    }
-    if (icMasterListRef.current.length === 0) {
-      return fetched;
-    }
-    return mergeIcWithAllInstitutes(icMasterListRef.current, fetched);
-  };
+  const icChartLinearMax = IC_HYBRID_LINEAR_MAX_ALL;
+  const icChartTickValues = [...IC_HYBRID_TICK_VALUES_ALL];
 
-  const icChartRows = useMemo(
-    () =>
-      icChartData
-        .map((point) => ({
-          ...point,
-          short_label: abbreviateChartCategoryLabel(point.label),
-          full_label: point.label,
-        }))
-        .sort((a, b) => a.full_label.localeCompare(b.full_label)),
-    [icChartData],
-  );
-
-  const icChartDataMax = useMemo(
-    () => icChartData.reduce((max, point) => Math.max(max, point.value), 0),
-    [icChartData],
-  );
-
-  const icChartLinearMax = useMemo(
-    () =>
-      selectedIcYear === "all"
-        ? IC_HYBRID_LINEAR_MAX_ALL
-        : Math.max(roundUpToThousand(icChartDataMax), 1000),
-    [selectedIcYear, icChartDataMax],
-  );
-
-  const icChartTickValues = useMemo(
-    () =>
-      selectedIcYear === "all"
-        ? [...IC_HYBRID_TICK_VALUES_ALL]
-        : buildIcHybridTickValues(icChartLinearMax),
-    [selectedIcYear, icChartLinearMax],
-  );
-
-  useEffect(() => {
-    const cacheKey = String(selectedIcYear);
-    const cached = icDataCacheRef.current.get(cacheKey);
-    if (cached) {
-      setIcChartData(cached);
-      setIcChartLoading(false);
-      return;
-    }
-
-    let cancelled = false;
-
-    const loadIcChart = async () => {
-      setIcChartLoading(true);
-      try {
-        const icYearData =
-          selectedIcYear === "all"
-            ? await getIcData()
-            : await getIcData(selectedIcYear);
-        if (!cancelled) {
-          const normalized = normalizeIcChartData(cacheKey, icYearData);
-          icDataCacheRef.current.set(cacheKey, normalized);
-          setIcChartData(normalized);
-        }
-      } catch {
-        if (!cancelled) {
-          setIcChartData([]);
-        }
-      } finally {
-        if (!cancelled) {
-          setIcChartLoading(false);
-        }
-      }
-    };
-
-    void loadIcChart();
-
-    return () => {
-      cancelled = true;
-    };
-  }, [selectedIcYear]);
-
-  useEffect(() => {
-    if (!data?.icData || data.icData.length === 0) {
-      return;
-    }
-
-    const master = data.icData.map((point) => ({
-      label: point.label,
-      value: point.value,
-    }));
-    icMasterListRef.current = master;
-
-    for (const [key, cached] of icDataCacheRef.current.entries()) {
-      if (key !== "all") {
-        icDataCacheRef.current.set(key, mergeIcWithAllInstitutes(master, cached));
-      }
-    }
-
-    if (selectedIcYear !== "all") {
-      const refreshed = icDataCacheRef.current.get(String(selectedIcYear));
-      if (refreshed) {
-        setIcChartData(refreshed);
-      }
-    }
-  }, [data?.icData, selectedIcYear]);
+  const icChartRows = useMemo(() => {
+    const icData = data?.icData ?? [];
+    return icData
+      .map((point) => ({
+        ...point,
+        short_label: abbreviateChartCategoryLabel(point.label),
+        full_label: point.label,
+      }))
+      .sort((a, b) => a.full_label.localeCompare(b.full_label));
+  }, [data?.icData]);
 
   useEffect(() => {
     let cancelled = false;
@@ -443,6 +300,7 @@ export default function Dashboard() {
         icNames={icNames}
         activityCodes={activityCodes}
         states={states}
+        fiscalYearOptions={yearData.map((d) => d.year)}
         selectedPI={selectedPI}
         selectedIC={selectedIC}
         selectedActivity={selectedActivity}
@@ -483,41 +341,10 @@ export default function Dashboard() {
       {/* State map + IC bar chart */}
       <div className="dashboard-grid-2">
         <StateMap data={stateData} />
-        <div
-          className={`dashboard-ic-chart-scroll${icChartLoading ? " dashboard-ic-chart-scroll--loading" : ""}`}
-        >
+        <div className="dashboard-ic-chart-scroll">
           <BarChartPanel
             title="Projects by Institute (IC)"
             panelClassName="chart-panel-ic-projects"
-            headerCenter={
-              <div
-                className="chart-year-scroll"
-                role="listbox"
-                aria-label="Fiscal year"
-              >
-                <button
-                  type="button"
-                  role="option"
-                  aria-selected={selectedIcYear === "all"}
-                  className={selectedIcYear === "all" ? "active" : ""}
-                  onClick={() => setSelectedIcYear("all")}
-                >
-                  All
-                </button>
-                {IC_CHART_YEARS.map((year) => (
-                  <button
-                    key={year}
-                    type="button"
-                    role="option"
-                    aria-selected={selectedIcYear === year}
-                    className={selectedIcYear === year ? "active" : ""}
-                    onClick={() => setSelectedIcYear(year)}
-                  >
-                    {year}
-                  </button>
-                ))}
-              </div>
-            }
             headerEnd={
               <div className="chart-scale-toggle" role="group" aria-label="Count axis scale">
                 <button
@@ -571,17 +398,13 @@ export default function Dashboard() {
         </div>
       </div>
 
-      {/* Activity: funding by activity code (bar) */}
-      <div className="dashboard-activity-section">
-        <BarChartPanel
+      {/* Project term themes (word cloud) + funding by activity code (pie) */}
+      <div className="dashboard-term-themes-pie-row">
+        <ProjectTermsThemeCloud payload={termThemeCloud} />
+        <ActivityFundingPiePanel
           title="Funding by Activity Code"
-          panelClassName="chart-panel-activity"
-          data={activityData as unknown as Array<Record<string, unknown>>}
-          dataKey="total_funding"
-          labelKey="label"
-          layout="horizontal"
-          formatter={formatDollars}
-          color="#0e9f6e"
+          pie={activityPie}
+          formatDollars={formatDollars}
         />
       </div>
 
@@ -613,18 +436,6 @@ export default function Dashboard() {
           layout="horizontal"
           formatter={formatDollars}
           color="#7c3aed"
-        />
-      </div>
-
-      <div className="dashboard-term-themes">
-        <ProjectTermsThemeCloud payload={termThemeCloud} />
-      </div>
-
-      <div className="dashboard-pie-footer">
-        <ActivityFundingPiePanel
-          title="Funding share by Activity"
-          pie={activityPie}
-          formatDollars={formatDollars}
         />
       </div>
     </div>

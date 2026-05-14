@@ -14,6 +14,47 @@ type FilterSelectProps = {
   ariaLabel?: string;
   /** When set, menu is at least this wide (px) so long labels stay readable. */
   menuMinWidthPx?: number;
+  /** When >1, options (after placeholder) render in a row-major grid with this many columns. */
+  listColumns?: number;
+};
+
+/** Row-major grid move: index 0 is placeholder; indices 1.. are data in reading order. */
+const moveHighlightInOptionGrid = (
+  index: number,
+  key: "ArrowDown" | "ArrowUp" | "ArrowLeft" | "ArrowRight",
+  length: number,
+  cols: number,
+): number => {
+  if (cols < 2 || length <= 1) return index;
+  const dataCount = length - 1;
+  if (dataCount <= 0) return index;
+
+  if (index === 0) {
+    if (key === "ArrowDown" || key === "ArrowRight") return 1;
+    return 0;
+  }
+
+  const rel = index - 1;
+  const col = rel % cols;
+
+  if (key === "ArrowRight") {
+    if (col < cols - 1 && rel + 1 < dataCount) return index + 1;
+    return index;
+  }
+  if (key === "ArrowLeft") {
+    if (col > 0) return index - 1;
+    return 0;
+  }
+  if (key === "ArrowDown") {
+    const belowRel = rel + cols;
+    if (belowRel < dataCount) return 1 + belowRel;
+    return index;
+  }
+  if (key === "ArrowUp") {
+    if (rel < cols) return 0;
+    return 1 + (rel - cols);
+  }
+  return index;
 };
 
 const FilterSelect: React.FC<FilterSelectProps> = ({
@@ -23,6 +64,7 @@ const FilterSelect: React.FC<FilterSelectProps> = ({
   placeholder,
   ariaLabel,
   menuMinWidthPx,
+  listColumns,
 }) => {
   const baseId = useId();
   const listboxId = `${baseId}-listbox`;
@@ -87,6 +129,8 @@ const FilterSelect: React.FC<FilterSelectProps> = ({
     return () => document.removeEventListener("mousedown", onPointerDown);
   }, [open]);
 
+  const cols = listColumns != null && listColumns > 1 ? Math.floor(listColumns) : 1;
+
   useEffect(() => {
     if (!open) return;
     const onKey = (e: KeyboardEvent) => {
@@ -94,6 +138,14 @@ const FilterSelect: React.FC<FilterSelectProps> = ({
         e.preventDefault();
         setOpen(false);
         triggerRef.current?.focus();
+        return;
+      }
+      const gridKeys = ["ArrowDown", "ArrowUp", "ArrowLeft", "ArrowRight"] as const;
+      if (cols >= 2 && (gridKeys as readonly string[]).includes(e.key)) {
+        e.preventDefault();
+        setHighlightIndex((i) =>
+          moveHighlightInOptionGrid(i, e.key as (typeof gridKeys)[number], flatOptions.length, cols),
+        );
         return;
       }
       if (e.key === "ArrowDown") {
@@ -126,7 +178,7 @@ const FilterSelect: React.FC<FilterSelectProps> = ({
     };
     window.addEventListener("keydown", onKey);
     return () => window.removeEventListener("keydown", onKey);
-  }, [open, flatOptions, highlightIndex, onChange]);
+  }, [open, flatOptions, highlightIndex, onChange, cols]);
 
   useLayoutEffect(() => {
     if (!open || !listRef.current) return;
@@ -139,6 +191,20 @@ const FilterSelect: React.FC<FilterSelectProps> = ({
     Math.max(120, window.innerHeight - coords.top - 12),
   );
 
+  const panelClassName = cols >= 2 ? "filter-select-panel filter-select-panel--grid" : "filter-select-panel";
+
+  const panelListStyle: React.CSSProperties = {
+    maxHeight: maxPanelHeight,
+    ...(cols >= 2
+      ? {
+          display: "grid",
+          gridTemplateColumns: `repeat(${cols}, minmax(0, 1fr))`,
+          gap: "0.28rem 0.45rem",
+          alignContent: "start",
+        }
+      : {}),
+  };
+
   const panel =
     open &&
     createPortal(
@@ -150,13 +216,21 @@ const FilterSelect: React.FC<FilterSelectProps> = ({
         <div
           id={listboxId}
           ref={listRef}
-          className="filter-select-panel"
+          className={panelClassName}
           role="listbox"
-          style={{ maxHeight: maxPanelHeight }}
+          style={panelListStyle}
         >
           {flatOptions.map((opt, index) => {
             const isSelected = opt.value === value;
             const isActive = index === highlightIndex;
+            const spanFullRow = cols >= 2 && index === 0;
+            const optionClass = [
+              "filter-select-option",
+              spanFullRow ? "filter-select-option--grid-span" : "",
+              isActive ? "filter-select-option--active" : "",
+            ]
+              .filter(Boolean)
+              .join(" ");
             return (
               <button
                 key={opt.value === "" ? "__all__" : opt.value}
@@ -164,11 +238,7 @@ const FilterSelect: React.FC<FilterSelectProps> = ({
                 role="option"
                 data-option-index={index}
                 aria-selected={isSelected}
-                className={
-                  isActive
-                    ? "filter-select-option filter-select-option--active"
-                    : "filter-select-option"
-                }
+                className={optionClass}
                 onMouseEnter={() => setHighlightIndex(index)}
                 title={opt.label}
                 onClick={() => {
@@ -284,12 +354,18 @@ const Filters: React.FC<FiltersProps> = ({
   );
 
   const activitySelectOptions = useMemo(
-    () => activityCodes.map((code) => ({ value: code, label: formatAllCapsLabel(code) })),
+    () =>
+      [...activityCodes]
+        .sort((a, b) => a.localeCompare(b, undefined, { sensitivity: "base" }))
+        .map((code) => ({ value: code, label: formatAllCapsLabel(code) })),
     [activityCodes],
   );
 
   const stateSelectOptions = useMemo(
-    () => states.map((s) => ({ value: s, label: formatAllCapsLabel(s) })),
+    () =>
+      [...states]
+        .sort((a, b) => a.localeCompare(b, undefined, { sensitivity: "base" }))
+        .map((s) => ({ value: s, label: formatAllCapsLabel(s) })),
     [states],
   );
 
@@ -382,6 +458,8 @@ const Filters: React.FC<FiltersProps> = ({
           onChange={setLocalActivity}
           options={activitySelectOptions}
           placeholder="All Codes"
+          listColumns={3}
+          menuMinWidthPx={260}
         />
       </div>
 
@@ -392,6 +470,8 @@ const Filters: React.FC<FiltersProps> = ({
           onChange={setLocalState}
           options={stateSelectOptions}
           placeholder="All States"
+          listColumns={3}
+          menuMinWidthPx={260}
         />
       </div>
 

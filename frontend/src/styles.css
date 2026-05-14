@@ -482,6 +482,19 @@ button.filter-select-trigger {
   scrollbar-width: thin;
 }
 
+.filter-select-panel--grid {
+  padding: 0.35rem 0.4rem;
+}
+
+.filter-select-option--grid-span {
+  grid-column: 1 / -1;
+}
+
+.filter-select-panel--grid .filter-select-option:not(.filter-select-option--grid-span) {
+  justify-content: center;
+  text-align: center;
+}
+
 .filter-select-panel::-webkit-scrollbar {
   width: 8px;
 }
