@@ -281,17 +281,7 @@ export default function ProjectDetailsPage({
         ) : (
           <div className="project-details-year-tags" aria-hidden="true" />
         )}
-        {projectId ? (
-          <button
-            type="button"
-            className="project-vector-link"
-            onClick={() => navigate(`/semantic/similar/${encodeURIComponent(projectId)}`)}
-          >
-            Similar grants (vectors)
-          </button>
-        ) : (
-          <span />
-        )}
+        
       </div>
 
       <h1 className="project-details-title">{item.PROJECT_TITLE ?? "Untitled Project"}</h1>
@@ -470,20 +460,11 @@ export default function ProjectDetailsPage({
     </div>
 
     <aside className="project-details-similar" aria-labelledby="project-details-similar-heading">
-      {projectId ? (
-        <div className="project-details-similar-more-wrap">
-          <button
-            type="button"
-            className="project-details-similar-more"
-            onClick={() => navigate(`/semantic/similar/${encodeURIComponent(projectId)}`)}
-          >
-            Show more similar projects
-          </button>
-        </div>
-      ) : null}
+      
       <h2 id="project-details-similar-heading" className="project-details-similar-heading">
-        Similar projects
+        Similar Projects
       </h2>
+      <div className="project-details-similar-heading-rule" role="presentation" aria-hidden="true" />
       {!projectId ? (
         <p className="project-details-similar-muted">No document id on this record; vector similarity is unavailable.</p>
       ) : similarLoading ? (

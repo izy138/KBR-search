@@ -97,7 +97,7 @@ export default function SemanticSimilarProjectPage({
       </button>
 
       <header className="semantic-similar-header">
-        <h1 className="semantic-similar-title">Similar Projects</h1>
+        <h2 className="semantic-similar-title">Similar Projects</h2>
         
       </header>
 
