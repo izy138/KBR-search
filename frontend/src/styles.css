@@ -2350,6 +2350,35 @@ button.filter-select-trigger {
   min-width: 0;
 }
 
+.activity-pie-slice-label {
+  font-size: 0.68rem;
+  font-weight: 600;
+  paint-order: stroke fill;
+  pointer-events: none;
+  stroke: rgba(15, 23, 42, 0.45);
+  stroke-width: 2px;
+}
+
+.activity-pie-legend-format {
+  display: inline-flex;
+  flex-direction: column;
+  align-items: flex-start;
+  gap: 0.1rem;
+  line-height: 1.25;
+  max-width: 11rem;
+  text-align: left;
+}
+
+.activity-pie-legend-format__code {
+  font-weight: 600;
+}
+
+.activity-pie-legend-format__meta {
+  color: var(--text-muted);
+  font-size: 0.68rem;
+  font-weight: 400;
+}
+
 .state-map-panel {
   position: relative;
 }

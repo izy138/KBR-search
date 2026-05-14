@@ -133,10 +133,69 @@ export default function ActivityFundingPiePanel({
         <div className="chart-tooltip-title">{row.name}</div>
         <div className="chart-tooltip-row">{formatDollars(row.value)}</div>
         <div className="chart-tooltip-row">
-          {(row.pct * 100).toFixed(1)}% of all indexed funding
+          {(row.pct * 100).toFixed(2)}% of all indexed funding (entire dataset)
         </div>
         <div className="chart-tooltip-row">{row.count.toLocaleString()} projects</div>
       </div>
+    );
+  };
+
+  /** Percent of `pie.total_funding_indexed` (API `percent_of_funding`), not share of pie only. */
+  const renderSliceLabel = (props: {
+    cx?: number;
+    cy?: number;
+    midAngle?: number;
+    innerRadius?: number;
+    outerRadius?: number;
+    payload?: PieRow;
+  }) => {
+    const { cx, cy, midAngle, innerRadius, outerRadius, payload } = props;
+    const row = payload;
+    if (
+      row == null ||
+      cx == null ||
+      cy == null ||
+      midAngle == null ||
+      innerRadius == null ||
+      outerRadius == null
+    ) {
+      return null;
+    }
+    const pctAll = row.pct * 100;
+    if (pctAll < 2.5) {
+      return null;
+    }
+    const RADIAN = Math.PI / 180;
+    const radius = innerRadius + (outerRadius - innerRadius) * 0.55;
+    const x = cx + radius * Math.cos(-midAngle * RADIAN);
+    const y = cy + radius * Math.sin(-midAngle * RADIAN);
+    return (
+      <text
+        x={x}
+        y={y}
+        fill="#fff"
+        textAnchor="middle"
+        dominantBaseline="central"
+        className="activity-pie-slice-label"
+      >
+        {`${pctAll.toFixed(1)}%`}
+      </text>
+    );
+  };
+
+  const legendFormatter = (value: string, entry: unknown) => {
+    const row = (entry as { payload?: PieRow }).payload;
+    if (!row) {
+      return value;
+    }
+    const pct = (row.pct * 100).toFixed(1);
+    return (
+      <span className="activity-pie-legend-format">
+        <span className="activity-pie-legend-format__code">{value}</span>
+        <span className="activity-pie-legend-format__meta">
+          {formatDollars(row.value)} · {pct}% of all indexed
+        </span>
+      </span>
     );
   };
 
@@ -210,6 +269,7 @@ export default function ActivityFundingPiePanel({
                 paddingAngle={0.6}
                 activeShape={ActivePopOutShape}
                 isAnimationActive
+                label={renderSliceLabel}
               >
                 {chartData.map((_, index) => (
                   <Cell key={`cell-${index}`} fill={PIE_COLORS[index % PIE_COLORS.length]} />
@@ -220,6 +280,7 @@ export default function ActivityFundingPiePanel({
                 layout="vertical"
                 align="right"
                 verticalAlign="middle"
+                formatter={legendFormatter}
                 wrapperStyle={{
                   fontSize: "12px",
                   paddingLeft: 4,
