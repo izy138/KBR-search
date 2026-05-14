@@ -147,9 +147,10 @@ export default function ProjectDetailsPage({
 }: ProjectDetailsPageProps) {
   const navigate = useNavigate();
   const piNames = getOrderedPiNames(item.PI_NAMEs);
+  const projectTerms = useMemo(() => parseSemicolonTerms(item.PROJECT_TERMS), [item.PROJECT_TERMS]);
   const dedupedProjectTerms = useMemo(
-    () => dedupeTermsPreserveOrder(parseSemicolonTerms(item.PROJECT_TERMS)),
-    [item.PROJECT_TERMS],
+    () => dedupeTermsPreserveOrder(projectTerms),
+    [projectTerms],
   );
   const [selectedTerms, setSelectedTerms] = useState<Set<string>>(() => new Set());
   const [keywordExtra, setKeywordExtra] = useState<string>("");
