@@ -444,7 +444,7 @@ export default function ProjectDetailsPage({
                       disabled={selectedTerms.size === 0 && keywordExtra.trim() === ""}
                       onClick={handleProjectKeywordSearch}
                     >
-                      Search projects
+                      Search Projects
                     </button>
                     {(selectedTerms.size > 0 || keywordExtra.trim() !== "") ? (
                       <button type="button" className="btn-project-keyword-clear" onClick={clearKeywordPanel}>
@@ -484,7 +484,6 @@ export default function ProjectDetailsPage({
       <h2 id="project-details-similar-heading" className="project-details-similar-heading">
         Similar projects
       </h2>
-      
       {!projectId ? (
         <p className="project-details-similar-muted">No document id on this record; vector similarity is unavailable.</p>
       ) : similarLoading ? (

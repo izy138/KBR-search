@@ -42,6 +42,8 @@ declare module "react-simple-maps" {
     onMouseEnter?: (event: MouseEvent<SVGPathElement>) => void;
     onMouseLeave?: (event: MouseEvent<SVGPathElement>) => void;
     onMouseMove?: (event: MouseEvent<SVGPathElement>) => void;
+    onMouseDown?: (event: MouseEvent<SVGPathElement>) => void;
+    onMouseUp?: (event: MouseEvent<SVGPathElement>) => void;
   }
 
   export function ComposableMap(props: ComposableMapProps): JSX.Element;
