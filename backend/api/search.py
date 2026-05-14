@@ -252,6 +252,88 @@ def _recurrence_match_query(source: dict[str, object]) -> dict[str, object]:
     )
 
 
+def _search_recurrence_hits(
+    client: object,
+    query: dict[str, object],
+) -> list[dict[str, object]]:
+    response = client.search(
+        index=INDEX_NAME,
+        body={
+            "size": 50,
+            "query": query,
+            "_source": {"includes": ["FY", "APPLICATION_ID", "PROJECT_TITLE", "CORE_PROJECT_NUM"]},
+            "sort": [{"FY": {"order": "asc", "unmapped_type": "long"}}],
+        },
+    )
+    hits = response.get("hits", {}).get("hits", [])
+    return hits if isinstance(hits, list) else []
+
+
+def _hits_to_fiscal_years(
+    hits: list[dict[str, object]],
+    *,
+    project_id: str,
+) -> list[dict[str, object]]:
+    years: list[dict[str, object]] = []
+    for hit in hits:
+        hit_id = hit.get("_id")
+        hit_source = hit.get("_source", {})
+        if not isinstance(hit_source, dict):
+            continue
+        years.append(
+            {
+                "project_id": hit_id,
+                "application_id": hit_source.get("APPLICATION_ID"),
+                "fy": hit_source.get("FY"),
+                "is_current": hit_id == project_id,
+            }
+        )
+    return years
+
+
+def _collect_recurrence_years(
+    client: object,
+    source: dict[str, object],
+    *,
+    project_id: str,
+) -> list[dict[str, object]]:
+    """Find sibling fiscal years; fall back to title match when core only finds one year."""
+    core = _recurrence_core_num(source)
+    title = _recurrence_title(source)
+    if not core and not title:
+        raise HTTPException(
+            status_code=400,
+            detail="Project has no CORE_PROJECT_NUM or PROJECT_TITLE for recurrence lookup.",
+        )
+
+    merged_hits: list[dict[str, object]] = []
+    seen_ids: set[object] = set()
+
+    def absorb(hits: list[dict[str, object]]) -> None:
+        for hit in hits:
+            hit_id = hit.get("_id")
+            if hit_id in seen_ids:
+                continue
+            seen_ids.add(hit_id)
+            merged_hits.append(hit)
+
+    if core:
+        absorb(_search_recurrence_hits(client, {"term": {"CORE_PROJECT_NUM.keyword": core}}))
+
+    years = _dedupe_fiscal_years(
+        _hits_to_fiscal_years(merged_hits, project_id=project_id),
+        current_project_id=project_id,
+    )
+    if len(years) <= 1 and title:
+        absorb(_search_recurrence_hits(client, {"term": {"PROJECT_TITLE.keyword": title}}))
+        years = _dedupe_fiscal_years(
+            _hits_to_fiscal_years(merged_hits, project_id=project_id),
+            current_project_id=project_id,
+        )
+
+    return years
+
+
 def _dedupe_fiscal_years(
     years: list[dict[str, object]],
     *,
@@ -469,33 +551,7 @@ def get_project_other_years(
     if not isinstance(source, dict):
         source = {}
 
-    response = client.search(
-        index=INDEX_NAME,
-        body={
-            "size": 50,
-            "query": _recurrence_match_query(source),
-            "_source": {"includes": ["FY", "APPLICATION_ID", "PROJECT_TITLE", "CORE_PROJECT_NUM"]},
-            "sort": [{"FY": {"order": "asc", "unmapped_type": "long"}}],
-        },
-    )
-    hits = response.get("hits", {}).get("hits", [])
-    years: list[dict[str, object]] = []
-    for hit in hits:
-        hit_id = hit.get("_id")
-        hit_source = hit.get("_source", {})
-        if not isinstance(hit_source, dict):
-            continue
-        fy = hit_source.get("FY")
-        years.append(
-            {
-                "project_id": hit_id,
-                "application_id": hit_source.get("APPLICATION_ID"),
-                "fy": fy,
-                "is_current": hit_id == project_id,
-            }
-        )
-
-    years = _dedupe_fiscal_years(years, current_project_id=project_id)
+    years = _collect_recurrence_years(client, source, project_id=project_id)
 
     return {
         "project_id": project_id,

@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useState } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
 import { useNavigate } from "react-router-dom";
 import type { ProjectFiscalYear, ProjectYearVariant, SearchResultRecord } from "../api";
 import { getProjectOtherYears, searchSimilarToProjectId } from "../api";
@@ -80,6 +80,70 @@ function dedupeTermsPreserveOrder(terms: string[]): string[] {
     out.push(s);
   }
   return out;
+}
+
+function getProjectFamilyKey(item: SearchResultRecord): string | null {
+  const title = item.PROJECT_TITLE?.trim();
+  if (title) {
+    return `title:${title.replace(/\s+/g, " ").toLowerCase()}`;
+  }
+  const core =
+    typeof item.CORE_PROJECT_NUM === "string" ? item.CORE_PROJECT_NUM.trim() : "";
+  if (core) {
+    return `core:${core.toLowerCase()}`;
+  }
+  return null;
+}
+
+function markCurrentFiscalYear(
+  years: ProjectFiscalYear[],
+  projectId: string,
+): ProjectFiscalYear[] {
+  return years.map((year) => ({
+    ...year,
+    is_current: year.project_id === projectId,
+  }));
+}
+
+function mergeFetchedIntoFamilyYears(
+  familyYears: ProjectFiscalYear[],
+  fetchedYears: ProjectFiscalYear[],
+  projectId: string,
+): ProjectFiscalYear[] {
+  const fetchedByFy = new Map<number, ProjectFiscalYear>();
+  for (const year of fetchedYears) {
+    if (year.fy != null) {
+      fetchedByFy.set(year.fy, year);
+    }
+  }
+
+  const merged = familyYears.map((year) => {
+    if (year.fy == null) return year;
+    const fetched = fetchedByFy.get(year.fy);
+    if (!fetched) return year;
+    return {
+      ...year,
+      project_id: fetched.project_id,
+      application_id: fetched.application_id,
+    };
+  });
+
+  for (const fetched of fetchedYears) {
+    if (fetched.fy == null) continue;
+    if (!merged.some((year) => year.fy === fetched.fy)) {
+      merged.push(fetched);
+    }
+  }
+
+  return markCurrentFiscalYear(
+    merged.sort((a, b) => {
+      if (a.fy == null && b.fy == null) return 0;
+      if (a.fy == null) return 1;
+      if (b.fy == null) return -1;
+      return a.fy - b.fy;
+    }),
+    projectId,
+  );
 }
 
 function formatCurrency(value: number | undefined): string {
@@ -197,6 +261,8 @@ export default function ProjectDetailsPage({
   const [similarLoading, setSimilarLoading] = useState<boolean>(false);
   const [similarError, setSimilarError] = useState<string>("");
   const [projectYears, setProjectYears] = useState<ProjectFiscalYear[]>([]);
+  const familyYearsCacheRef = useRef<ProjectFiscalYear[]>([]);
+  const familyKeyCacheRef = useRef<string | null>(null);
   const displayProjectYears = useMemo(
     () => dedupeFiscalYears(projectYears, projectId),
     [projectYears, projectId],
@@ -258,25 +324,58 @@ export default function ProjectDetailsPage({
   useEffect(() => {
     if (!projectId) {
       setProjectYears([]);
+      familyYearsCacheRef.current = [];
+      familyKeyCacheRef.current = null;
       return;
     }
     let cancelled = false;
+    const familyKey = getProjectFamilyKey(item);
     void (async () => {
       try {
         const payload = await getProjectOtherYears(projectId);
-        if (!cancelled) {
-          setProjectYears(payload.years ?? payload.other_years ?? []);
+        if (cancelled) return;
+        const fetched = payload.years ?? payload.other_years ?? [];
+
+        if (fetched.length > 1) {
+          familyYearsCacheRef.current = fetched;
+          familyKeyCacheRef.current = familyKey;
+          setProjectYears(fetched);
+          return;
         }
+
+        if (
+          familyKey &&
+          familyKey === familyKeyCacheRef.current &&
+          familyYearsCacheRef.current.length > 1
+        ) {
+          setProjectYears(
+            mergeFetchedIntoFamilyYears(familyYearsCacheRef.current, fetched, projectId),
+          );
+          return;
+        }
+
+        familyYearsCacheRef.current = fetched;
+        familyKeyCacheRef.current = fetched.length > 1 ? familyKey : null;
+        setProjectYears(fetched);
       } catch {
-        if (!cancelled) {
-          setProjectYears([]);
+        if (cancelled) return;
+        if (
+          familyKey &&
+          familyKey === familyKeyCacheRef.current &&
+          familyYearsCacheRef.current.length > 1
+        ) {
+          setProjectYears(markCurrentFiscalYear(familyYearsCacheRef.current, projectId));
+          return;
         }
+        setProjectYears([]);
+        familyYearsCacheRef.current = [];
+        familyKeyCacheRef.current = null;
       }
     })();
     return () => {
       cancelled = true;
     };
-  }, [projectId]);
+  }, [projectId, item.PROJECT_TITLE, item.CORE_PROJECT_NUM]);
 
   const handleOpenProjectYear = (year: ProjectFiscalYear): void => {
     if (!year.project_id || year.project_id === projectId) return;
