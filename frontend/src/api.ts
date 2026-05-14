@@ -34,6 +34,7 @@ export interface SearchResultRecord {
 
 export interface SearchResponse {
   query: string;
+  project_terms?: string[];
   limit: number;
   total: number;
   visible_total?: number;
@@ -102,6 +103,7 @@ export type SearchProjectsOptions = {
   state?: string;
   fyMin?: string;
   fyMax?: string;
+  projectTerms?: string[];
 };
 
 export async function searchProjects(
@@ -118,6 +120,7 @@ export async function searchProjects(
     state = "",
     fyMin = "",
     fyMax = "",
+    projectTerms = [],
   } = options;
   const url = new URL(`${API_BASE_URL}/search/`);
   url.searchParams.set("q", query);
@@ -132,6 +135,10 @@ export async function searchProjects(
   if (state) url.searchParams.set("state", state);
   if (fyMin) url.searchParams.set("fy_min", fyMin);
   if (fyMax) url.searchParams.set("fy_max", fyMax);
+  for (const term of projectTerms) {
+    const trimmed = term.trim();
+    if (trimmed) url.searchParams.append("project_terms", trimmed);
+  }
   const response = await fetch(url.toString());
   if (!response.ok) {
     throw new Error(`Search request failed: ${response.status}`);

@@ -12,6 +12,9 @@ from .opensearch_client import get_client, get_index_name
 
 router = APIRouter()
 
+MAX_PROJECT_TERM_FILTERS = 20
+MAX_PROJECT_TERM_LENGTH = 200
+
 INDEX_NAME = get_index_name()
 MAX_RESULT_WINDOW = 10_000
 
@@ -65,6 +68,23 @@ def _require_matching_embedding_dimension(client: Any) -> None:
         )
 
 
+def _normalize_project_terms(raw: list[str]) -> list[str]:
+    """Strip, cap count/length; order-preserving dedupe."""
+    seen: set[str] = set()
+    out: list[str] = []
+    for t in raw:
+        s = t.strip()
+        if not s or s in seen:
+            continue
+        if len(s) > MAX_PROJECT_TERM_LENGTH:
+            s = s[:MAX_PROJECT_TERM_LENGTH]
+        seen.add(s)
+        out.append(s)
+        if len(out) >= MAX_PROJECT_TERM_FILTERS:
+            break
+    return out
+
+
 @router.get("/")
 def search(
     q: str = Query(default="", description="Search query"),
@@ -77,9 +97,14 @@ def search(
     state: str = Query(default="", description="Filter by ORG_STATE"),
     fy_min: int | None = Query(default=None, description="Minimum fiscal year"),
     fy_max: int | None = Query(default=None, description="Maximum fiscal year"),
+    project_terms: list[str] = Query(
+        default_factory=list,
+        description="Each phrase must match PROJECT_TERMS (AND across phrases); repeat param",
+    ),
 ) -> dict[str, object]:
 
     client = get_client()
+    normalized_terms = _normalize_project_terms(project_terms)
     must: list[dict[str, object]] = []
     filters: list[dict[str, object]] = []
     if q:
@@ -93,7 +118,11 @@ def search(
                 }
             }
         )
-    else:
+    for term in normalized_terms:
+        must.append(
+            {"match": {"PROJECT_TERMS": {"query": term, "operator": "and"}}},
+        )
+    if not q and not normalized_terms:
         must.append({"match_all": {}})
     if category:
         must.append({"term": {"category.keyword": category}})
@@ -157,6 +186,7 @@ def search(
 
     return {
         "query": q,
+        "project_terms": normalized_terms,
         "limit": limit,
         "total": total_value,
         "visible_total": visible_total,
