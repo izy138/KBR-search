@@ -467,7 +467,7 @@ export default function ProjectDetailsPage({
             className="project-details-similar-more"
             onClick={() => navigate(`/semantic/similar/${encodeURIComponent(projectId)}`)}
           >
-            See similar projects
+            See more similar projects
           </button>
         </div>
       ) : null}
