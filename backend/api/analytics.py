@@ -5,9 +5,12 @@ from __future__ import annotations
 import json
 from pathlib import Path
 
-from fastapi import APIRouter, HTTPException, Query
+from typing import Annotated
+
+from fastapi import APIRouter, Depends, HTTPException, Query
 
 from .opensearch_client import get_client, get_index_name
+from .query_filters import analytics_filter_params, with_query_filters
 
 router = APIRouter()
 INDEX_NAME = get_index_name()
@@ -30,19 +33,24 @@ def get_funding_value(source: dict[str, object]) -> float:
 
 
 @router.get("/summary")
-def analytics_summary() -> dict[str, object]:
+def analytics_summary(
+  filters: Annotated[list[dict[str, object]], Depends(analytics_filter_params)],
+) -> dict[str, object]:
   client = get_client()
-  body = {
-    "size": 0,
-    "track_total_hits": True,
-    "aggs": {
-      # Use ACTIVITY as the dashboard category grouping for NIH project data.
-      "categories": {"terms": {"field": "ACTIVITY.keyword", "size": 10}},
-      "total_funding": {"sum": {"field": "TOTAL_COST"}},
-      "unique_ics": {"cardinality": {"field": "IC_NAME.keyword"}},
-      "unique_activities": {"cardinality": {"field": "ACTIVITY.keyword"}},
+  body = with_query_filters(
+    {
+      "size": 0,
+      "track_total_hits": True,
+      "aggs": {
+        # Use ACTIVITY as the dashboard category grouping for NIH project data.
+        "categories": {"terms": {"field": "ACTIVITY.keyword", "size": 10}},
+        "total_funding": {"sum": {"field": "TOTAL_COST"}},
+        "unique_ics": {"cardinality": {"field": "IC_NAME.keyword"}},
+        "unique_activities": {"cardinality": {"field": "ACTIVITY.keyword"}},
+      },
     },
-  }
+    filters,
+  )
   response = client.search(index=INDEX_NAME, body=body)
 
   total = response.get("hits", {}).get("total", {})
@@ -61,19 +69,24 @@ def analytics_summary() -> dict[str, object]:
 
 
 @router.get("/by-state")
-def analytics_by_state() -> list[dict[str, object]]:
+def analytics_by_state(
+  filters: Annotated[list[dict[str, object]], Depends(analytics_filter_params)],
+) -> list[dict[str, object]]:
   client = get_client()
-  body = {
-    "size": 0,
-    "aggs": {
-      "by_state": {
-        "terms": {"field": "ORG_STATE.keyword", "size": 60},
-        "aggs": {
-          "total_funding": {"sum": {"field": "TOTAL_COST"}},
+  body = with_query_filters(
+    {
+      "size": 0,
+      "aggs": {
+        "by_state": {
+          "terms": {"field": "ORG_STATE.keyword", "size": 60},
+          "aggs": {
+            "total_funding": {"sum": {"field": "TOTAL_COST"}},
+          },
         },
       },
     },
-  }
+    filters,
+  )
   response = client.search(index=INDEX_NAME, body=body)
   buckets = response.get("aggregations", {}).get("by_state", {}).get("buckets", [])
 
@@ -91,6 +104,7 @@ def analytics_by_state() -> list[dict[str, object]]:
 
 @router.get("/by-ic")
 def analytics_by_ic(
+  filters: Annotated[list[dict[str, object]], Depends(analytics_filter_params)],
   fy: int | None = Query(default=None, ge=2000, le=2100, description="Optional fiscal year filter"),
 ) -> list[dict[str, object]]:
   client = get_client()
@@ -103,25 +117,28 @@ def analytics_by_ic(
   }
 
   if fy is None:
-    body: dict[str, object] = {"size": 0, "aggs": {"all_ics": all_ics_agg}}
+    body = with_query_filters({"size": 0, "aggs": {"all_ics": all_ics_agg}}, filters)
     response = client.search(index=INDEX_NAME, body=body)
     buckets = response.get("aggregations", {}).get("all_ics", {}).get("buckets", [])
     return [{"label": b["key"], "value": b["doc_count"]} for b in buckets]
 
-  body = {
-    "size": 0,
-    "aggs": {
-      "all_ics": all_ics_agg,
-      "fy_filter": {
-        "filter": {"term": {"FY": fy}},
-        "aggs": {
-          "by_ic": {
-            "terms": {"field": "IC_NAME.keyword", "size": 100},
+  body = with_query_filters(
+    {
+      "size": 0,
+      "aggs": {
+        "all_ics": all_ics_agg,
+        "fy_filter": {
+          "filter": {"term": {"FY": fy}},
+          "aggs": {
+            "by_ic": {
+              "terms": {"field": "IC_NAME.keyword", "size": 100},
+            },
           },
         },
       },
     },
-  }
+    filters,
+  )
   response = client.search(index=INDEX_NAME, body=body)
   all_buckets = response.get("aggregations", {}).get("all_ics", {}).get("buckets", [])
   fy_buckets = (
@@ -135,27 +152,35 @@ def analytics_by_ic(
   return [{"label": b["key"], "value": counts.get(b["key"], 0)} for b in all_buckets]
 
 
-def _activity_funding_buckets(client: object, *, bucket_size: int) -> tuple[list[dict[str, object]], dict[str, object]]:
+def _activity_funding_buckets(
+  client: object,
+  *,
+  bucket_size: int,
+  filters: list[dict[str, object]] | None = None,
+) -> tuple[list[dict[str, object]], dict[str, object]]:
   """Return (activity buckets, root aggregations) from a single search."""
   size = max(1, min(bucket_size, 500))
-  body = {
-    "size": 0,
-    "track_total_hits": True,
-    "aggs": {
-      "total_funding_all": {"sum": {"field": "TOTAL_COST"}},
-      "by_activity": {
-        "terms": {
-          "field": "ACTIVITY.keyword",
-          "size": size,
-          "order": {"total_funding": "desc"},
-          "show_term_doc_count_error": True,
-        },
-        "aggs": {
-          "total_funding": {"sum": {"field": "TOTAL_COST"}},
+  body = with_query_filters(
+    {
+      "size": 0,
+      "track_total_hits": True,
+      "aggs": {
+        "total_funding_all": {"sum": {"field": "TOTAL_COST"}},
+        "by_activity": {
+          "terms": {
+            "field": "ACTIVITY.keyword",
+            "size": size,
+            "order": {"total_funding": "desc"},
+            "show_term_doc_count_error": True,
+          },
+          "aggs": {
+            "total_funding": {"sum": {"field": "TOTAL_COST"}},
+          },
         },
       },
     },
-  }
+    filters or [],
+  )
   response = client.search(index=INDEX_NAME, body=body)
   aggs = response.get("aggregations", {})
   buckets = aggs.get("by_activity", {}).get("buckets", [])
@@ -164,10 +189,11 @@ def _activity_funding_buckets(client: object, *, bucket_size: int) -> tuple[list
 
 @router.get("/by-activity")
 def analytics_by_activity(
+  filters: Annotated[list[dict[str, object]], Depends(analytics_filter_params)],
   limit: int = Query(default=50, ge=1, le=200, description="Max activity codes to return"),
 ) -> list[dict[str, object]]:
   client = get_client()
-  buckets, _ = _activity_funding_buckets(client, bucket_size=limit)
+  buckets, _ = _activity_funding_buckets(client, bucket_size=limit, filters=filters)
 
   results = [
     {
@@ -182,6 +208,7 @@ def analytics_by_activity(
 
 @router.get("/by-activity-funding-pie")
 def analytics_by_activity_funding_pie(
+  filters: Annotated[list[dict[str, object]], Depends(analytics_filter_params)],
   limit: int = Query(
     default=80,
     ge=10,
@@ -204,7 +231,7 @@ def analytics_by_activity_funding_pie(
 ) -> dict[str, object]:
   """JSON for dashboard pie: activity code share of TOTAL_COST (indexed data = export pipeline)."""
   client = get_client()
-  buckets, aggs = _activity_funding_buckets(client, bucket_size=limit)
+  buckets, aggs = _activity_funding_buckets(client, bucket_size=limit, filters=filters)
   global_total = float(aggs.get("total_funding_all", {}).get("value") or 0.0)
 
   rows = [
@@ -311,23 +338,28 @@ def analytics_project_term_theme_cloud() -> dict[str, object]:
 
 
 @router.get("/by-year")
-def analytics_by_year() -> list[dict[str, object]]:
+def analytics_by_year(
+  filters: Annotated[list[dict[str, object]], Depends(analytics_filter_params)],
+) -> list[dict[str, object]]:
   client = get_client()
-  body = {
-    "size": 0,
-    "aggs": {
-      "by_year": {
-        "terms": {
-          "field": "FY",
-          "size": 20,
-          "order": {"_key": "asc"},
-        },
-        "aggs": {
-          "total_funding": {"sum": {"field": "TOTAL_COST"}},
+  body = with_query_filters(
+    {
+      "size": 0,
+      "aggs": {
+        "by_year": {
+          "terms": {
+            "field": "FY",
+            "size": 20,
+            "order": {"_key": "asc"},
+          },
+          "aggs": {
+            "total_funding": {"sum": {"field": "TOTAL_COST"}},
+          },
         },
       },
     },
-  }
+    filters,
+  )
   response = client.search(index=INDEX_NAME, body=body)
   buckets = response.get("aggregations", {}).get("by_year", {}).get("buckets", [])
 
@@ -342,23 +374,28 @@ def analytics_by_year() -> list[dict[str, object]]:
 
 
 @router.get("/top-orgs")
-def analytics_top_orgs() -> list[dict[str, object]]:
+def analytics_top_orgs(
+  filters: Annotated[list[dict[str, object]], Depends(analytics_filter_params)],
+) -> list[dict[str, object]]:
   client = get_client()
-  body = {
-    "size": 0,
-    "aggs": {
-      "top_orgs": {
-        "terms": {
-          "field": "ORG_NAME.keyword",
-          "size": 15,
-          "order": {"total_funding": "desc"},
-        },
-        "aggs": {
-          "total_funding": {"sum": {"field": "TOTAL_COST"}},
+  body = with_query_filters(
+    {
+      "size": 0,
+      "aggs": {
+        "top_orgs": {
+          "terms": {
+            "field": "ORG_NAME.keyword",
+            "size": 15,
+            "order": {"total_funding": "desc"},
+          },
+          "aggs": {
+            "total_funding": {"sum": {"field": "TOTAL_COST"}},
+          },
         },
       },
     },
-  }
+    filters,
+  )
   response = client.search(index=INDEX_NAME, body=body)
   buckets = response.get("aggregations", {}).get("top_orgs", {}).get("buckets", [])
 
@@ -372,23 +409,28 @@ def analytics_top_orgs() -> list[dict[str, object]]:
 
 
 @router.get("/avg-grant-by-ic")
-def analytics_avg_grant_by_ic() -> list[dict[str, object]]:
+def analytics_avg_grant_by_ic(
+  filters: Annotated[list[dict[str, object]], Depends(analytics_filter_params)],
+) -> list[dict[str, object]]:
   client = get_client()
-  body = {
-    "size": 0,
-    "aggs": {
-      "by_ic": {
-        "terms": {
-          "field": "IC_NAME.keyword",
-          "size": 100,
-          "order": {"avg_grant": "desc"},
-        },
-        "aggs": {
-          "avg_grant": {"avg": {"field": "TOTAL_COST"}},
+  body = with_query_filters(
+    {
+      "size": 0,
+      "aggs": {
+        "by_ic": {
+          "terms": {
+            "field": "IC_NAME.keyword",
+            "size": 100,
+            "order": {"avg_grant": "desc"},
+          },
+          "aggs": {
+            "avg_grant": {"avg": {"field": "TOTAL_COST"}},
+          },
         },
       },
     },
-  }
+    filters,
+  )
   response = client.search(index=INDEX_NAME, body=body)
   buckets = response.get("aggregations", {}).get("by_ic", {}).get("buckets", [])
 

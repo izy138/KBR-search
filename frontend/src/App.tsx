@@ -7,7 +7,7 @@ import {
   useState,
 } from "react";
 import { matchPath, useLocation, useNavigate } from "react-router-dom";
-import Dashboard from "./components/Dashboard";
+import Dashboard, { type DashboardSearchFilters } from "./components/Dashboard";
 import Filters from "./components/Filters";
 import InvestigatorPage from "./components/InvestigatorPage";
 import ProjectDetailsPage from "./components/ProjectDetailsPage";
@@ -56,6 +56,7 @@ export default function App() {
 
   const [view, setView] = useState<View>("search");
   const [query, setQuery] = useState("");
+  const [projectTermFilters, setProjectTermFilters] = useState<string[]>([]);
   const [results, setResults] = useState<SearchResultRecord[]>([]);
   const [loading, setLoading] = useState(false);
 
@@ -112,6 +113,22 @@ export default function App() {
   const totalPages = Math.max(1, Math.ceil(visibleTotal / resultsPerPage));
   const pageNumbers = getPageNumbers(currentPage, totalPages);
   const mainRef = useRef<HTMLElement | null>(null);
+  const searchFiltersRef = useRef({
+    pi: selectedPI,
+    ic: selectedIC,
+    activity: selectedActivity,
+    state: selectedState,
+    fyMin,
+    fyMax,
+  });
+  searchFiltersRef.current = {
+    pi: selectedPI,
+    ic: selectedIC,
+    activity: selectedActivity,
+    state: selectedState,
+    fyMin,
+    fyMax,
+  };
   const projectRouteMatch = matchPath("/projects/:projectId", location.pathname);
   const selectedProjectId = projectRouteMatch?.params.projectId ?? null;
   const semanticSimilarMatch = matchPath("/semantic/similar/:projectId", location.pathname);
@@ -164,17 +181,26 @@ export default function App() {
 
   const runSearch = useCallback(
     async (q: string, page: number, limit: number) => {
+      const {
+        pi,
+        ic,
+        activity,
+        state,
+        fyMin: fyMinValue,
+        fyMax: fyMaxValue,
+      } = searchFiltersRef.current;
       setLoading(true);
       try {
         const payload = await searchProjects(q, {
           page,
           limit,
-          pi: selectedPI,
-          ic: selectedIC,
-          activity: selectedActivity,
-          state: selectedState,
-          fyMin,
-          fyMax,
+          pi,
+          ic,
+          activity,
+          state,
+          fyMin: fyMinValue,
+          fyMax: fyMaxValue,
+          projectTerms: projectTermFilters,
         });
         setResults(payload.results ?? []);
         setTotal(payload.total ?? 0);
@@ -183,7 +209,7 @@ export default function App() {
         setLoading(false);
       }
     },
-    [selectedPI, selectedIC, selectedActivity, selectedState, fyMin, fyMax],
+    [projectTermFilters],
   );
 
   useEffect(() => {
@@ -199,10 +225,17 @@ export default function App() {
     void runSearch(query, currentPage, resultsPerPage);
   }, [
     query,
+    projectTermFilters,
     currentPage,
     resultsPerPage,
     runSearch,
     view,
+    selectedPI,
+    selectedIC,
+    selectedActivity,
+    selectedState,
+    fyMin,
+    fyMax,
     selectedProjectId,
     selectedInvestigatorName,
     semanticSimilarProjectId,
@@ -244,6 +277,7 @@ export default function App() {
 
   const handleSearch = (nextQuery: string) => {
     setQuery(nextQuery);
+    setProjectTermFilters([]);
     setCurrentPage(1);
   };
 
@@ -271,8 +305,45 @@ export default function App() {
     setSelectedState("");
     setFyMin("");
     setFyMax("");
+    setProjectTermFilters([]);
     setCurrentPage(1);
   };
+
+  const handleDashboardSearchNavigate = useCallback(
+    (searchQuery: string, filters: DashboardSearchFilters) => {
+      searchFiltersRef.current = {
+        pi: filters.pi,
+        ic: filters.ic,
+        activity: filters.activity,
+        state: filters.state,
+        fyMin: filters.fyMin,
+        fyMax: filters.fyMax,
+      };
+      setSelectedPI(filters.pi);
+      setSelectedIC(filters.ic);
+      setSelectedActivity(filters.activity);
+      setSelectedState(filters.state);
+      setFyMin(filters.fyMin);
+      setFyMax(filters.fyMax);
+      setQuery(searchQuery);
+      setProjectTermFilters([]);
+      setCurrentPage(1);
+      setView("search");
+      navigate("/");
+    },
+    [navigate],
+  );
+
+  const handleSearchFromProjectTerms = useCallback(
+    (payload: { terms: string[]; additionalQuery: string }) => {
+      setProjectTermFilters(payload.terms);
+      setQuery(payload.additionalQuery.trim());
+      setCurrentPage(1);
+      setView("search");
+      navigate("/");
+    },
+    [navigate],
+  );
 
   const handlePerPageChange = (e: ChangeEvent<HTMLSelectElement>) => {
     setResultsPerPage(Number(e.target.value));
@@ -492,7 +563,7 @@ export default function App() {
         style={view === "dashboard" && !isSemanticRoute ? undefined : { display: "none" }}
         aria-hidden={view !== "dashboard" || isSemanticRoute}
       >
-        <Dashboard />
+        <Dashboard onSearchNavigate={handleDashboardSearchNavigate} />
       </section>
       <main
         className="app-main"
@@ -534,6 +605,7 @@ export default function App() {
               onBack={() => navigate("/")}
               onOpenInvestigator={handleOpenInvestigator}
               onOpenDetails={handleOpenDetails}
+              onSearchWithProjectTerms={handleSearchFromProjectTerms}
             />
           ) : (
             <div className="empty-state" role="status" aria-live="polite">
@@ -596,6 +668,9 @@ export default function App() {
                     <strong>{visibleTotal.toLocaleString()}</strong> results
                     {total > visibleTotal ? ` out of ${total.toLocaleString()}` : ""}
                     {query ? ` for "${query}"` : ""}
+                    {projectTermFilters.length > 0
+                      ? ` — matching project terms: ${projectTermFilters.join("; ")}`
+                      : ""}
                     {currentPage > 1 ? ` — page ${currentPage} of ${totalPages}` : ""}
                   </span>
                 )}

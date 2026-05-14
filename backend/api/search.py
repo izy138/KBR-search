@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 from concurrent.futures import ThreadPoolExecutor
+import logging
 from typing import Any
 
 from fastapi import APIRouter, HTTPException, Path, Query
@@ -11,6 +12,9 @@ from .embeddings import EMBEDDING_FIELD, embed_query, get_dimension, get_model_n
 from .opensearch_client import get_client, get_index_name
 
 router = APIRouter()
+
+MAX_PROJECT_TERM_FILTERS = 20
+MAX_PROJECT_TERM_LENGTH = 200
 
 INDEX_NAME = get_index_name()
 MAX_RESULT_WINDOW = 10_000
@@ -32,6 +36,7 @@ HYBRID_FETCH_MULTIPLIER = 4  # Pull this many * k from each side before fusing.
 HYBRID_MAX_FETCH = 100
 
 _index_embedding_dimension: int | None = None
+logger = logging.getLogger(__name__)
 
 
 def _require_matching_embedding_dimension(client: Any) -> None:
@@ -65,6 +70,28 @@ def _require_matching_embedding_dimension(client: Any) -> None:
         )
 
 
+def _normalize_project_terms(raw: list[str]) -> list[str]:
+    """Strip terms, dedupe in order, cap to 20 terms, and truncate each to 200 chars."""
+    seen: set[str] = set()
+    out: list[str] = []
+    for t in raw:
+        s = t.strip()
+        if not s or s in seen:
+            continue
+        if len(s) > MAX_PROJECT_TERM_LENGTH:
+            logger.warning(
+                "Truncating project term filter from %d to %d characters",
+                len(s),
+                MAX_PROJECT_TERM_LENGTH,
+            )
+            s = s[:MAX_PROJECT_TERM_LENGTH]
+        seen.add(s)
+        out.append(s)
+        if len(out) >= MAX_PROJECT_TERM_FILTERS:
+            break
+    return out
+
+
 @router.get("/")
 def search(
     q: str = Query(default="", description="Search query"),
@@ -77,9 +104,14 @@ def search(
     state: str = Query(default="", description="Filter by ORG_STATE"),
     fy_min: int | None = Query(default=None, description="Minimum fiscal year"),
     fy_max: int | None = Query(default=None, description="Maximum fiscal year"),
+    project_terms: list[str] = Query(
+        default_factory=list,
+        description="Each phrase must match PROJECT_TERMS (AND across phrases); repeat param",
+    ),
 ) -> dict[str, object]:
 
     client = get_client()
+    normalized_terms = _normalize_project_terms(project_terms)
     must: list[dict[str, object]] = []
     filters: list[dict[str, object]] = []
     if q:
@@ -93,7 +125,13 @@ def search(
                 }
             }
         )
-    else:
+    for term in normalized_terms:
+        # `match` tokenizes `term` and, with operator="and", requires all tokens
+        # to appear anywhere in PROJECT_TERMS (order-independent, not exact phrase).
+        must.append(
+            {"match": {"PROJECT_TERMS": {"query": term, "operator": "and"}}},
+        )
+    if not q and not normalized_terms:
         must.append({"match_all": {}})
     if category:
         must.append({"term": {"category.keyword": category}})
@@ -157,6 +195,7 @@ def search(
 
     return {
         "query": q,
+        "project_terms": normalized_terms,
         "limit": limit,
         "total": total_value,
         "visible_total": visible_total,

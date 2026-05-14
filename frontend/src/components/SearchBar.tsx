@@ -3,9 +3,15 @@ import React, { useEffect, useState } from "react";
 type SearchBarProps = {
   onSearch: (query: string) => void;
   initialQuery?: string;
+  /** When false, × only clears the input (no onSearch). Default true. */
+  submitOnClear?: boolean;
 };
 
-const SearchBar: React.FC<SearchBarProps> = ({ onSearch, initialQuery = "" }) => {
+const SearchBar: React.FC<SearchBarProps> = ({
+  onSearch,
+  initialQuery = "",
+  submitOnClear = true,
+}) => {
   const [query, setQuery] = useState(initialQuery);
 
   useEffect(() => {
@@ -19,7 +25,9 @@ const SearchBar: React.FC<SearchBarProps> = ({ onSearch, initialQuery = "" }) =>
 
   const handleClear = () => {
     setQuery("");
-    onSearch("");
+    if (submitOnClear) {
+      onSearch("");
+    }
   };
 
   return (

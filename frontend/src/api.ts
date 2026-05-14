@@ -34,6 +34,7 @@ export interface SearchResultRecord {
 
 export interface SearchResponse {
   query: string;
+  project_terms?: string[];
   limit: number;
   total: number;
   visible_total?: number;
@@ -102,6 +103,7 @@ export type SearchProjectsOptions = {
   state?: string;
   fyMin?: string;
   fyMax?: string;
+  projectTerms?: string[];
 };
 
 export async function searchProjects(
@@ -118,6 +120,7 @@ export async function searchProjects(
     state = "",
     fyMin = "",
     fyMax = "",
+    projectTerms = [],
   } = options;
   const url = new URL(`${API_BASE_URL}/search/`);
   url.searchParams.set("q", query);
@@ -132,6 +135,10 @@ export async function searchProjects(
   if (state) url.searchParams.set("state", state);
   if (fyMin) url.searchParams.set("fy_min", fyMin);
   if (fyMax) url.searchParams.set("fy_max", fyMax);
+  for (const term of projectTerms) {
+    const trimmed = term.trim();
+    if (trimmed) url.searchParams.append("project_terms", trimmed);
+  }
   const response = await fetch(url.toString());
   if (!response.ok) {
     throw new Error(`Search request failed: ${response.status}`);
@@ -306,36 +313,67 @@ export interface DashboardSummary {
 
 // ─── Analytics fetch helpers ──────────────────────────────────────────────────
 
-async function fetchAnalytics<T>(path: string): Promise<T> {
-  const response = await fetch(`${API_BASE_URL}${path}`);
+export type AnalyticsFilterOptions = {
+  pi?: string;
+  ic?: string;
+  activity?: string;
+  state?: string;
+  fyMin?: string;
+  fyMax?: string;
+};
+
+function appendAnalyticsFilters(params: URLSearchParams, filters?: AnalyticsFilterOptions): void {
+  if (!filters) return;
+  if (filters.pi) params.set("pi", filters.pi);
+  if (filters.ic) params.set("ic", filters.ic);
+  if (filters.activity) params.set("activity", filters.activity);
+  if (filters.state) params.set("state", filters.state);
+  if (filters.fyMin) params.set("fy_min", filters.fyMin);
+  if (filters.fyMax) params.set("fy_max", filters.fyMax);
+}
+
+async function fetchAnalytics<T>(path: string, filters?: AnalyticsFilterOptions): Promise<T> {
+  const url = new URL(`${API_BASE_URL}${path}`);
+  appendAnalyticsFilters(url.searchParams, filters);
+  const response = await fetch(url.toString());
   if (!response.ok) {
     throw new Error(`Analytics request failed (${path}): ${response.status}`);
   }
   return response.json() as Promise<T>;
 }
 
-export function getStateData(): Promise<StateDataPoint[]> {
-  return fetchAnalytics<StateDataPoint[]>("/analytics/by-state");
+export function getStateData(filters?: AnalyticsFilterOptions): Promise<StateDataPoint[]> {
+  return fetchAnalytics<StateDataPoint[]>("/analytics/by-state", filters);
 }
 
-export function getIcData(fy?: number): Promise<IcDataPoint[]> {
-  const path =
-    fy != null
-      ? `/analytics/by-ic?fy=${encodeURIComponent(String(fy))}`
-      : "/analytics/by-ic";
+export function getIcData(fy?: number, filters?: AnalyticsFilterOptions): Promise<IcDataPoint[]> {
+  const params = new URLSearchParams();
+  if (fy != null) {
+    params.set("fy", String(fy));
+  }
+  appendAnalyticsFilters(params, filters);
+  const qs = params.toString();
+  const path = qs ? `/analytics/by-ic?${qs}` : "/analytics/by-ic";
   return fetchAnalytics<IcDataPoint[]>(path);
 }
 
-export function getActivityData(limit = 50): Promise<ActivityDataPoint[]> {
-  const q = new URLSearchParams({ limit: String(limit) });
-  return fetchAnalytics<ActivityDataPoint[]>(`/analytics/by-activity?${q.toString()}`);
+export function getActivityData(
+  limit = 50,
+  filters?: AnalyticsFilterOptions,
+): Promise<ActivityDataPoint[]> {
+  const params = new URLSearchParams({ limit: String(limit) });
+  appendAnalyticsFilters(params, filters);
+  return fetchAnalytics<ActivityDataPoint[]>(`/analytics/by-activity?${params.toString()}`);
 }
 
-export function getActivityFundingPie(options?: {
-  limit?: number;
-  pieSlices?: number;
-  mergeOther?: boolean;
-}): Promise<ActivityFundingPieResponse> {
+export function getActivityFundingPie(
+  options?: {
+    limit?: number;
+    pieSlices?: number;
+    mergeOther?: boolean;
+  },
+  filters?: AnalyticsFilterOptions,
+): Promise<ActivityFundingPieResponse> {
   const params = new URLSearchParams();
   if (options?.limit != null) {
     params.set("limit", String(options.limit));
@@ -346,6 +384,7 @@ export function getActivityFundingPie(options?: {
   if (options?.mergeOther != null) {
     params.set("merge_other", options.mergeOther ? "true" : "false");
   }
+  appendAnalyticsFilters(params, filters);
   const qs = params.toString();
   const path = qs ? `/analytics/by-activity-funding-pie?${qs}` : "/analytics/by-activity-funding-pie";
   return fetchAnalytics<ActivityFundingPieResponse>(path);
@@ -355,20 +394,20 @@ export function getProjectTermThemeCloud(): Promise<ProjectTermThemeCloudRespons
   return fetchAnalytics<ProjectTermThemeCloudResponse>("/analytics/project-term-theme-cloud");
 }
 
-export function getYearData(): Promise<YearDataPoint[]> {
-  return fetchAnalytics<YearDataPoint[]>("/analytics/by-year");
+export function getYearData(filters?: AnalyticsFilterOptions): Promise<YearDataPoint[]> {
+  return fetchAnalytics<YearDataPoint[]>("/analytics/by-year", filters);
 }
 
-export function getTopOrgs(): Promise<OrgDataPoint[]> {
-  return fetchAnalytics<OrgDataPoint[]>("/analytics/top-orgs");
+export function getTopOrgs(filters?: AnalyticsFilterOptions): Promise<OrgDataPoint[]> {
+  return fetchAnalytics<OrgDataPoint[]>("/analytics/top-orgs", filters);
 }
 
-export function getAvgGrantByIc(): Promise<AvgGrantDataPoint[]> {
-  return fetchAnalytics<AvgGrantDataPoint[]>("/analytics/avg-grant-by-ic");
+export function getAvgGrantByIc(filters?: AnalyticsFilterOptions): Promise<AvgGrantDataPoint[]> {
+  return fetchAnalytics<AvgGrantDataPoint[]>("/analytics/avg-grant-by-ic", filters);
 }
 
-export function getDashboardSummary(): Promise<DashboardSummary> {
-  return fetchAnalytics<DashboardSummary>("/analytics/summary");
+export function getDashboardSummary(filters?: AnalyticsFilterOptions): Promise<DashboardSummary> {
+  return fetchAnalytics<DashboardSummary>("/analytics/summary", filters);
 }
 
 export function getActivityTermsData(
