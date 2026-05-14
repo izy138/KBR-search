@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 from concurrent.futures import ThreadPoolExecutor
+import logging
 from typing import Any
 
 from fastapi import APIRouter, HTTPException, Path, Query
@@ -35,6 +36,7 @@ HYBRID_FETCH_MULTIPLIER = 4  # Pull this many * k from each side before fusing.
 HYBRID_MAX_FETCH = 100
 
 _index_embedding_dimension: int | None = None
+logger = logging.getLogger(__name__)
 
 
 def _require_matching_embedding_dimension(client: Any) -> None:
@@ -77,6 +79,11 @@ def _normalize_project_terms(raw: list[str]) -> list[str]:
         if not s or s in seen:
             continue
         if len(s) > MAX_PROJECT_TERM_LENGTH:
+            logger.warning(
+                "Truncating project term filter from %d to %d characters",
+                len(s),
+                MAX_PROJECT_TERM_LENGTH,
+            )
             s = s[:MAX_PROJECT_TERM_LENGTH]
         seen.add(s)
         out.append(s)
@@ -119,6 +126,8 @@ def search(
             }
         )
     for term in normalized_terms:
+        # `match` tokenizes `term` and, with operator="and", requires all tokens to
+        # appear in PROJECT_TERMS (not strict phrase ordering).
         must.append(
             {"match": {"PROJECT_TERMS": {"query": term, "operator": "and"}}},
         )

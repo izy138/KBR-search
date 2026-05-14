@@ -444,7 +444,7 @@ export default function ProjectDetailsPage({
                       disabled={selectedTerms.size === 0 && keywordExtra.trim() === ""}
                       onClick={handleProjectKeywordSearch}
                     >
-                      Search projects
+                      Search Projects
                     </button>
                     {(selectedTerms.size > 0 || keywordExtra.trim() !== "") ? (
                       <button type="button" className="btn-project-keyword-clear" onClick={clearKeywordPanel}>
