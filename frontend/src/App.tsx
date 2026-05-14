@@ -3,7 +3,6 @@ import {
   type FormEvent,
   useCallback,
   useEffect,
-  useMemo,
   useRef,
   useState,
 } from "react";
@@ -17,8 +16,12 @@ import SearchBar from "./components/SearchBar";
 import SemanticSimilarProjectPage from "./components/SemanticSimilarProjectPage";
 import SemanticVectorLabPage from "./components/SemanticVectorLabPage";
 import {
+  getActivityData,
+  getIcData,
   getProjectsByInvestigator,
   getProjectById,
+  getStateData,
+  getYearData,
   type SearchResultRecord,
   searchProjects,
 } from "./api";
@@ -124,30 +127,40 @@ export default function App() {
   const investigatorTotalPages = Math.max(1, Math.ceil(investigatorVisibleTotal / investigatorPerPage));
   const investigatorPageNumbers = getPageNumbers(investigatorPage, investigatorTotalPages);
 
-  // Derive filter options from loaded results (simple approach — can be replaced with API aggs)
-  const icNames = useMemo(() => {
-    const set = new Set<string>();
-    results.forEach((r) => {
-      if (r.IC_NAME) set.add(r.IC_NAME);
-    });
-    return Array.from(set).sort();
-  }, [results]);
+  /** Same analytics-driven option lists as `Dashboard` / `Filters` there. */
+  const [searchFilterCatalog, setSearchFilterCatalog] = useState<{
+    icNames: string[];
+    activityCodes: string[];
+    states: string[];
+    fiscalYearOptions: number[];
+  } | null>(null);
 
-  const activityCodes = useMemo(() => {
-    const set = new Set<string>();
-    results.forEach((r) => {
-      if (r.ACTIVITY) set.add(r.ACTIVITY);
-    });
-    return Array.from(set).sort();
-  }, [results]);
-
-  const states = useMemo(() => {
-    const set = new Set<string>();
-    results.forEach((r) => {
-      if (r.ORG_STATE) set.add(r.ORG_STATE);
-    });
-    return Array.from(set).sort();
-  }, [results]);
+  useEffect(() => {
+    let cancelled = false;
+    const load = async () => {
+      try {
+        const [icData, activityData, stateData, yearData] = await Promise.all([
+          getIcData(),
+          getActivityData(80),
+          getStateData(),
+          getYearData(),
+        ]);
+        if (cancelled) return;
+        setSearchFilterCatalog({
+          icNames: icData.map((p) => p.label),
+          activityCodes: activityData.map((p) => p.label),
+          states: stateData.map((p) => p.state),
+          fiscalYearOptions: yearData.map((d) => d.year),
+        });
+      } catch {
+        if (!cancelled) setSearchFilterCatalog(null);
+      }
+    };
+    void load();
+    return () => {
+      cancelled = true;
+    };
+  }, []);
 
   const runSearch = useCallback(
     async (q: string, page: number, limit: number) => {
@@ -554,9 +567,10 @@ export default function App() {
         ) : (
           <>
             <Filters
-              icNames={icNames}
-              activityCodes={activityCodes}
-              states={states}
+              icNames={searchFilterCatalog?.icNames ?? []}
+              activityCodes={searchFilterCatalog?.activityCodes ?? []}
+              states={searchFilterCatalog?.states ?? []}
+              fiscalYearOptions={searchFilterCatalog?.fiscalYearOptions}
               selectedPI={selectedPI}
               selectedIC={selectedIC}
               selectedActivity={selectedActivity}
