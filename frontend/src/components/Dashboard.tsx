@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useState } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
 import {
   getActivityData,
   getActivityFundingPie,
@@ -13,6 +13,7 @@ import {
 import type {
   ActivityDataPoint,
   ActivityFundingPieResponse,
+  AnalyticsFilterOptions,
   AvgGrantDataPoint,
   DashboardSummary,
   IcDataPoint,
@@ -23,7 +24,7 @@ import type {
 } from "../api";
 import ActivityFundingPiePanel from "./ActivityFundingPiePanel";
 import BarChartPanel from "./BarChartPanel";
-import Filters from "./Filters";
+import Filters, { type FiltersHandle } from "./Filters";
 import LineChartPanel from "./LineChartPanel";
 import ProjectTermsThemeCloud from "./ProjectTermsThemeCloud";
 import SearchBar from "./SearchBar";
@@ -153,6 +154,19 @@ interface DashboardData {
   avgGrant: AvgGrantDataPoint[];
 }
 
+export type DashboardSearchFilters = {
+  pi: string;
+  ic: string;
+  activity: string;
+  state: string;
+  fyMin: string;
+  fyMax: string;
+};
+
+type DashboardProps = {
+  onSearchNavigate: (query: string, filters: DashboardSearchFilters) => void;
+};
+
 // ─── KPI card subcomponent ────────────────────────────────────────────────────
 
 interface KpiCardProps {
@@ -175,21 +189,113 @@ function KpiCard({ label, value }: KpiCardProps) {
  * Analytics dashboard that fetches all data in parallel on mount and
  * renders KPI cards, a choropleth map, and multiple chart panels.
  */
-export default function Dashboard() {
+export default function Dashboard({ onSearchNavigate }: DashboardProps) {
+  const filtersRef = useRef<FiltersHandle>(null);
   const [data, setData] = useState<DashboardData | null>(null);
+  const [filterCatalog, setFilterCatalog] = useState<{
+    icNames: string[];
+    activityCodes: string[];
+    states: string[];
+    fiscalYearOptions: number[];
+  } | null>(null);
   const [error, setError] = useState<string | null>(null);
-  const [dashboardQuery, setDashboardQuery] = useState("");
+  const [refreshing, setRefreshing] = useState(false);
   const [selectedPI, setSelectedPI] = useState("");
   const [selectedIC, setSelectedIC] = useState("");
   const [selectedActivity, setSelectedActivity] = useState("");
   const [selectedState, setSelectedState] = useState("");
   const [fyMin, setFyMin] = useState("");
   const [fyMax, setFyMax] = useState("");
-  /** Log scale for Projects by Institute (IC) bar chart — matches prior default. */
+  /** Log scale for Projects by Institute (IC) — only when no filters are applied. */
   const [icProjectsLogScale, setIcProjectsLogScale] = useState(true);
+  const mapMeasureRef = useRef<HTMLDivElement>(null);
+  const [icFilterRowMaxHeight, setIcFilterRowMaxHeight] = useState<number | undefined>();
+
+  const hasIcFilter = Boolean(selectedIC);
+
+  useEffect(() => {
+    if (!hasIcFilter) {
+      setIcFilterRowMaxHeight(undefined);
+      return;
+    }
+
+    const measureEl = mapMeasureRef.current;
+    if (!measureEl) return;
+
+    const updateHeight = (): void => {
+      setIcFilterRowMaxHeight(measureEl.getBoundingClientRect().height);
+    };
+
+    updateHeight();
+
+    const observer = new ResizeObserver(updateHeight);
+    observer.observe(measureEl);
+    window.addEventListener("resize", updateHeight);
+
+    return () => {
+      observer.disconnect();
+      window.removeEventListener("resize", updateHeight);
+    };
+  }, [hasIcFilter, data?.stateData, refreshing]);
+
+  const icFilterSlotStyle =
+    icFilterRowMaxHeight != null
+      ? { height: icFilterRowMaxHeight, maxHeight: icFilterRowMaxHeight }
+      : undefined;
+
+  const hasActiveFilters = useMemo(
+    () => Boolean(selectedPI || selectedIC || selectedActivity || selectedState || fyMin || fyMax),
+    [selectedPI, selectedIC, selectedActivity, selectedState, fyMin, fyMax],
+  );
+
+  useEffect(() => {
+    if (hasActiveFilters) {
+      setIcProjectsLogScale(false);
+    } else {
+      setIcProjectsLogScale(true);
+    }
+  }, [hasActiveFilters]);
+
+  const icProjectsUseLogScale = !hasActiveFilters && icProjectsLogScale;
 
   const icChartLinearMax = IC_HYBRID_LINEAR_MAX_ALL;
   const icChartTickValues = [...IC_HYBRID_TICK_VALUES_ALL];
+
+  const appliedFilters = useMemo<AnalyticsFilterOptions>(
+    () => ({
+      pi: selectedPI,
+      ic: selectedIC,
+      activity: selectedActivity,
+      state: selectedState,
+      fyMin,
+      fyMax,
+    }),
+    [selectedPI, selectedIC, selectedActivity, selectedState, fyMin, fyMax],
+  );
+
+  const searchFilters = useMemo<DashboardSearchFilters>(
+    () => ({
+      pi: selectedPI,
+      ic: selectedIC,
+      activity: selectedActivity,
+      state: selectedState,
+      fyMin,
+      fyMax,
+    }),
+    [selectedPI, selectedIC, selectedActivity, selectedState, fyMin, fyMax],
+  );
+
+  const handleDashboardSearch = (nextQuery: string) => {
+    const filters =
+      filtersRef.current?.applyPendingFilters()
+      ?? filtersRef.current?.getPendingFilters()
+      ?? searchFilters;
+    onSearchNavigate(nextQuery, filters);
+  };
+
+  const handleMapStateSelect = (stateAbbrev: string) => {
+    setSelectedState(stateAbbrev.toUpperCase());
+  };
 
   const icChartRows = useMemo(() => {
     const icData = data?.icData ?? [];
@@ -205,7 +311,43 @@ export default function Dashboard() {
   useEffect(() => {
     let cancelled = false;
 
+    const loadCatalog = async () => {
+      try {
+        const [icData, activityData, stateData, yearData] = await Promise.all([
+          getIcData(),
+          getActivityData(80),
+          getStateData(),
+          getYearData(),
+        ]);
+        if (!cancelled) {
+          setFilterCatalog({
+            icNames: icData.map((point) => point.label),
+            activityCodes: activityData.map((point) => point.label),
+            states: stateData.map((point) => point.state),
+            fiscalYearOptions: yearData.map((d) => d.year),
+          });
+        }
+      } catch {
+        if (!cancelled) {
+          setFilterCatalog(null);
+        }
+      }
+    };
+
+    void loadCatalog();
+
+    return () => {
+      cancelled = true;
+    };
+  }, []);
+
+  useEffect(() => {
+    let cancelled = false;
+
     const load = async () => {
+      if (data) {
+        setRefreshing(true);
+      }
       try {
         const [
           summary,
@@ -218,15 +360,15 @@ export default function Dashboard() {
           topOrgs,
           avgGrant,
         ] = await Promise.all([
-          getDashboardSummary(),
-          getStateData(),
-          getIcData(),
-          getActivityData(80),
-          getActivityFundingPie({ limit: 150, pieSlices: 12 }),
+          getDashboardSummary(appliedFilters),
+          getStateData(appliedFilters),
+          getIcData(undefined, appliedFilters),
+          getActivityData(80, appliedFilters),
+          getActivityFundingPie({ limit: 150, pieSlices: 12 }, appliedFilters),
           getProjectTermThemeCloud(),
-          getYearData(),
-          getTopOrgs(),
-          getAvgGrantByIc(),
+          getYearData(appliedFilters),
+          getTopOrgs(appliedFilters),
+          getAvgGrantByIc(appliedFilters),
         ]);
 
         if (!cancelled) {
@@ -241,10 +383,15 @@ export default function Dashboard() {
             topOrgs,
             avgGrant,
           });
+          setError(null);
         }
       } catch (err) {
         if (!cancelled) {
           setError(err instanceof Error ? err.message : "Failed to load dashboard data.");
+        }
+      } finally {
+        if (!cancelled) {
+          setRefreshing(false);
         }
       }
     };
@@ -254,7 +401,7 @@ export default function Dashboard() {
     return () => {
       cancelled = true;
     };
-  }, []);
+  }, [appliedFilters]);
 
   if (error) {
     return (
@@ -264,7 +411,7 @@ export default function Dashboard() {
     );
   }
 
-  if (!data) {
+  if (!data || !filterCatalog) {
     return (
       <div className="dashboard-loading">
         <span>Loading analytics…</span>
@@ -272,10 +419,8 @@ export default function Dashboard() {
     );
   }
 
-  const { summary, stateData, icData, activityData, activityPie, termThemeCloud, yearData, topOrgs, avgGrant } = data;
-  const icNames = icData.map((point) => point.label);
-  const activityCodes = activityData.map((point) => point.label);
-  const states = stateData.map((point) => point.state);
+  const { summary, stateData, activityPie, termThemeCloud, yearData, topOrgs, avgGrant } = data;
+  const { icNames, activityCodes, states } = filterCatalog;
 
   const avgGrantValue =
     summary.total_documents > 0
@@ -294,13 +439,45 @@ export default function Dashboard() {
     full_label: point.label,
   }));
 
+  const topOrgsPanel = (
+    <BarChartPanel
+      title="Top Organizations by Funding"
+      panelClassName="chart-panel-top-orgs"
+      data={topOrgsChartData as unknown as Array<Record<string, unknown>>}
+      dataKey="total_funding"
+      labelKey="short_label"
+      tooltipLabelKey="full_label"
+      layout="horizontal"
+      formatter={formatDollars}
+      fillHeight={hasIcFilter}
+      {...(hasIcFilter
+        ? {
+            xAxisHeight: 48,
+            xAxisAngle: -35,
+            xAxisFontSize: 9,
+            yAxisWidth: 56,
+            chartMargin: { top: 6, right: 8, bottom: 2, left: 3 },
+          }
+        : {})}
+    />
+  );
+
+  const activityPiePanel = (
+    <ActivityFundingPiePanel
+      title="Funding by Activity Code"
+      pie={activityPie}
+      formatDollars={formatDollars}
+    />
+  );
+
   return (
-    <div className="dashboard">
+    <div className={`dashboard${refreshing ? " dashboard--refreshing" : ""}`}>
       <Filters
+        ref={filtersRef}
         icNames={icNames}
         activityCodes={activityCodes}
         states={states}
-        fiscalYearOptions={yearData.map((d) => d.year)}
+        fiscalYearOptions={filterCatalog.fiscalYearOptions}
         selectedPI={selectedPI}
         selectedIC={selectedIC}
         selectedActivity={selectedActivity}
@@ -327,7 +504,7 @@ export default function Dashboard() {
 
       <div className="search-row">
         <div className="search-row-inner">
-          <SearchBar onSearch={setDashboardQuery} initialQuery={dashboardQuery} />
+          <SearchBar onSearch={handleDashboardSearch} submitOnClear={false} />
         </div>
       </div>
 
@@ -338,9 +515,21 @@ export default function Dashboard() {
         <KpiCard label="Avg Grant" value={formatDollars(avgGrantValue)} />
       </div>
 
-      {/* State map + IC bar chart */}
-      <div className="dashboard-grid-2">
-        <StateMap data={stateData} />
+      {/* State map (+ IC-filter charts) + IC bar chart — aligned to KPI 3-column grid */}
+      <div className={`dashboard-grid-2${hasIcFilter ? " dashboard-grid-2--ic-filter" : ""}`}>
+        <div ref={mapMeasureRef} className="dashboard-grid-2-map-measure">
+          <StateMap data={stateData} onStateSelect={handleMapStateSelect} />
+        </div>
+        {hasIcFilter && (
+          <>
+            <div className="dashboard-grid-2-orgs" style={icFilterSlotStyle}>
+              {topOrgsPanel}
+            </div>
+            <div className="dashboard-grid-2-pie" style={icFilterSlotStyle}>
+              {activityPiePanel}
+            </div>
+          </>
+        )}
         <div className="dashboard-ic-chart-scroll">
           <BarChartPanel
             title="Projects by Institute (IC)"
@@ -349,15 +538,17 @@ export default function Dashboard() {
               <div className="chart-scale-toggle" role="group" aria-label="Count axis scale">
                 <button
                   type="button"
-                  className={icProjectsLogScale ? "" : "active"}
+                  className={icProjectsUseLogScale ? "" : "active"}
                   onClick={() => setIcProjectsLogScale(false)}
                 >
                   Linear
                 </button>
                 <button
                   type="button"
-                  className={icProjectsLogScale ? "active" : ""}
+                  className={icProjectsUseLogScale ? "active" : ""}
                   onClick={() => setIcProjectsLogScale(true)}
+                  disabled={hasActiveFilters}
+                  title={hasActiveFilters ? "Log scale is only available with no filters applied" : undefined}
                 >
                   Log
                 </button>
@@ -378,8 +569,8 @@ export default function Dashboard() {
             barCategoryGap="10%"
             maxBarSize={30}
             barAnimation="vertical"
-            barAnimationSnapKey={icProjectsLogScale ? "hybrid-log" : "linear"}
-            {...(icProjectsLogScale
+            barAnimationSnapKey={icProjectsUseLogScale ? "hybrid-log" : "linear"}
+            {...(icProjectsUseLogScale
               ? {
                   valueTransform: (value: number) =>
                     icProjectsValueToPlot(value, icChartLinearMax),
@@ -399,13 +590,9 @@ export default function Dashboard() {
       </div>
 
       {/* Project term themes (word cloud) + funding by activity code (pie) */}
-      <div className="dashboard-term-themes-pie-row">
+      <div className={`dashboard-term-themes-pie-row${hasIcFilter ? " dashboard-term-themes-pie-row--solo" : ""}`}>
         <ProjectTermsThemeCloud payload={termThemeCloud} />
-        <ActivityFundingPiePanel
-          title="Funding by Activity Code"
-          pie={activityPie}
-          formatDollars={formatDollars}
-        />
+        {!hasIcFilter && activityPiePanel}
       </div>
 
       <div className="dashboard-grid-3">
@@ -416,16 +603,7 @@ export default function Dashboard() {
           height={300}
           formatter={formatDollars}
         />
-        <BarChartPanel
-          title="Top Organizations by Funding"
-          panelClassName="chart-panel-top-orgs"
-          data={topOrgsChartData as unknown as Array<Record<string, unknown>>}
-          dataKey="total_funding"
-          labelKey="short_label"
-          tooltipLabelKey="full_label"
-          layout="horizontal"
-          formatter={formatDollars}
-        />
+        {!hasIcFilter && topOrgsPanel}
         <BarChartPanel
           title="Average Grant by Institute (IC)"
           panelClassName="chart-panel-avg-grant"

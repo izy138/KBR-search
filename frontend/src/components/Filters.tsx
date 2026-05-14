@@ -1,4 +1,14 @@
-import React, { useCallback, useEffect, useId, useLayoutEffect, useMemo, useRef, useState } from "react";
+import React, {
+  forwardRef,
+  useCallback,
+  useEffect,
+  useId,
+  useImperativeHandle,
+  useLayoutEffect,
+  useMemo,
+  useRef,
+  useState,
+} from "react";
 import { createPortal } from "react-dom";
 
 type FilterSelectOption = {
@@ -301,6 +311,25 @@ type FiltersProps = {
   onClear: () => void;
 };
 
+export type FiltersHandle = {
+  getPendingFilters: () => {
+    pi: string;
+    ic: string;
+    activity: string;
+    state: string;
+    fyMin: string;
+    fyMax: string;
+  };
+  applyPendingFilters: () => {
+    pi: string;
+    ic: string;
+    activity: string;
+    state: string;
+    fyMin: string;
+    fyMax: string;
+  };
+};
+
 const formatDropdownLabel = (value: string): string => {
   const titleCase = value
     .trim()
@@ -330,20 +359,23 @@ const DEFAULT_FISCAL_YEAR_OPTIONS: readonly number[] = [2020, 2021, 2022, 2023, 
 /** Empty FY selection: UI shows this; Apply maps to catalog min/max years. */
 const FY_RANGE_PLACEHOLDER = "-";
 
-const Filters: React.FC<FiltersProps> = ({
-  icNames,
-  activityCodes,
-  states,
-  fiscalYearOptions,
-  selectedPI,
-  selectedIC,
-  selectedActivity,
-  selectedState,
-  fyMin,
-  fyMax,
-  onApply,
-  onClear,
-}) => {
+const Filters = forwardRef<FiltersHandle, FiltersProps>(function Filters(
+  {
+    icNames,
+    activityCodes,
+    states,
+    fiscalYearOptions,
+    selectedPI,
+    selectedIC,
+    selectedActivity,
+    selectedState,
+    fyMin,
+    fyMax,
+    onApply,
+    onClear,
+  },
+  ref,
+) {
   const fyChoices = useMemo(() => {
     if (fiscalYearOptions && fiscalYearOptions.length > 0) {
       return [...new Set(fiscalYearOptions)].sort((a, b) => a - b);
@@ -395,7 +427,7 @@ const Filters: React.FC<FiltersProps> = ({
 
   const hasFilters = localPI || localIC || localActivity || localState || localFyMin || localFyMax;
 
-  const handleApply = () => {
+  const handleApply = useCallback(() => {
     let nextFyMin = localFyMin.trim();
     let nextFyMax = localFyMax.trim();
 
@@ -410,15 +442,33 @@ const Filters: React.FC<FiltersProps> = ({
       nextFyMin = String(nMax);
       nextFyMax = String(nMin);
     }
-    onApply({
+    const applied = {
       pi: localPI,
       ic: localIC,
       activity: localActivity,
       state: localState,
       fyMin: nextFyMin,
       fyMax: nextFyMax,
-    });
-  };
+    };
+    onApply(applied);
+    return applied;
+  }, [localPI, localIC, localActivity, localState, localFyMin, localFyMax, fyChoices, onApply]);
+
+  useImperativeHandle(
+    ref,
+    () => ({
+      getPendingFilters: () => ({
+        pi: localPI,
+        ic: localIC,
+        activity: localActivity,
+        state: localState,
+        fyMin: localFyMin,
+        fyMax: localFyMax,
+      }),
+      applyPendingFilters: () => handleApply(),
+    }),
+    [localPI, localIC, localActivity, localState, localFyMin, localFyMax, handleApply],
+  );
 
   const handleClear = () => {
     setLocalPI("");
@@ -517,6 +567,6 @@ const Filters: React.FC<FiltersProps> = ({
       </div>
     </section>
   );
-};
+});
 
 export default Filters;

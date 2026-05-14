@@ -7,7 +7,7 @@ import {
   useState,
 } from "react";
 import { matchPath, useLocation, useNavigate } from "react-router-dom";
-import Dashboard from "./components/Dashboard";
+import Dashboard, { type DashboardSearchFilters } from "./components/Dashboard";
 import Filters from "./components/Filters";
 import InvestigatorPage from "./components/InvestigatorPage";
 import ProjectDetailsPage from "./components/ProjectDetailsPage";
@@ -112,6 +112,22 @@ export default function App() {
   const totalPages = Math.max(1, Math.ceil(visibleTotal / resultsPerPage));
   const pageNumbers = getPageNumbers(currentPage, totalPages);
   const mainRef = useRef<HTMLElement | null>(null);
+  const searchFiltersRef = useRef({
+    pi: selectedPI,
+    ic: selectedIC,
+    activity: selectedActivity,
+    state: selectedState,
+    fyMin,
+    fyMax,
+  });
+  searchFiltersRef.current = {
+    pi: selectedPI,
+    ic: selectedIC,
+    activity: selectedActivity,
+    state: selectedState,
+    fyMin,
+    fyMax,
+  };
   const projectRouteMatch = matchPath("/projects/:projectId", location.pathname);
   const selectedProjectId = projectRouteMatch?.params.projectId ?? null;
   const semanticSimilarMatch = matchPath("/semantic/similar/:projectId", location.pathname);
@@ -164,17 +180,25 @@ export default function App() {
 
   const runSearch = useCallback(
     async (q: string, page: number, limit: number) => {
+      const {
+        pi,
+        ic,
+        activity,
+        state,
+        fyMin: fyMinValue,
+        fyMax: fyMaxValue,
+      } = searchFiltersRef.current;
       setLoading(true);
       try {
         const payload = await searchProjects(q, {
           page,
           limit,
-          pi: selectedPI,
-          ic: selectedIC,
-          activity: selectedActivity,
-          state: selectedState,
-          fyMin,
-          fyMax,
+          pi,
+          ic,
+          activity,
+          state,
+          fyMin: fyMinValue,
+          fyMax: fyMaxValue,
         });
         setResults(payload.results ?? []);
         setTotal(payload.total ?? 0);
@@ -183,7 +207,7 @@ export default function App() {
         setLoading(false);
       }
     },
-    [selectedPI, selectedIC, selectedActivity, selectedState, fyMin, fyMax],
+    [],
   );
 
   useEffect(() => {
@@ -203,6 +227,12 @@ export default function App() {
     resultsPerPage,
     runSearch,
     view,
+    selectedPI,
+    selectedIC,
+    selectedActivity,
+    selectedState,
+    fyMin,
+    fyMax,
     selectedProjectId,
     selectedInvestigatorName,
     semanticSimilarProjectId,
@@ -273,6 +303,30 @@ export default function App() {
     setFyMax("");
     setCurrentPage(1);
   };
+
+  const handleDashboardSearchNavigate = useCallback(
+    (searchQuery: string, filters: DashboardSearchFilters) => {
+      searchFiltersRef.current = {
+        pi: filters.pi,
+        ic: filters.ic,
+        activity: filters.activity,
+        state: filters.state,
+        fyMin: filters.fyMin,
+        fyMax: filters.fyMax,
+      };
+      setSelectedPI(filters.pi);
+      setSelectedIC(filters.ic);
+      setSelectedActivity(filters.activity);
+      setSelectedState(filters.state);
+      setFyMin(filters.fyMin);
+      setFyMax(filters.fyMax);
+      setQuery(searchQuery);
+      setCurrentPage(1);
+      setView("search");
+      navigate("/");
+    },
+    [navigate],
+  );
 
   const handlePerPageChange = (e: ChangeEvent<HTMLSelectElement>) => {
     setResultsPerPage(Number(e.target.value));
@@ -492,7 +546,7 @@ export default function App() {
         style={view === "dashboard" && !isSemanticRoute ? undefined : { display: "none" }}
         aria-hidden={view !== "dashboard" || isSemanticRoute}
       >
-        <Dashboard />
+        <Dashboard onSearchNavigate={handleDashboardSearchNavigate} />
       </section>
       <main
         className="app-main"
