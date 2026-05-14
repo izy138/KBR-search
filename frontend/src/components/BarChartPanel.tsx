@@ -82,6 +82,8 @@ interface BarChartPanelProps {
   chartMargin?: { top?: number; right?: number; bottom?: number; left?: number };
   /** Size the chart area to the remaining panel height (parent must define height) */
   fillHeight?: boolean;
+  /** Fired when a bar is clicked; receives the row payload (includes label / full_label). */
+  onBarClick?: (row: Record<string, unknown>) => void;
 }
 
 /**
@@ -125,6 +127,7 @@ export default function BarChartPanel({
   barAnimationSnapKey = "default",
   chartMargin = { top: 4, right: 16, bottom: 24, left: 8 },
   fillHeight = false,
+  onBarClick,
 }: BarChartPanelProps) {
   const chartBodyRef = useRef<HTMLDivElement>(null);
   const [measuredChartHeight, setMeasuredChartHeight] = useState(0);
@@ -225,10 +228,17 @@ export default function BarChartPanel({
       : undefined);
 
   const panelClass = panelClassName
-    ? `chart-panel ${panelClassName}${fillHeight ? " chart-panel--fill-height" : ""}`
+    ? `chart-panel ${panelClassName}${fillHeight ? " chart-panel--fill-height" : ""}${onBarClick ? " chart-panel--bar-clickable" : ""}`
     : fillHeight
-      ? "chart-panel chart-panel--fill-height"
+      ? `chart-panel chart-panel--fill-height${onBarClick ? " chart-panel--bar-clickable" : ""}`
+      : onBarClick
+        ? "chart-panel chart-panel--bar-clickable"
       : "chart-panel";
+
+  const handleBarClick = (barEntry: { payload?: Record<string, unknown> }): void => {
+    if (!onBarClick || !barEntry.payload) return;
+    onBarClick(barEntry.payload);
+  };
 
   const useVerticalBarAnimation = barAnimation === "vertical";
   const verticalBarShape = useVerticalBarShapeRenderer(
@@ -273,7 +283,7 @@ export default function BarChartPanel({
               cursor={{ fill: "var(--accent-light)" }}
               position={{ x: 16, y: 16 }}
             />
-            <Bar dataKey={barDataKey} fill={color} radius={[0, 3, 3, 0]} maxBarSize={24} />
+            <Bar dataKey={barDataKey} fill={color} radius={[0, 3, 3, 0]} maxBarSize={24} onClick={onBarClick ? handleBarClick : undefined} />
           </BarChart>
         ) : (
           <BarChart
@@ -319,6 +329,7 @@ export default function BarChartPanel({
               radius={[3, 3, 0, 0]}
               isAnimationActive={!useVerticalBarAnimation && animateBars}
               shape={useVerticalBarAnimation ? verticalBarShape : undefined}
+              onClick={onBarClick ? handleBarClick : undefined}
               {...(resolvedBarSize != null
                 ? { barSize: resolvedBarSize }
                 : { maxBarSize })}
