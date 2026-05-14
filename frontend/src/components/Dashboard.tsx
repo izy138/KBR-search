@@ -1,25 +1,31 @@
-import { useEffect, useState } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
 import {
   getActivityData,
+  getActivityFundingPie,
   getAvgGrantByIc,
   getDashboardSummary,
   getIcData,
+  getProjectTermThemeCloud,
   getStateData,
   getTopOrgs,
   getYearData,
 } from "../api";
 import type {
   ActivityDataPoint,
+  ActivityFundingPieResponse,
   AvgGrantDataPoint,
   DashboardSummary,
   IcDataPoint,
   OrgDataPoint,
+  ProjectTermThemeCloudResponse,
   StateDataPoint,
   YearDataPoint,
 } from "../api";
+import ActivityFundingPiePanel from "./ActivityFundingPiePanel";
 import BarChartPanel from "./BarChartPanel";
 import Filters from "./Filters";
 import LineChartPanel from "./LineChartPanel";
+import ProjectTermsThemeCloud from "./ProjectTermsThemeCloud";
 import SearchBar from "./SearchBar";
 import StateMap from "./StateMap";
 import activityCodeDefinitions from "../../activityCodeDefinitions.json";
@@ -157,6 +163,18 @@ function abbreviateChartCategoryLabel(label: string): string {
   return `${trimmed.slice(0, 10)}…`;
 }
 
+/** Ensures every institute from the master list appears, using 0 when absent in year data. */
+function mergeIcWithAllInstitutes(
+  masterList: IcDataPoint[],
+  yearData: IcDataPoint[],
+): IcDataPoint[] {
+  const counts = new Map(yearData.map((point) => [point.label, point.value]));
+  return masterList.map((point) => ({
+    label: point.label,
+    value: counts.get(point.label) ?? 0,
+  }));
+}
+
 // ─── Types for combined dashboard state ──────────────────────────────────────
 
 interface DashboardData {
@@ -164,6 +182,8 @@ interface DashboardData {
   stateData: StateDataPoint[];
   icData: IcDataPoint[];
   activityData: ActivityDataPoint[];
+  activityPie: ActivityFundingPieResponse;
+  termThemeCloud: ProjectTermThemeCloudResponse;
   yearData: YearDataPoint[];
   topOrgs: OrgDataPoint[];
   avgGrant: AvgGrantDataPoint[];
@@ -206,8 +226,68 @@ export default function Dashboard() {
   const [selectedIcYear, setSelectedIcYear] = useState<number | "all">("all");
   const [icChartData, setIcChartData] = useState<IcDataPoint[]>([]);
   const [icChartLoading, setIcChartLoading] = useState(true);
+  const icDataCacheRef = useRef<Map<string, IcDataPoint[]>>(new Map());
+  const icMasterListRef = useRef<IcDataPoint[]>([]);
+
+  const normalizeIcChartData = (
+    cacheKey: string,
+    fetched: IcDataPoint[],
+  ): IcDataPoint[] => {
+    if (cacheKey === "all") {
+      icMasterListRef.current = fetched.map((point) => ({
+        label: point.label,
+        value: point.value,
+      }));
+      return fetched;
+    }
+    if (icMasterListRef.current.length === 0) {
+      return fetched;
+    }
+    return mergeIcWithAllInstitutes(icMasterListRef.current, fetched);
+  };
+
+  const icChartRows = useMemo(
+    () =>
+      icChartData
+        .map((point) => ({
+          ...point,
+          short_label: abbreviateChartCategoryLabel(point.label),
+          full_label: point.label,
+        }))
+        .sort((a, b) => a.full_label.localeCompare(b.full_label)),
+    [icChartData],
+  );
+
+  const icChartDataMax = useMemo(
+    () => icChartData.reduce((max, point) => Math.max(max, point.value), 0),
+    [icChartData],
+  );
+
+  const icChartLinearMax = useMemo(
+    () =>
+      selectedIcYear === "all"
+        ? IC_HYBRID_LINEAR_MAX_ALL
+        : Math.max(roundUpToThousand(icChartDataMax), 1000),
+    [selectedIcYear, icChartDataMax],
+  );
+
+  const icChartTickValues = useMemo(
+    () =>
+      selectedIcYear === "all"
+        ? [...IC_HYBRID_TICK_VALUES_ALL]
+        : buildIcHybridTickValues(icChartLinearMax),
+    [selectedIcYear, icChartLinearMax],
+  );
 
   useEffect(() => {
+    const cacheKey = String(selectedIcYear);
+    const cached = icDataCacheRef.current.get(cacheKey);
+    if (cached) {
+      setIcChartData(cached);
+      setIcChartLoading(false);
+      return;
+    }
+
     let cancelled = false;
 
     const loadIcChart = async () => {
@@ -218,7 +298,9 @@ export default function Dashboard() {
             ? await getIcData()
             : await getIcData(selectedIcYear);
         if (!cancelled) {
-          setIcChartData(icYearData);
+          const normalized = normalizeIcChartData(cacheKey, icYearData);
+          icDataCacheRef.current.set(cacheKey, normalized);
+          setIcChartData(normalized);
         }
       } catch {
         if (!cancelled) {
@@ -239,23 +321,69 @@ export default function Dashboard() {
   }, [selectedIcYear]);
 
   useEffect(() => {
+    if (!data?.icData || data.icData.length === 0) {
+      return;
+    }
+
+    const master = data.icData.map((point) => ({
+      label: point.label,
+      value: point.value,
+    }));
+    icMasterListRef.current = master;
+
+    for (const [key, cached] of icDataCacheRef.current.entries()) {
+      if (key !== "all") {
+        icDataCacheRef.current.set(key, mergeIcWithAllInstitutes(master, cached));
+      }
+    }
+
+    if (selectedIcYear !== "all") {
+      const refreshed = icDataCacheRef.current.get(String(selectedIcYear));
+      if (refreshed) {
+        setIcChartData(refreshed);
+      }
+    }
+  }, [data?.icData, selectedIcYear]);
+
+  useEffect(() => {
     let cancelled = false;
 
     const load = async () => {
       try {
-        const [summary, stateData, icData, activityData, yearData, topOrgs, avgGrant] =
-          await Promise.all([
-            getDashboardSummary(),
-            getStateData(),
-            getIcData(),
-            getActivityData(),
-            getYearData(),
-            getTopOrgs(),
-            getAvgGrantByIc(),
-          ]);
+        const [
+          summary,
+          stateData,
+          icData,
+          activityData,
+          activityPie,
+          termThemeCloud,
+          yearData,
+          topOrgs,
+          avgGrant,
+        ] = await Promise.all([
+          getDashboardSummary(),
+          getStateData(),
+          getIcData(),
+          getActivityData(80),
+          getActivityFundingPie({ limit: 150, pieSlices: 12 }),
+          getProjectTermThemeCloud(),
+          getYearData(),
+          getTopOrgs(),
+          getAvgGrantByIc(),
+        ]);
 
         if (!cancelled) {
-          setData({ summary, stateData, icData, activityData, yearData, topOrgs, avgGrant });
+          setData({
+            summary,
+            stateData,
+            icData,
+            activityData,
+            activityPie,
+            termThemeCloud,
+            yearData,
+            topOrgs,
+            avgGrant,
+          });
         }
       } catch (err) {
         if (!cancelled) {
@@ -287,7 +415,7 @@ export default function Dashboard() {
     );
   }
 
-  const { summary, stateData, icData, activityData, yearData, topOrgs, avgGrant } = data;
+  const { summary, stateData, icData, activityData, activityPie, termThemeCloud, yearData, topOrgs, avgGrant } = data;
   const icNames = icData.map((point) => point.label);
   const activityCodes = activityData.map((point) => point.label);
   const states = stateData.map((point) => point.state);
@@ -296,23 +424,6 @@ export default function Dashboard() {
     summary.total_documents > 0
       ? summary.total_funding / summary.total_documents
       : 0;
-  const icChartRows = icChartData
-    .map((point) => ({
-      ...point,
-      short_label: abbreviateChartCategoryLabel(point.label),
-      full_label: point.label,
-    }))
-    .sort((a, b) => a.full_label.localeCompare(b.full_label));
-
-  const icChartDataMax = icChartData.reduce((max, point) => Math.max(max, point.value), 0);
-  const icChartLinearMax =
-    selectedIcYear === "all"
-      ? IC_HYBRID_LINEAR_MAX_ALL
-      : Math.max(roundUpToThousand(icChartDataMax), 1000);
-  const icChartTickValues =
-    selectedIcYear === "all"
-      ? [...IC_HYBRID_TICK_VALUES_ALL]
-      : buildIcHybridTickValues(icChartLinearMax);
 
   const topOrgsChartData = topOrgs.map((point) => ({
     ...point,
@@ -372,7 +483,9 @@ export default function Dashboard() {
       {/* State map + IC bar chart */}
       <div className="dashboard-grid-2">
         <StateMap data={stateData} />
-        <div className="dashboard-ic-chart-scroll">
+        <div
+          className={`dashboard-ic-chart-scroll${icChartLoading ? " dashboard-ic-chart-scroll--loading" : ""}`}
+        >
           <BarChartPanel
             title="Projects by Institute (IC)"
             panelClassName="chart-panel-ic-projects"
@@ -423,11 +536,7 @@ export default function Dashboard() {
                 </button>
               </div>
             }
-            data={
-              icChartLoading
-                ? []
-                : (icChartRows as unknown as Array<Record<string, unknown>>)
-            }
+            data={icChartRows as unknown as Array<Record<string, unknown>>}
               dataKey="value"
               labelKey="short_label"
               tooltipLabelKey="full_label"
@@ -439,7 +548,10 @@ export default function Dashboard() {
             yAxisWidth={60}
             yAxisTickMargin={4}
             chartMargin={{ top: 4, right: 4, bottom: 4, left: 0 }}
-            barSize={30}
+            barCategoryGap="10%"
+            maxBarSize={30}
+            barAnimation="vertical"
+            barAnimationSnapKey={icProjectsLogScale ? "hybrid-log" : "linear"}
             {...(icProjectsLogScale
               ? {
                   valueTransform: (value: number) =>
@@ -459,8 +571,8 @@ export default function Dashboard() {
         </div>
       </div>
 
-      {/* Activity full width; year + orgs in a row; avg grant full width */}
-      <div className="dashboard-grid-3">
+      {/* Activity: funding by activity code (bar) */}
+      <div className="dashboard-activity-section">
         <BarChartPanel
           title="Funding by Activity Code"
           panelClassName="chart-panel-activity"
@@ -471,6 +583,9 @@ export default function Dashboard() {
           formatter={formatDollars}
           color="#0e9f6e"
         />
+      </div>
+
+      <div className="dashboard-grid-3">
         <LineChartPanel
           title="Projects & Funding by Year"
           panelClassName="chart-panel-year-trend"
@@ -498,6 +613,18 @@ export default function Dashboard() {
           layout="horizontal"
           formatter={formatDollars}
           color="#7c3aed"
+        />
+      </div>
+
+      <div className="dashboard-term-themes">
+        <ProjectTermsThemeCloud payload={termThemeCloud} />
+      </div>
+
+      <div className="dashboard-pie-footer">
+        <ActivityFundingPiePanel
+          title="Funding share by Activity"
+          pie={activityPie}
+          formatDollars={formatDollars}
         />
       </div>
     </div>

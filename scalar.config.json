@@ -1,0 +1,40 @@
+{
+  "$schema": "https://registry.scalar.com/@scalar/schemas/config",
+  "scalar": "2.0.0",
+  "info": {
+    "title": "KBR Internship",
+    "description": "NIH grant search and analytics — OpenSearch, FastAPI, and React."
+  },
+  "navigation": {
+    "tabs": [
+      {
+        "title": "API",
+        "path": "/api",
+        "icon": "phosphor/regular/plug"
+      }
+    ],
+    "routes": {
+      "/": {
+        "type": "page",
+        "title": "Introduction",
+        "filepath": "docs/introduction.md",
+        "icon": "phosphor/regular/house"
+      },
+      "/getting-started": {
+        "type": "page",
+        "title": "Getting Started",
+        "filepath": "docs/getting-started.md",
+        "icon": "phosphor/regular/rocket"
+      },
+      "/api": {
+        "type": "openapi",
+        "title": "API Reference",
+        "filepath": "docs/openapi.json",
+        "icon": "phosphor/regular/plug"
+      }
+    }
+  },
+  "siteConfig": {
+    "theme": "purple"
+  }
+}
