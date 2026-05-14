@@ -5,11 +5,17 @@ import { getProjectOtherYears, searchSimilarToProjectId } from "../api";
 import { getOrderedPiNames } from "../utils/piNames";
 import ProjectActivityTermsChart from "./ProjectActivityTermsChart";
 
+type ProjectSearchTermsPayload = {
+  terms: string[];
+  additionalQuery: string;
+};
+
 type ProjectDetailsPageProps = {
   item: SearchResultRecord;
   onBack: () => void;
   onOpenInvestigator?: (name: string) => void;
   onOpenDetails?: (item: SearchResultRecord) => void;
+  onSearchWithProjectTerms?: (payload: ProjectSearchTermsPayload) => void;
 };
 
 const ABSTRACT_PREVIEW_LENGTH = 1500;
@@ -61,6 +67,18 @@ function dedupeYearVariants(variants: ProjectYearVariant[]): ProjectYearVariant[
     if (b.fy == null) return -1;
     return a.fy - b.fy;
   });
+}
+
+function dedupeTermsPreserveOrder(terms: string[]): string[] {
+  const seen = new Set<string>();
+  const out: string[] = [];
+  for (const t of terms) {
+    const s = t.trim();
+    if (!s || seen.has(s)) continue;
+    seen.add(s);
+    out.push(s);
+  }
+  return out;
 }
 
 function formatCurrency(value: number | undefined): string {
@@ -125,10 +143,16 @@ export default function ProjectDetailsPage({
   onBack,
   onOpenInvestigator,
   onOpenDetails,
+  onSearchWithProjectTerms,
 }: ProjectDetailsPageProps) {
   const navigate = useNavigate();
   const piNames = getOrderedPiNames(item.PI_NAMEs);
-  const projectTerms = parseSemicolonTerms(item.PROJECT_TERMS);
+  const dedupedProjectTerms = useMemo(
+    () => dedupeTermsPreserveOrder(parseSemicolonTerms(item.PROJECT_TERMS)),
+    [item.PROJECT_TERMS],
+  );
+  const [selectedTerms, setSelectedTerms] = useState<Set<string>>(() => new Set());
+  const [keywordExtra, setKeywordExtra] = useState<string>("");
   const projectAbstract = getProjectAbstract(item);
   const [isAbstractExpanded, setIsAbstractExpanded] = useState<boolean>(false);
   const fiscalYears = item.FY != null ? String(item.FY) : "—";
@@ -153,6 +177,11 @@ export default function ProjectDetailsPage({
   useEffect(() => {
     setIsAbstractExpanded(false);
   }, [item._id, item.APPLICATION_ID, item.PROJECT_TITLE]);
+
+  useEffect(() => {
+    setSelectedTerms(new Set());
+    setKeywordExtra("");
+  }, [item._id, item.APPLICATION_ID]);
 
   useEffect(() => {
     if (!projectId) {
@@ -233,8 +262,34 @@ export default function ProjectDetailsPage({
     navigate(`/projects/${encodeURIComponent(variant.project_id)}`);
   };
 
+  const toggleTermSelection = (term: string): void => {
+    setSelectedTerms((prev) => {
+      const next = new Set(prev);
+      if (next.has(term)) {
+        next.delete(term);
+      } else {
+        next.add(term);
+      }
+      return next;
+    });
+  };
+
+  const clearKeywordPanel = (): void => {
+    setSelectedTerms(new Set());
+    setKeywordExtra("");
+  };
+
+  const handleProjectKeywordSearch = (): void => {
+    if (!onSearchWithProjectTerms) return;
+    const terms = [...selectedTerms];
+    const additionalQuery = keywordExtra.trim();
+    if (terms.length === 0 && !additionalQuery) return;
+    onSearchWithProjectTerms({ terms, additionalQuery });
+  };
+
   return (
     <div className="project-details-layout">
+    <div className="project-details-main-stack">
     <div className="project-details-card">
       <div className="project-details-top-row">
         <button type="button" className="project-back-link" onClick={onBack}>
@@ -271,17 +326,7 @@ export default function ProjectDetailsPage({
         ) : (
           <div className="project-details-year-tags" aria-hidden="true" />
         )}
-        {projectId ? (
-          <button
-            type="button"
-            className="project-vector-link"
-            onClick={() => navigate(`/semantic/similar/${encodeURIComponent(projectId)}`)}
-          >
-            Similar grants (vectors)
-          </button>
-        ) : (
-          <span />
-        )}
+        
       </div>
 
       <h1 className="project-details-title">{item.PROJECT_TITLE ?? "Untitled Project"}</h1>
@@ -369,41 +414,102 @@ export default function ProjectDetailsPage({
 
         <div className="project-details-keywords">
           <h2>Keywords or Research Terms</h2>
-          {projectTerms.length > 0 ? (
-            <div className="project-details-tags">
-              {projectTerms.map((term) => (
-                <span key={term} className="project-details-tag">
-                  {term}
-                </span>
-              ))}
-            </div>
+          {dedupedProjectTerms.length > 0 ? (
+            <>
+              <div className="project-details-tags" role="group" aria-label="Project keyword tags">
+                {dedupedProjectTerms.map((term) => {
+                  const isOn = selectedTerms.has(term);
+                  return (
+                    <button
+                      key={term}
+                      type="button"
+                      className={`project-details-tag${isOn ? " project-details-tag--selected" : ""}`}
+                      aria-pressed={isOn}
+                      onClick={() => toggleTermSelection(term)}
+                    >
+                      {term}
+                    </button>
+                  );
+                })}
+              </div>
+              {onSearchWithProjectTerms ? (
+                <div className="project-details-keyword-search">
+                  <p className="project-details-keyword-search-label">
+                    Search other projects using selected tags (and optional text):
+                  </p>
+                  <ul className="project-details-keyword-chips" aria-label="Selected keywords for search">
+                    {selectedTerms.size === 0 ? (
+                      <li className="project-details-keyword-chips-empty">No tags selected yet</li>
+                    ) : (
+                      [...selectedTerms].map((term) => (
+                        <li key={term}>
+                          <button
+                            type="button"
+                            className="project-details-keyword-chip"
+                            onClick={() => toggleTermSelection(term)}
+                            aria-label={`Remove ${term}`}
+                          >
+                            {term}
+                            <span className="project-details-keyword-chip-x" aria-hidden="true">
+                              ×
+                            </span>
+                          </button>
+                        </li>
+                      ))
+                    )}
+                  </ul>
+                  <div className="project-details-keyword-search-row">
+                    <label className="project-details-keyword-input-label" htmlFor="project-keyword-extra">
+                      Also include in search
+                    </label>
+                    <input
+                      id="project-keyword-extra"
+                      type="text"
+                      className="project-details-keyword-input"
+                      placeholder="Optional words (title, PI, keywords…)"
+                      value={keywordExtra}
+                      onChange={(e) => setKeywordExtra(e.target.value)}
+                      autoComplete="off"
+                    />
+                  </div>
+                  <div className="project-details-keyword-actions">
+                    <button
+                      type="button"
+                      className="btn-project-keyword-search"
+                      disabled={selectedTerms.size === 0 && keywordExtra.trim() === ""}
+                      onClick={handleProjectKeywordSearch}
+                    >
+                      Search Projects
+                    </button>
+                    {(selectedTerms.size > 0 || keywordExtra.trim() !== "") ? (
+                      <button type="button" className="btn-project-keyword-clear" onClick={clearKeywordPanel}>
+                        Clear selection
+                      </button>
+                    ) : null}
+                  </div>
+                </div>
+              ) : null}
+            </>
           ) : (
             <p>—</p>
           )}
         </div>
       </section>
+    </div>
 
-      {activityId && projectId ? <ProjectActivityTermsChart activityId={activityId} projectId={projectId} /> : null}
+    {activityId && projectId ? (
+      <div className="project-activity-widget" role="region" aria-label="Activity funding comparison">
+        <ProjectActivityTermsChart activityId={activityId} projectId={projectId} />
+      </div>
+    ) : null}
     </div>
 
     <aside className="project-details-similar" aria-labelledby="project-details-similar-heading">
-      {projectId ? (
-        <div className="project-details-similar-more-wrap">
-          <button
-            type="button"
-            className="project-details-similar-more"
-            onClick={() => navigate(`/semantic/similar/${encodeURIComponent(projectId)}`)}
-          >
-            Show more similar projects
-          </button>
-        </div>
-      ) : null}
+      
       <h2 id="project-details-similar-heading" className="project-details-similar-heading">
-        Similar projects
+        Similar Projects
       </h2>
-      <p className="project-details-similar-lede">
-        Nearest neighbors using indexed sentence embeddings (same data as the vector lab).
-      </p>
+      <div className="project-details-similar-heading-rule" role="presentation" aria-hidden="true" />
       {!projectId ? (
         <p className="project-details-similar-muted">No document id on this record; vector similarity is unavailable.</p>
       ) : similarLoading ? (
