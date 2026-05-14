@@ -11,8 +11,10 @@ from .embeddings import EMBEDDING_FIELD, embed_query, get_dimension, get_model_n
 from .opensearch_client import get_client, get_index_name
 
 router = APIRouter()
+
 INDEX_NAME = get_index_name()
 MAX_RESULT_WINDOW = 10_000
+
 SEARCH_FIELDS = [
     "PROJECT_TITLE^4",
     "PROJECT_TERMS^2",
@@ -76,6 +78,7 @@ def search(
     fy_min: int | None = Query(default=None, description="Minimum fiscal year"),
     fy_max: int | None = Query(default=None, description="Maximum fiscal year"),
 ) -> dict[str, object]:
+
     client = get_client()
     must: list[dict[str, object]] = []
     filters: list[dict[str, object]] = []
