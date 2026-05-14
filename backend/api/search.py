@@ -213,6 +213,41 @@ def _recurrence_match_query(source: dict[str, object]) -> dict[str, object]:
     )
 
 
+def _dedupe_fiscal_years(
+    years: list[dict[str, object]],
+    *,
+    current_project_id: str,
+) -> list[dict[str, object]]:
+    """Return one row per fiscal year; prefer the document the user is viewing."""
+    by_key: dict[object, dict[str, object]] = {}
+    for year in years:
+        fy = year.get("fy")
+        key: object = fy if fy is not None else year.get("project_id")
+        if key is None:
+            continue
+        existing = by_key.get(key)
+        if existing is None:
+            by_key[key] = year
+            continue
+        if year.get("project_id") == current_project_id:
+            by_key[key] = year
+            continue
+        if existing.get("project_id") == current_project_id:
+            continue
+        year_app = year.get("application_id")
+        existing_app = existing.get("application_id")
+        if isinstance(year_app, int) and isinstance(existing_app, int) and year_app < existing_app:
+            by_key[key] = year
+
+    return sorted(
+        by_key.values(),
+        key=lambda item: (
+            item.get("fy") is None,
+            item.get("fy") if isinstance(item.get("fy"), (int, float)) else 0,
+        ),
+    )
+
+
 def _recurrence_must_not(source: dict[str, object]) -> list[dict[str, object]]:
     """Exclude sibling years of the same recurring award from similarity results."""
     clauses: list[dict[str, object]] = []
@@ -345,6 +380,8 @@ def get_project_other_years(
                 "is_current": hit_id == project_id,
             }
         )
+
+    years = _dedupe_fiscal_years(years, current_project_id=project_id)
 
     return {
         "project_id": project_id,

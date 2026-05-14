@@ -1,4 +1,4 @@
-import { useEffect, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 import { useNavigate } from "react-router-dom";
 import type { ProjectFiscalYear, ProjectYearVariant, SearchResultRecord } from "../api";
 import { getProjectOtherYears, searchSimilarToProjectId } from "../api";
@@ -21,6 +21,46 @@ function parseSemicolonTerms(rawTerms: string | undefined): string[] {
     .split(";")
     .map((term) => term.trim())
     .filter(Boolean);
+}
+
+function dedupeFiscalYears(
+  years: ProjectFiscalYear[],
+  currentProjectId: string,
+): ProjectFiscalYear[] {
+  const byKey = new Map<string, ProjectFiscalYear>();
+  for (const year of years) {
+    const key = year.fy != null ? `fy:${year.fy}` : `id:${year.project_id}`;
+    const existing = byKey.get(key);
+    if (!existing) {
+      byKey.set(key, year);
+      continue;
+    }
+    if (year.project_id === currentProjectId) {
+      byKey.set(key, year);
+    }
+  }
+  return [...byKey.values()].sort((a, b) => {
+    if (a.fy == null && b.fy == null) return 0;
+    if (a.fy == null) return 1;
+    if (b.fy == null) return -1;
+    return a.fy - b.fy;
+  });
+}
+
+function dedupeYearVariants(variants: ProjectYearVariant[]): ProjectYearVariant[] {
+  const byKey = new Map<string, ProjectYearVariant>();
+  for (const variant of variants) {
+    const key = variant.fy != null ? `fy:${variant.fy}` : `id:${variant.project_id}`;
+    if (!byKey.has(key)) {
+      byKey.set(key, variant);
+    }
+  }
+  return [...byKey.values()].sort((a, b) => {
+    if (a.fy == null && b.fy == null) return 0;
+    if (a.fy == null) return 1;
+    if (b.fy == null) return -1;
+    return a.fy - b.fy;
+  });
 }
 
 function formatCurrency(value: number | undefined): string {
@@ -99,6 +139,10 @@ export default function ProjectDetailsPage({
   const [similarLoading, setSimilarLoading] = useState<boolean>(false);
   const [similarError, setSimilarError] = useState<string>("");
   const [projectYears, setProjectYears] = useState<ProjectFiscalYear[]>([]);
+  const displayProjectYears = useMemo(
+    () => dedupeFiscalYears(projectYears, projectId),
+    [projectYears, projectId],
+  );
   const isLongAbstract =
     projectAbstract != null && projectAbstract.length > ABSTRACT_PREVIEW_LENGTH;
   const abstractPreview =
@@ -196,14 +240,15 @@ export default function ProjectDetailsPage({
         <button type="button" className="project-back-link" onClick={onBack}>
           Back to results
         </button>
-        {projectYears.length > 1 ? (
+        {displayProjectYears.length > 1 ? (
           <div className="project-details-year-tags" aria-label="Fiscal years for this project">
-            {projectYears.map((year) => {
+            {displayProjectYears.map((year) => {
               const isActive = year.project_id === projectId || year.is_current === true;
+              const yearKey = `${year.fy ?? "na"}-${year.project_id}`;
               if (isActive) {
                 return (
                   <span
-                    key={year.project_id}
+                    key={yearKey}
                     className="project-details-year-tag project-details-year-tag--active"
                     aria-current="page"
                   >
@@ -213,7 +258,7 @@ export default function ProjectDetailsPage({
               }
               return (
                 <button
-                  key={year.project_id}
+                  key={yearKey}
                   type="button"
                   className="project-details-year-tag"
                   onClick={() => handleOpenProjectYear(year)}
@@ -379,7 +424,7 @@ export default function ProjectDetailsPage({
       ) : (
         <ol className="project-details-similar-list">
           {similarNeighbors.map((neighbor, index) => {
-            const yearVariants = getYearVariants(neighbor);
+            const yearVariants = dedupeYearVariants(getYearVariants(neighbor));
             const listKey = yearVariants.map((variant) => variant.project_id).join("-") || String(index);
             const primaryId = yearVariants[0]?.project_id ?? neighbor._id ?? neighbor.id ?? "";
             return (
@@ -392,7 +437,7 @@ export default function ProjectDetailsPage({
                     >
                       {yearVariants.map((variant) => (
                         <button
-                          key={variant.project_id}
+                          key={`${variant.fy ?? "na"}-${variant.project_id}`}
                           type="button"
                           className="project-details-similar-year-tag"
                           onClick={() => handleOpenYearVariant(variant)}
