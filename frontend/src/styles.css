@@ -1010,6 +1010,11 @@ button.filter-select-trigger {
   margin-bottom: 0.65rem;
 }
 
+.project-details-similar-more-wrap--top {
+  margin-top: 0;
+  margin-bottom: 0.5rem;
+}
+
 .project-details-similar-more-wrap--bottom {
   margin-top: 0.85rem;
   margin-bottom: 0;

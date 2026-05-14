@@ -460,7 +460,17 @@ export default function ProjectDetailsPage({
     </div>
 
     <aside className="project-details-similar" aria-labelledby="project-details-similar-heading">
-      
+      {projectId ? (
+        <div className="project-details-similar-more-wrap project-details-similar-more-wrap--top">
+          <button
+            type="button"
+            className="project-details-similar-more"
+            onClick={() => navigate(`/semantic/similar/${encodeURIComponent(projectId)}`)}
+          >
+            See similar projects
+          </button>
+        </div>
+      ) : null}
       <h2 id="project-details-similar-heading" className="project-details-similar-heading">
         Similar Projects
       </h2>
