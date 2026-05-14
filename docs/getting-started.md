@@ -71,4 +71,4 @@ docker compose logs -f backend
 | `GET /search/hybrid` | Hybrid keyword + vector search |
 | `GET /analytics/summary` | Document counts and top activities |
 
-Full request/response details are in the [API Reference](/api).
+Full request/response details are in [Backend API](backend.md).

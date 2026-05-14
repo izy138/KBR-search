@@ -28,4 +28,4 @@ The frontend only talks to FastAPI. FastAPI queries OpenSearch; React never conn
 
 ## Next steps
 
-See [Getting Started](/getting-started) to run the stack locally, load data, and verify the API.
+See [Getting Started](getting-started.md) to run the stack locally, load data, and verify the API.

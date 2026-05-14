@@ -1,0 +1,98 @@
+# Backend API
+
+FastAPI entrypoint: `backend/api/main.py`.
+
+- **Search routes:** mounted at `/search` (`backend/api/search.py`)
+- **Analytics routes:** mounted at `/analytics` (`backend/api/analytics.py`)
+- **Health:** `GET /health` on the app root
+
+Interactive docs when the stack is running: http://localhost:8000/docs
+
+OpenSearch connection is configured via environment variables in `backend/api/opensearch_client.py`:
+
+| Variable | Default | Meaning |
+| -------- | ------- | ------- |
+| `OPENSEARCH_HOST` | `localhost` | `opensearch` inside Docker |
+| `OPENSEARCH_PORT` | `9200` | OpenSearch HTTP port |
+| `OPENSEARCH_INDEX` | `project_data` | Index name for all queries |
+
+## Search endpoints (`/search`)
+
+### `GET /search/`
+
+Full-text search with optional filters.
+
+**Query parameters:** `q`, `limit`, `page`, `category`, `pi`, `ic`, `activity`, `state`, `fy_min`, `fy_max`
+
+**OpenSearch:** BM25 over `PROJECT_TITLE` (boosted), `PROJECT_TERMS`, `PI_NAMEs`, `ORG_NAME`, `IC_NAME`, `ACTIVITY`, with `.keyword` filters where needed.
+
+### `GET /search/project/{project_id}`
+
+Returns one document by OpenSearch document id.
+
+### `GET /search/project/{project_id}/other-years`
+
+Finds other fiscal-year rows for the same award using `CORE_PROJECT_NUM` (falls back to matching `PROJECT_TITLE`).
+
+### `GET /search/similar`
+
+Semantic search from free text.
+
+**Query parameters:** `q` (required), `k` (default 10, max 50), plus the same filters as keyword search.
+
+Embeds `q`, runs k-NN on the `embedding` field (cosine, HNSW).
+
+### `GET /search/similar/{project_id}`
+
+Similar grants to an indexed project, using that document’s stored vector. Excludes the source project and groups recurring award years.
+
+### `GET /search/investigator/{pi_name}`
+
+All projects for a principal investigator, sorted by `FY` descending, paginated.
+
+### `GET /search/hybrid`
+
+Runs BM25 and k-NN in parallel with the same filters, then fuses ranked lists with **Reciprocal Rank Fusion** (RRF, constant k=60).
+
+**Query parameters:** `q`, `k`, and filter params as above.
+
+## Analytics endpoints (`/analytics`)
+
+All analytics routes aggregate over the `project_data` index. Funding usually uses `TOTAL_COST`, with fallbacks to sub-project and direct/indirect fields where needed.
+
+| Endpoint | Purpose |
+| -------- | ------- |
+| `GET /analytics/summary` | Total documents, total funding, unique ICs/activities, top activity codes |
+| `GET /analytics/by-state` | Grant count and funding per `ORG_STATE` |
+| `GET /analytics/by-ic` | Project counts per institute; optional `?fy=` |
+| `GET /analytics/by-activity` | Top activity codes by funding (`limit` param) |
+| `GET /analytics/by-activity-funding-pie` | Pie-chart payload; `limit`, `pie_slices`, `merge_other` |
+| `GET /analytics/project-term-theme-cloud` | Serves static `backend/indexer/project_term_theme_counts.json` |
+| `GET /analytics/by-year` | Documents and funding per fiscal year (`FY`) |
+| `GET /analytics/top-orgs` | Top organizations by total funding |
+| `GET /analytics/avg-grant-by-ic` | Average grant size per IC |
+| `GET /analytics/by-activity-terms` | Most common `PROJECT_TERMS` for one activity |
+| `GET /analytics/by-activity-project-compare` | One project vs top peers in the same `ACTIVITY` |
+
+## Embeddings (`backend/api/embeddings.py`)
+
+| Setting | Default |
+| ------- | ------- |
+| `EMBEDDING_MODEL` | `sentence-transformers/all-MiniLM-L6-v2` |
+| `EMBEDDING_DEVICE` | `auto` |
+| Vector size | 384 |
+| Index field | `embedding` |
+
+Text embedded for search is built from `PROJECT_TITLE`, filtered `PROJECT_TERMS`, and `ABSTRACT_TEXT`.
+
+At query time, if the model output size does not match the index mapping, search endpoints return **409 Conflict** with a message to reindex with the correct model.
+
+## Health check
+
+`GET /health` returns:
+
+```json
+{ "status": "ok", "opensearch": "up" }
+```
+
+`opensearch` is `"down"` if `client.ping()` fails.
