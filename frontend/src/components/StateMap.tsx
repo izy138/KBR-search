@@ -1,4 +1,4 @@
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import { scaleThreshold } from "d3-scale";
 import {
   ComposableMap,
@@ -37,6 +37,10 @@ const MAP_COLOR_STOPS = [
 ] as const;
 const HOVER_FILL = "#ffe259";
 const HOVER_STROKE = "#f97316";
+/** Outline for the state last clicked on the map (not hover). */
+const SELECTED_STROKE = "#1a56db";
+const HOVER_STROKE_WIDTH = 3;
+const SELECTED_STROKE_WIDTH = 2;
 /** Subtle outline for small/inset territories so they read against the map background */
 const INSET_STATE_STROKE = "#2f6b52";
 const MAP_OUTLINE_STROKE = INSET_STATE_STROKE;
@@ -116,6 +120,8 @@ interface TooltipState {
 
 interface StateMapProps {
   data: StateDataPoint[];
+  /** Active state filter (USPS abbrev); used to clear map-click highlight when filters reset. */
+  selectedStateAbbrev?: string;
   /** When set, clicking a state applies that USPS abbrev via this callback. */
   onStateSelect?: (stateAbbrev: string) => void;
 }
@@ -133,10 +139,35 @@ const formatFunding = (n: number): string => {
  */
 export default function StateMap({
   data,
+  selectedStateAbbrev = "",
   onStateSelect,
 }: StateMapProps) {
   const [tooltip, setTooltip] = useState<TooltipState | null>(null);
   const [hoveredState, setHoveredState] = useState<string | null>(null);
+  const [mapClickedAbbrev, setMapClickedAbbrev] = useState<string | null>(null);
+
+  const normalizedSelectedAbbrev = selectedStateAbbrev.trim().toUpperCase();
+
+  useEffect(() => {
+    if (!normalizedSelectedAbbrev) {
+      setMapClickedAbbrev(null);
+    }
+  }, [normalizedSelectedAbbrev]);
+
+  const isMapClickedState = (geoName: string): boolean => {
+    if (!mapClickedAbbrev || mapClickedAbbrev !== normalizedSelectedAbbrev) {
+      return false;
+    }
+    const abbrev = STATE_NAME_TO_ABBREV[geoName];
+    return abbrev?.toUpperCase() === mapClickedAbbrev;
+  };
+
+  const selectedGeoName =
+    mapClickedAbbrev && mapClickedAbbrev === normalizedSelectedAbbrev
+      ? Object.entries(STATE_NAME_TO_ABBREV).find(
+          ([, abbrev]) => abbrev.toUpperCase() === mapClickedAbbrev,
+        )?.[0] ?? null
+      : null;
 
   const tooltipOffset = (clientX: number, clientY: number): { x: number; y: number } => ({
     x: clientX + 12,
@@ -186,18 +217,27 @@ export default function StateMap({
     if (!onStateSelect) return;
     const abbrev = STATE_NAME_TO_ABBREV[geoName];
     if (abbrev) {
-      onStateSelect(abbrev);
+      const normalized = abbrev.toUpperCase();
+      onStateSelect(normalized);
+      setMapClickedAbbrev(normalized);
     }
   };
 
-  const getStroke = (geoName: string, isHovered: boolean): string => {
+  const getStroke = (geoName: string, isHovered: boolean, isSelected: boolean): string => {
     if (isHovered) return HOVER_STROKE;
+    if (isSelected) return SELECTED_STROKE;
     if (INSET_STATE_NAMES.has(geoName)) return INSET_STATE_STROKE;
     return "#ffffff";
   };
 
-  const getStrokeWidth = (geoName: string, isHovered: boolean, insetMap: boolean): number => {
-    if (isHovered) return 3;
+  const getStrokeWidth = (
+    geoName: string,
+    isHovered: boolean,
+    isSelected: boolean,
+    insetMap: boolean,
+  ): number => {
+    if (isHovered) return HOVER_STROKE_WIDTH;
+    if (isSelected) return SELECTED_STROKE_WIDTH;
     if (insetMap || geoName === "Puerto Rico") return 0.8;
     return 1;
   };
@@ -210,8 +250,10 @@ export default function StateMap({
     const geoName = geo.properties.name as string;
     const point = stateByName.get(geoName);
     const isHovered = hoveredLayer || hoveredState === geoName;
+    const isSelected = isMapClickedState(geoName);
     const isInteractive = onStateSelect != null;
-    const nonScalingStroke = insetMap
+    const useScreenSpaceStroke = isHovered || isSelected || insetMap;
+    const strokeStyle = useScreenSpaceStroke
       ? ({ vectorEffect: "non-scaling-stroke" } as const)
       : {};
 
@@ -220,8 +262,8 @@ export default function StateMap({
         key={hoveredLayer ? `${geo.rsmKey}-hover` : geo.rsmKey}
         geography={geo}
         fill={isHovered ? HOVER_FILL : getFill(geoName)}
-        stroke={getStroke(geoName, isHovered)}
-        strokeWidth={getStrokeWidth(geoName, isHovered, insetMap)}
+        stroke={getStroke(geoName, isHovered, isSelected)}
+        strokeWidth={getStrokeWidth(geoName, isHovered, isSelected, insetMap)}
         style={{
           default: {
             outline: "none",
@@ -229,10 +271,10 @@ export default function StateMap({
             strokeLinejoin: "round",
             strokeLinecap: "round",
             cursor: isInteractive ? "pointer" : "default",
-            ...nonScalingStroke,
+            ...strokeStyle,
           },
-          hover: { outline: "none", cursor: isInteractive ? "pointer" : "default", ...nonScalingStroke },
-          pressed: { outline: "none", ...nonScalingStroke },
+          hover: { outline: "none", cursor: isInteractive ? "pointer" : "default", ...strokeStyle },
+          pressed: { outline: "none", ...strokeStyle },
         }}
         onMouseUp={(e) => {
           e.preventDefault();
@@ -264,12 +306,22 @@ export default function StateMap({
   const splitGeographyLayers = (
     geographies: GeographyType[],
     insetMap = false,
-  ): { baseLayer: JSX.Element[]; hoverLayer: JSX.Element[] } => {
+  ): { baseLayer: JSX.Element[]; selectedLayer: JSX.Element[]; hoverLayer: JSX.Element[] } => {
     const geoName = (geo: GeographyType): string => geo.properties.name as string;
 
+    const isElevated = (name: string): boolean =>
+      name === hoveredState || name === selectedGeoName;
+
     const baseLayer = geographies
-      .filter((geo) => geoName(geo) !== hoveredState)
+      .filter((geo) => !isElevated(geoName(geo)))
       .map((geo) => renderGeography(geo, false, insetMap));
+
+    const selectedLayer =
+      selectedGeoName && selectedGeoName !== hoveredState
+        ? geographies
+            .filter((geo) => geoName(geo) === selectedGeoName)
+            .map((geo) => renderGeography(geo, false, insetMap))
+        : [];
 
     const hoverLayer = hoveredState
       ? geographies
@@ -277,7 +329,7 @@ export default function StateMap({
           .map((geo) => renderGeography(geo, true, insetMap))
       : [];
 
-    return { baseLayer, hoverLayer };
+    return { baseLayer, selectedLayer, hoverLayer };
   };
 
   const renderNationOutline = (geographies: GeographyType[]): JSX.Element[] =>
@@ -314,7 +366,7 @@ export default function StateMap({
         >
           <Geographies geography={GEO_URL}>
             {({ geographies }: { geographies: GeographyType[] }) => {
-              const { baseLayer, hoverLayer } = splitGeographyLayers(geographies);
+              const { baseLayer, selectedLayer, hoverLayer } = splitGeographyLayers(geographies);
               return (
                 <>
                   {baseLayer}
@@ -323,6 +375,7 @@ export default function StateMap({
                       renderNationOutline(nationGeographies)
                     }
                   </Geographies>
+                  {selectedLayer}
                   {hoverLayer}
                 </>
               );
@@ -345,13 +398,14 @@ export default function StateMap({
           >
             <Geographies geography={PR_GEO_URL}>
               {({ geographies }: { geographies: GeographyType[] }) => {
-                const { baseLayer, hoverLayer } = splitGeographyLayers(
+                const { baseLayer, selectedLayer, hoverLayer } = splitGeographyLayers(
                   geographies.filter((geo) => (geo.properties.name as string) === "Puerto Rico"),
                   true,
                 );
                 return (
                   <>
                     {baseLayer}
+                    {selectedLayer}
                     {hoverLayer}
                   </>
                 );

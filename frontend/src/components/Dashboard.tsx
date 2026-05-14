@@ -209,21 +209,16 @@ export default function Dashboard({ onSearchNavigate }: DashboardProps) {
   /** Log scale for Projects by Institute (IC) — only when no filters are applied. */
   const [icProjectsLogScale, setIcProjectsLogScale] = useState(true);
   const mapMeasureRef = useRef<HTMLDivElement>(null);
-  const [icFilterRowMaxHeight, setIcFilterRowMaxHeight] = useState<number | undefined>();
+  const [mapMeasureHeight, setMapMeasureHeight] = useState<number | undefined>();
 
   const hasIcFilter = Boolean(selectedIC);
 
   useEffect(() => {
-    if (!hasIcFilter) {
-      setIcFilterRowMaxHeight(undefined);
-      return;
-    }
-
     const measureEl = mapMeasureRef.current;
     if (!measureEl) return;
 
     const updateHeight = (): void => {
-      setIcFilterRowMaxHeight(measureEl.getBoundingClientRect().height);
+      setMapMeasureHeight(measureEl.getBoundingClientRect().height);
     };
 
     updateHeight();
@@ -236,12 +231,15 @@ export default function Dashboard({ onSearchNavigate }: DashboardProps) {
       observer.disconnect();
       window.removeEventListener("resize", updateHeight);
     };
-  }, [hasIcFilter, data?.stateData, refreshing]);
+  }, [data?.stateData, refreshing]);
 
-  const icFilterSlotStyle =
-    icFilterRowMaxHeight != null
-      ? { height: icFilterRowMaxHeight, maxHeight: icFilterRowMaxHeight }
+  const measuredSlotStyle =
+    mapMeasureHeight != null
+      ? { height: mapMeasureHeight, maxHeight: mapMeasureHeight }
       : undefined;
+
+  const icFilterSlotStyle = hasIcFilter ? measuredSlotStyle : undefined;
+  const icChartSlotStyle = !hasIcFilter ? measuredSlotStyle : undefined;
 
   const hasActiveFilters = useMemo(
     () => Boolean(selectedPI || selectedIC || selectedActivity || selectedState || fyMin || fyMax),
@@ -295,6 +293,16 @@ export default function Dashboard({ onSearchNavigate }: DashboardProps) {
 
   const handleMapStateSelect = (stateAbbrev: string) => {
     setSelectedState(stateAbbrev.toUpperCase());
+  };
+
+  const handleIcBarClick = (row: Record<string, unknown>) => {
+    const institute =
+      (typeof row.full_label === "string" && row.full_label.trim())
+      || (typeof row.label === "string" && row.label.trim())
+      || "";
+    if (institute) {
+      setSelectedIC(institute);
+    }
   };
 
   const icChartRows = useMemo(() => {
@@ -518,7 +526,11 @@ export default function Dashboard({ onSearchNavigate }: DashboardProps) {
       {/* State map (+ IC-filter charts) + IC bar chart — aligned to KPI 3-column grid */}
       <div className={`dashboard-grid-2${hasIcFilter ? " dashboard-grid-2--ic-filter" : ""}`}>
         <div ref={mapMeasureRef} className="dashboard-grid-2-map-measure">
-          <StateMap data={stateData} onStateSelect={handleMapStateSelect} />
+          <StateMap
+            data={stateData}
+            selectedStateAbbrev={selectedState}
+            onStateSelect={handleMapStateSelect}
+          />
         </div>
         {hasIcFilter && (
           <>
@@ -530,7 +542,7 @@ export default function Dashboard({ onSearchNavigate }: DashboardProps) {
             </div>
           </>
         )}
-        <div className="dashboard-ic-chart-scroll">
+        <div className="dashboard-ic-chart-scroll" style={icChartSlotStyle}>
           <BarChartPanel
             title="Projects by Institute (IC)"
             panelClassName="chart-panel-ic-projects"
@@ -559,7 +571,8 @@ export default function Dashboard({ onSearchNavigate }: DashboardProps) {
               labelKey="short_label"
               tooltipLabelKey="full_label"
             layout="horizontal"
-            height={360}
+            fillHeight={!hasIcFilter}
+            {...(hasIcFilter ? { height: 360 } : {})}
             xAxisHeight={58}
             xAxisAngle={-45}
             xAxisFontSize={10}
@@ -570,6 +583,7 @@ export default function Dashboard({ onSearchNavigate }: DashboardProps) {
             maxBarSize={30}
             barAnimation="vertical"
             barAnimationSnapKey={icProjectsUseLogScale ? "hybrid-log" : "linear"}
+            onBarClick={!hasIcFilter ? handleIcBarClick : undefined}
             {...(icProjectsUseLogScale
               ? {
                   valueTransform: (value: number) =>
@@ -587,22 +601,37 @@ export default function Dashboard({ onSearchNavigate }: DashboardProps) {
                 })}
           />
         </div>
+        {!hasIcFilter ? (
+          <div className="dashboard-grid-2-year-pie-row">
+            <div className="dashboard-grid-2-year">
+              <LineChartPanel
+                title="Projects & Funding by Year"
+                panelClassName="chart-panel-year-trend"
+                data={yearData}
+                height={300}
+                formatter={formatDollars}
+              />
+            </div>
+            <div className="dashboard-grid-2-pie">{activityPiePanel}</div>
+          </div>
+        ) : (
+          <div className="dashboard-grid-2-year">
+            <LineChartPanel
+              title="Projects & Funding by Year"
+              panelClassName="chart-panel-year-trend"
+              data={yearData}
+              height={300}
+              formatter={formatDollars}
+            />
+          </div>
+        )}
       </div>
 
-      {/* Project term themes (word cloud) + funding by activity code (pie) */}
-      <div className={`dashboard-term-themes-pie-row${hasIcFilter ? " dashboard-term-themes-pie-row--solo" : ""}`}>
+      <div className="dashboard-term-themes-row">
         <ProjectTermsThemeCloud payload={termThemeCloud} />
-        {!hasIcFilter && activityPiePanel}
       </div>
 
       <div className="dashboard-grid-3">
-        <LineChartPanel
-          title="Projects & Funding by Year"
-          panelClassName="chart-panel-year-trend"
-          data={yearData}
-          height={300}
-          formatter={formatDollars}
-        />
         {!hasIcFilter && topOrgsPanel}
         <BarChartPanel
           title="Average Grant by Institute (IC)"

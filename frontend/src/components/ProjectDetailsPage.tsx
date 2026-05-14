@@ -3,6 +3,7 @@ import { useNavigate } from "react-router-dom";
 import type { ProjectFiscalYear, ProjectYearVariant, SearchResultRecord } from "../api";
 import { getProjectOtherYears, searchSimilarToProjectId } from "../api";
 import { getOrderedPiNames } from "../utils/piNames";
+import { groupSimilarNeighbors } from "../utils/recurrenceGrouping";
 import ProjectActivityTermsChart from "./ProjectActivityTermsChart";
 
 type ProjectSearchTermsPayload = {
@@ -27,6 +28,46 @@ function parseSemicolonTerms(rawTerms: string | undefined): string[] {
     .split(";")
     .map((term) => term.trim())
     .filter(Boolean);
+}
+
+function dedupeFiscalYears(
+  years: ProjectFiscalYear[],
+  currentProjectId: string,
+): ProjectFiscalYear[] {
+  const byKey = new Map<string, ProjectFiscalYear>();
+  for (const year of years) {
+    const key = year.fy != null ? `fy:${year.fy}` : `id:${year.project_id}`;
+    const existing = byKey.get(key);
+    if (!existing) {
+      byKey.set(key, year);
+      continue;
+    }
+    if (year.project_id === currentProjectId) {
+      byKey.set(key, year);
+    }
+  }
+  return [...byKey.values()].sort((a, b) => {
+    if (a.fy == null && b.fy == null) return 0;
+    if (a.fy == null) return 1;
+    if (b.fy == null) return -1;
+    return a.fy - b.fy;
+  });
+}
+
+function dedupeYearVariants(variants: ProjectYearVariant[]): ProjectYearVariant[] {
+  const byKey = new Map<string, ProjectYearVariant>();
+  for (const variant of variants) {
+    const key = variant.fy != null ? `fy:${variant.fy}` : `id:${variant.project_id}`;
+    if (!byKey.has(key)) {
+      byKey.set(key, variant);
+    }
+  }
+  return [...byKey.values()].sort((a, b) => {
+    if (a.fy == null && b.fy == null) return 0;
+    if (a.fy == null) return 1;
+    if (b.fy == null) return -1;
+    return a.fy - b.fy;
+  });
 }
 
 function dedupeTermsPreserveOrder(terms: string[]): string[] {
@@ -78,24 +119,56 @@ function getProjectAbstract(item: SearchResultRecord): string | null {
 function getYearVariants(record: SearchResultRecord): ProjectYearVariant[] {
   const raw = record.year_variants;
   if (Array.isArray(raw)) {
-    return raw.filter(
-      (item): item is ProjectYearVariant =>
-        item != null &&
-        typeof item === "object" &&
-        typeof (item as ProjectYearVariant).project_id === "string",
-    );
+    const fromArray = raw
+      .map((item) => {
+        if (item == null || typeof item !== "object") return null;
+        const row = item as Record<string, unknown>;
+        const projectId =
+          typeof row.project_id === "string" && row.project_id.trim()
+            ? row.project_id
+            : typeof row.project_id === "number"
+              ? String(row.project_id)
+              : null;
+        if (!projectId) return null;
+        const fyRaw = row.fy;
+        const fy =
+          typeof fyRaw === "number" && Number.isFinite(fyRaw)
+            ? fyRaw
+            : typeof fyRaw === "string" && fyRaw.trim() && Number.isFinite(Number(fyRaw))
+              ? Number(fyRaw)
+              : undefined;
+        return {
+          project_id: projectId,
+          fy,
+          application_id:
+            typeof row.application_id === "number" ? row.application_id : undefined,
+        } satisfies ProjectYearVariant;
+      })
+      .filter((item): item is ProjectYearVariant => item != null);
+    if (fromArray.length > 0) return fromArray;
   }
   const recordId = record._id ?? record.id;
-  if (typeof recordId === "string") {
-    return [
-      {
-        project_id: recordId,
-        fy: typeof record.FY === "number" ? record.FY : undefined,
-        application_id: typeof record.APPLICATION_ID === "number" ? record.APPLICATION_ID : undefined,
-      },
-    ];
-  }
-  return [];
+  const projectId =
+    typeof recordId === "string" && recordId.trim()
+      ? recordId
+      : typeof recordId === "number"
+        ? String(recordId)
+        : null;
+  if (!projectId) return [];
+  const fy =
+    typeof record.FY === "number" && Number.isFinite(record.FY)
+      ? record.FY
+      : typeof record.FY === "string" && record.FY.trim() && Number.isFinite(Number(record.FY))
+        ? Number(record.FY)
+        : undefined;
+  return [
+    {
+      project_id: projectId,
+      fy,
+      application_id:
+        typeof record.APPLICATION_ID === "number" ? record.APPLICATION_ID : undefined,
+    },
+  ];
 }
 
 export default function ProjectDetailsPage({
@@ -107,9 +180,10 @@ export default function ProjectDetailsPage({
 }: ProjectDetailsPageProps) {
   const navigate = useNavigate();
   const piNames = getOrderedPiNames(item.PI_NAMEs);
+  const projectTerms = useMemo(() => parseSemicolonTerms(item.PROJECT_TERMS), [item.PROJECT_TERMS]);
   const dedupedProjectTerms = useMemo(
-    () => dedupeTermsPreserveOrder(parseSemicolonTerms(item.PROJECT_TERMS)),
-    [item.PROJECT_TERMS],
+    () => dedupeTermsPreserveOrder(projectTerms),
+    [projectTerms],
   );
   const [selectedTerms, setSelectedTerms] = useState<Set<string>>(() => new Set());
   const [keywordExtra, setKeywordExtra] = useState<string>("");
@@ -123,6 +197,14 @@ export default function ProjectDetailsPage({
   const [similarLoading, setSimilarLoading] = useState<boolean>(false);
   const [similarError, setSimilarError] = useState<string>("");
   const [projectYears, setProjectYears] = useState<ProjectFiscalYear[]>([]);
+  const displayProjectYears = useMemo(
+    () => dedupeFiscalYears(projectYears, projectId),
+    [projectYears, projectId],
+  );
+  const groupedSimilarNeighbors = useMemo(
+    () => groupSimilarNeighbors(similarNeighbors),
+    [similarNeighbors],
+  );
   const isLongAbstract =
     projectAbstract != null && projectAbstract.length > ABSTRACT_PREVIEW_LENGTH;
   const abstractPreview =
@@ -251,14 +333,15 @@ export default function ProjectDetailsPage({
         <button type="button" className="project-back-link" onClick={onBack}>
           Back to results
         </button>
-        {projectYears.length > 1 ? (
+        {displayProjectYears.length > 1 ? (
           <div className="project-details-year-tags" aria-label="Fiscal years for this project">
-            {projectYears.map((year) => {
+            {displayProjectYears.map((year) => {
               const isActive = year.project_id === projectId || year.is_current === true;
+              const yearKey = `${year.fy ?? "na"}-${year.project_id}`;
               if (isActive) {
                 return (
                   <span
-                    key={year.project_id}
+                    key={yearKey}
                     className="project-details-year-tag project-details-year-tag--active"
                     aria-current="page"
                   >
@@ -268,7 +351,7 @@ export default function ProjectDetailsPage({
               }
               return (
                 <button
-                  key={year.project_id}
+                  key={yearKey}
                   type="button"
                   className="project-details-year-tag"
                   onClick={() => handleOpenProjectYear(year)}
@@ -480,12 +563,12 @@ export default function ProjectDetailsPage({
             </p>
           ) : null}
         </div>
-      ) : similarNeighbors.length === 0 ? (
+      ) : groupedSimilarNeighbors.length === 0 ? (
         <p className="project-details-similar-muted">No similar projects returned.</p>
       ) : (
         <ol className="project-details-similar-list">
-          {similarNeighbors.map((neighbor, index) => {
-            const yearVariants = getYearVariants(neighbor);
+          {groupedSimilarNeighbors.map((neighbor, index) => {
+            const yearVariants = dedupeYearVariants(getYearVariants(neighbor));
             const listKey = yearVariants.map((variant) => variant.project_id).join("-") || String(index);
             const primaryId = yearVariants[0]?.project_id ?? neighbor._id ?? neighbor.id ?? "";
             return (
@@ -498,7 +581,7 @@ export default function ProjectDetailsPage({
                     >
                       {yearVariants.map((variant) => (
                         <button
-                          key={variant.project_id}
+                          key={`${variant.fy ?? "na"}-${variant.project_id}`}
                           type="button"
                           className="project-details-similar-year-tag"
                           onClick={() => handleOpenYearVariant(variant)}
