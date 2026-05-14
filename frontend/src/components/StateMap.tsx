@@ -101,6 +101,11 @@ const STATE_ABBREV_TO_NAME: Record<string, string> = {
   PR: "Puerto Rico",
 };
 
+/** Full TopoJSON name → USPS abbrev (matches `ORG_STATE` / filter values). */
+const STATE_NAME_TO_ABBREV: Record<string, string> = Object.fromEntries(
+  Object.entries(STATE_ABBREV_TO_NAME).map(([abbrev, name]) => [name, abbrev]),
+);
+
 interface TooltipState {
   stateName: string;
   count: number;
@@ -111,6 +116,8 @@ interface TooltipState {
 
 interface StateMapProps {
   data: StateDataPoint[];
+  /** When set, clicking a state applies that USPS abbrev via this callback. */
+  onStateSelect?: (stateAbbrev: string) => void;
 }
 
 const formatFunding = (n: number): string => {
@@ -124,7 +131,10 @@ const formatFunding = (n: number): string => {
  * US choropleth map shaded by NIH project count per state.
  * Uses react-simple-maps + d3-scale for the color scale.
  */
-export default function StateMap({ data }: StateMapProps) {
+export default function StateMap({
+  data,
+  onStateSelect,
+}: StateMapProps) {
   const [tooltip, setTooltip] = useState<TooltipState | null>(null);
   const [hoveredState, setHoveredState] = useState<string | null>(null);
 
@@ -172,6 +182,14 @@ export default function StateMap({ data }: StateMapProps) {
     return colorScale(point.count);
   };
 
+  const handleStateClick = (geoName: string): void => {
+    if (!onStateSelect) return;
+    const abbrev = STATE_NAME_TO_ABBREV[geoName];
+    if (abbrev) {
+      onStateSelect(abbrev);
+    }
+  };
+
   const getStroke = (geoName: string, isHovered: boolean): string => {
     if (isHovered) return HOVER_STROKE;
     if (INSET_STATE_NAMES.has(geoName)) return INSET_STATE_STROKE;
@@ -192,6 +210,7 @@ export default function StateMap({ data }: StateMapProps) {
     const geoName = geo.properties.name as string;
     const point = stateByName.get(geoName);
     const isHovered = hoveredLayer || hoveredState === geoName;
+    const isInteractive = onStateSelect != null;
     const nonScalingStroke = insetMap
       ? ({ vectorEffect: "non-scaling-stroke" } as const)
       : {};
@@ -209,10 +228,15 @@ export default function StateMap({ data }: StateMapProps) {
             transition: "fill 0.15s ease, stroke 0.15s ease",
             strokeLinejoin: "round",
             strokeLinecap: "round",
+            cursor: isInteractive ? "pointer" : "default",
             ...nonScalingStroke,
           },
-          hover: { outline: "none", ...nonScalingStroke },
+          hover: { outline: "none", cursor: isInteractive ? "pointer" : "default", ...nonScalingStroke },
           pressed: { outline: "none", ...nonScalingStroke },
+        }}
+        onMouseUp={(e) => {
+          e.preventDefault();
+          handleStateClick(geoName);
         }}
         onMouseEnter={(e) => {
           const { x, y } = tooltipOffset(e.clientX, e.clientY);

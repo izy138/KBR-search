@@ -206,8 +206,57 @@ export default function Dashboard({ onSearchNavigate }: DashboardProps) {
   const [selectedState, setSelectedState] = useState("");
   const [fyMin, setFyMin] = useState("");
   const [fyMax, setFyMax] = useState("");
-  /** Log scale for Projects by Institute (IC) bar chart — matches prior default. */
+  /** Log scale for Projects by Institute (IC) — only when no filters are applied. */
   const [icProjectsLogScale, setIcProjectsLogScale] = useState(true);
+  const mapMeasureRef = useRef<HTMLDivElement>(null);
+  const [icFilterRowMaxHeight, setIcFilterRowMaxHeight] = useState<number | undefined>();
+
+  const hasIcFilter = Boolean(selectedIC);
+
+  useEffect(() => {
+    if (!hasIcFilter) {
+      setIcFilterRowMaxHeight(undefined);
+      return;
+    }
+
+    const measureEl = mapMeasureRef.current;
+    if (!measureEl) return;
+
+    const updateHeight = (): void => {
+      setIcFilterRowMaxHeight(measureEl.getBoundingClientRect().height);
+    };
+
+    updateHeight();
+
+    const observer = new ResizeObserver(updateHeight);
+    observer.observe(measureEl);
+    window.addEventListener("resize", updateHeight);
+
+    return () => {
+      observer.disconnect();
+      window.removeEventListener("resize", updateHeight);
+    };
+  }, [hasIcFilter, data?.stateData, refreshing]);
+
+  const icFilterSlotStyle =
+    icFilterRowMaxHeight != null
+      ? { height: icFilterRowMaxHeight, maxHeight: icFilterRowMaxHeight }
+      : undefined;
+
+  const hasActiveFilters = useMemo(
+    () => Boolean(selectedPI || selectedIC || selectedActivity || selectedState || fyMin || fyMax),
+    [selectedPI, selectedIC, selectedActivity, selectedState, fyMin, fyMax],
+  );
+
+  useEffect(() => {
+    if (hasActiveFilters) {
+      setIcProjectsLogScale(false);
+    } else {
+      setIcProjectsLogScale(true);
+    }
+  }, [hasActiveFilters]);
+
+  const icProjectsUseLogScale = !hasActiveFilters && icProjectsLogScale;
 
   const icChartLinearMax = IC_HYBRID_LINEAR_MAX_ALL;
   const icChartTickValues = [...IC_HYBRID_TICK_VALUES_ALL];
@@ -242,6 +291,10 @@ export default function Dashboard({ onSearchNavigate }: DashboardProps) {
       ?? filtersRef.current?.getPendingFilters()
       ?? searchFilters;
     onSearchNavigate(nextQuery, filters);
+  };
+
+  const handleMapStateSelect = (stateAbbrev: string) => {
+    setSelectedState(stateAbbrev.toUpperCase());
   };
 
   const icChartRows = useMemo(() => {
@@ -386,6 +439,37 @@ export default function Dashboard({ onSearchNavigate }: DashboardProps) {
     full_label: point.label,
   }));
 
+  const topOrgsPanel = (
+    <BarChartPanel
+      title="Top Organizations by Funding"
+      panelClassName="chart-panel-top-orgs"
+      data={topOrgsChartData as unknown as Array<Record<string, unknown>>}
+      dataKey="total_funding"
+      labelKey="short_label"
+      tooltipLabelKey="full_label"
+      layout="horizontal"
+      formatter={formatDollars}
+      fillHeight={hasIcFilter}
+      {...(hasIcFilter
+        ? {
+            xAxisHeight: 48,
+            xAxisAngle: -35,
+            xAxisFontSize: 9,
+            yAxisWidth: 56,
+            chartMargin: { top: 6, right: 8, bottom: 2, left: 3 },
+          }
+        : {})}
+    />
+  );
+
+  const activityPiePanel = (
+    <ActivityFundingPiePanel
+      title="Funding by Activity Code"
+      pie={activityPie}
+      formatDollars={formatDollars}
+    />
+  );
+
   return (
     <div className={`dashboard${refreshing ? " dashboard--refreshing" : ""}`}>
       <Filters
@@ -431,9 +515,21 @@ export default function Dashboard({ onSearchNavigate }: DashboardProps) {
         <KpiCard label="Avg Grant" value={formatDollars(avgGrantValue)} />
       </div>
 
-      {/* State map + IC bar chart */}
-      <div className="dashboard-grid-2">
-        <StateMap data={stateData} />
+      {/* State map (+ IC-filter charts) + IC bar chart — aligned to KPI 3-column grid */}
+      <div className={`dashboard-grid-2${hasIcFilter ? " dashboard-grid-2--ic-filter" : ""}`}>
+        <div ref={mapMeasureRef} className="dashboard-grid-2-map-measure">
+          <StateMap data={stateData} onStateSelect={handleMapStateSelect} />
+        </div>
+        {hasIcFilter && (
+          <>
+            <div className="dashboard-grid-2-orgs" style={icFilterSlotStyle}>
+              {topOrgsPanel}
+            </div>
+            <div className="dashboard-grid-2-pie" style={icFilterSlotStyle}>
+              {activityPiePanel}
+            </div>
+          </>
+        )}
         <div className="dashboard-ic-chart-scroll">
           <BarChartPanel
             title="Projects by Institute (IC)"
@@ -442,15 +538,17 @@ export default function Dashboard({ onSearchNavigate }: DashboardProps) {
               <div className="chart-scale-toggle" role="group" aria-label="Count axis scale">
                 <button
                   type="button"
-                  className={icProjectsLogScale ? "" : "active"}
+                  className={icProjectsUseLogScale ? "" : "active"}
                   onClick={() => setIcProjectsLogScale(false)}
                 >
                   Linear
                 </button>
                 <button
                   type="button"
-                  className={icProjectsLogScale ? "active" : ""}
+                  className={icProjectsUseLogScale ? "active" : ""}
                   onClick={() => setIcProjectsLogScale(true)}
+                  disabled={hasActiveFilters}
+                  title={hasActiveFilters ? "Log scale is only available with no filters applied" : undefined}
                 >
                   Log
                 </button>
@@ -471,8 +569,8 @@ export default function Dashboard({ onSearchNavigate }: DashboardProps) {
             barCategoryGap="10%"
             maxBarSize={30}
             barAnimation="vertical"
-            barAnimationSnapKey={icProjectsLogScale ? "hybrid-log" : "linear"}
-            {...(icProjectsLogScale
+            barAnimationSnapKey={icProjectsUseLogScale ? "hybrid-log" : "linear"}
+            {...(icProjectsUseLogScale
               ? {
                   valueTransform: (value: number) =>
                     icProjectsValueToPlot(value, icChartLinearMax),
@@ -492,13 +590,9 @@ export default function Dashboard({ onSearchNavigate }: DashboardProps) {
       </div>
 
       {/* Project term themes (word cloud) + funding by activity code (pie) */}
-      <div className="dashboard-term-themes-pie-row">
+      <div className={`dashboard-term-themes-pie-row${hasIcFilter ? " dashboard-term-themes-pie-row--solo" : ""}`}>
         <ProjectTermsThemeCloud payload={termThemeCloud} />
-        <ActivityFundingPiePanel
-          title="Funding by Activity Code"
-          pie={activityPie}
-          formatDollars={formatDollars}
-        />
+        {!hasIcFilter && activityPiePanel}
       </div>
 
       <div className="dashboard-grid-3">
@@ -509,16 +603,7 @@ export default function Dashboard({ onSearchNavigate }: DashboardProps) {
           height={300}
           formatter={formatDollars}
         />
-        <BarChartPanel
-          title="Top Organizations by Funding"
-          panelClassName="chart-panel-top-orgs"
-          data={topOrgsChartData as unknown as Array<Record<string, unknown>>}
-          dataKey="total_funding"
-          labelKey="short_label"
-          tooltipLabelKey="full_label"
-          layout="horizontal"
-          formatter={formatDollars}
-        />
+        {!hasIcFilter && topOrgsPanel}
         <BarChartPanel
           title="Average Grant by Institute (IC)"
           panelClassName="chart-panel-avg-grant"

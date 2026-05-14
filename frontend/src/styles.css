@@ -1729,15 +1729,80 @@ button.filter-select-trigger {
 
 .dashboard-grid-2 {
   display: grid;
-  grid-template-columns: minmax(0, 1fr) minmax(0, 2fr);
-  gap: 0.85rem;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  gap: 0.75rem;
   width: 100%;
   max-width: 100%;
   min-width: 0;
 }
 
-.dashboard-grid-2 > .dashboard-ic-chart-scroll {
+.dashboard-grid-2 > .dashboard-grid-2-map-measure {
+  grid-column: 1;
+  grid-row: 1;
   align-self: start;
+  min-width: 0;
+}
+
+.dashboard-grid-2 > .dashboard-ic-chart-scroll {
+  grid-column: 2 / -1;
+  grid-row: 1;
+  align-self: start;
+  min-width: 0;
+}
+
+.dashboard-grid-2--ic-filter > .dashboard-grid-2-orgs {
+  grid-column: 2;
+  grid-row: 1;
+  align-self: start;
+  min-width: 0;
+}
+
+.dashboard-grid-2--ic-filter > .dashboard-grid-2-pie {
+  grid-column: 3;
+  grid-row: 1;
+  align-self: start;
+  min-width: 0;
+}
+
+.dashboard-grid-2--ic-filter > .dashboard-grid-2-orgs,
+.dashboard-grid-2--ic-filter > .dashboard-grid-2-pie {
+  overflow: hidden;
+}
+
+.dashboard-grid-2--ic-filter > .dashboard-grid-2-orgs > .chart-panel,
+.dashboard-grid-2--ic-filter > .dashboard-grid-2-pie > .chart-panel {
+  height: 100%;
+  max-height: 100%;
+  min-height: 0;
+  overflow: hidden;
+}
+
+.dashboard-grid-2--ic-filter > .dashboard-grid-2-orgs > .chart-panel-top-orgs {
+  min-height: 0;
+  display: flex;
+  flex-direction: column;
+}
+
+.dashboard-grid-2--ic-filter > .dashboard-grid-2-orgs > .chart-panel-top-orgs .chart-panel-chart-body {
+  flex: 1;
+  min-height: 0;
+}
+
+.chart-panel--fill-height {
+  display: flex;
+  flex-direction: column;
+  min-height: 0;
+  height: 100%;
+}
+
+.chart-panel--fill-height .chart-panel-chart-body {
+  flex: 1;
+  min-height: 0;
+}
+
+.dashboard-grid-2--ic-filter > .dashboard-ic-chart-scroll {
+  grid-column: 2 / -1;
+  grid-row: 2;
 }
 
 .dashboard-ic-chart-scroll {
@@ -1879,6 +1944,10 @@ button.filter-select-trigger {
   width: 100%;
 }
 
+.dashboard-term-themes-pie-row--solo {
+  grid-template-columns: 1fr;
+}
+
 .dashboard-grid-3 {
   display: grid;
   grid-template-columns: repeat(2, minmax(0, 1fr));
@@ -1892,6 +1961,14 @@ button.filter-select-trigger {
 @media (max-width: 768px) {
   .dashboard-grid-2 {
     grid-template-columns: 1fr;
+  }
+
+  .dashboard-grid-2 > .dashboard-grid-2-map-measure,
+  .dashboard-grid-2 > .dashboard-ic-chart-scroll,
+  .dashboard-grid-2--ic-filter > .dashboard-grid-2-orgs,
+  .dashboard-grid-2--ic-filter > .dashboard-grid-2-pie {
+    grid-column: auto;
+    grid-row: auto;
   }
 
   .dashboard-grid-3 {

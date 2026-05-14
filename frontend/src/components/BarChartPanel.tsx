@@ -1,4 +1,4 @@
-import type { ReactNode } from "react";
+import { useEffect, useRef, useState, type ReactNode } from "react";
 import {
   Bar,
   BarChart,
@@ -80,6 +80,8 @@ interface BarChartPanelProps {
   barAnimationSnapKey?: string;
   /** Recharts outer margin */
   chartMargin?: { top?: number; right?: number; bottom?: number; left?: number };
+  /** Size the chart area to the remaining panel height (parent must define height) */
+  fillHeight?: boolean;
 }
 
 /**
@@ -122,7 +124,33 @@ export default function BarChartPanel({
   animateBars = true,
   barAnimationSnapKey = "default",
   chartMargin = { top: 4, right: 16, bottom: 24, left: 8 },
+  fillHeight = false,
 }: BarChartPanelProps) {
+  const chartBodyRef = useRef<HTMLDivElement>(null);
+  const [measuredChartHeight, setMeasuredChartHeight] = useState(0);
+
+  useEffect(() => {
+    if (!fillHeight) {
+      setMeasuredChartHeight(0);
+      return;
+    }
+
+    const chartBody = chartBodyRef.current;
+    if (!chartBody) return;
+
+    const updateHeight = (): void => {
+      setMeasuredChartHeight(chartBody.getBoundingClientRect().height);
+    };
+
+    updateHeight();
+
+    const observer = new ResizeObserver(updateHeight);
+    observer.observe(chartBody);
+
+    return () => observer.disconnect();
+  }, [fillHeight, data.length, layout]);
+
+  const chartHeight = fillHeight ? Math.max(measuredChartHeight, 1) : height;
   const renderTooltip = (props: TooltipContentProps<ValueType, NameType>) => {
     if (!props.active || !props.payload?.length) return null;
     const entry = props.payload[0];
@@ -197,8 +225,10 @@ export default function BarChartPanel({
       : undefined);
 
   const panelClass = panelClassName
-    ? `chart-panel ${panelClassName}`
-    : "chart-panel";
+    ? `chart-panel ${panelClassName}${fillHeight ? " chart-panel--fill-height" : ""}`
+    : fillHeight
+      ? "chart-panel chart-panel--fill-height"
+      : "chart-panel";
 
   const useVerticalBarAnimation = barAnimation === "vertical";
   const verticalBarShape = useVerticalBarShapeRenderer(
@@ -223,7 +253,8 @@ export default function BarChartPanel({
       ) : (
         <div className="chart-panel-title">{title}</div>
       )}
-      <ResponsiveContainer width="100%" height={height}>
+      <div ref={fillHeight ? chartBodyRef : undefined} className="chart-panel-chart-body">
+        <ResponsiveContainer width="100%" height={chartHeight}>
         {isVertical ? (
           <BarChart data={chartData} layout="vertical" margin={{ top: 4, right: 16, bottom: 4, left: 8 }}>
             <CartesianGrid strokeDasharray="3 3" horizontal={false} stroke="var(--border)" />
@@ -295,6 +326,7 @@ export default function BarChartPanel({
           </BarChart>
         )}
       </ResponsiveContainer>
+      </div>
     </div>
   );
 }

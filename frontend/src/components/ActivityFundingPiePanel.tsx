@@ -13,17 +13,18 @@ import type { NameType, ValueType } from "recharts/types/component/DefaultToolti
 import type { ActivityFundingPieResponse, ActivityPieSlice } from "../api";
 
 /** Wrapper height so Recharts gets a real box in CSS grid (not the same as ring diameter). */
-const PIE_CHART_HEIGHT_PX = 520;
+//PIE CHART HEIGHT
+const PIE_CHART_HEIGHT_PX = 360;
 
 /**
  * The drawn donut only — SVG pixel radii on `<Pie>`. Tune these to resize the circle itself.
  * Bigger ring: increase both (keep inner < outer). Thicker ring: lower inner or raise outer.
  */
-const PIE_OUTER_RADIUS_PX = 200;
-const PIE_INNER_RADIUS_PX = 76;
+const PIE_OUTER_RADIUS_PX = 180;
+const PIE_INNER_RADIUS_PX = 68;
 
 /** Extra radius when a slice is hovered (pop-out). */
-const PIE_HOVER_POPOUT_PX = 16;
+const PIE_HOVER_POPOUT_PX = 14;
 
 const PIE_COLORS = [
   "#1a56db",
