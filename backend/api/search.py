@@ -252,6 +252,123 @@ def _recurrence_match_query(source: dict[str, object]) -> dict[str, object]:
     )
 
 
+def _search_recurrence_hits(
+    client: object,
+    query: dict[str, object],
+) -> list[dict[str, object]]:
+    response = client.search(
+        index=INDEX_NAME,
+        body={
+            "size": 50,
+            "query": query,
+            "_source": {"includes": ["FY", "APPLICATION_ID", "PROJECT_TITLE", "CORE_PROJECT_NUM"]},
+            "sort": [{"FY": {"order": "asc", "unmapped_type": "long"}}],
+        },
+    )
+    hits = response.get("hits", {}).get("hits", [])
+    return hits if isinstance(hits, list) else []
+
+
+def _hits_to_fiscal_years(
+    hits: list[dict[str, object]],
+    *,
+    project_id: str,
+) -> list[dict[str, object]]:
+    years: list[dict[str, object]] = []
+    for hit in hits:
+        hit_id = hit.get("_id")
+        hit_source = hit.get("_source", {})
+        if not isinstance(hit_source, dict):
+            continue
+        years.append(
+            {
+                "project_id": hit_id,
+                "application_id": hit_source.get("APPLICATION_ID"),
+                "fy": hit_source.get("FY"),
+                "is_current": hit_id == project_id,
+            }
+        )
+    return years
+
+
+def _collect_recurrence_years(
+    client: object,
+    source: dict[str, object],
+    *,
+    project_id: str,
+) -> list[dict[str, object]]:
+    """Find sibling fiscal years; fall back to title match when core only finds one year."""
+    core = _recurrence_core_num(source)
+    title = _recurrence_title(source)
+    if not core and not title:
+        raise HTTPException(
+            status_code=400,
+            detail="Project has no CORE_PROJECT_NUM or PROJECT_TITLE for recurrence lookup.",
+        )
+
+    merged_hits: list[dict[str, object]] = []
+    seen_ids: set[object] = set()
+
+    def absorb(hits: list[dict[str, object]]) -> None:
+        for hit in hits:
+            hit_id = hit.get("_id")
+            if hit_id in seen_ids:
+                continue
+            seen_ids.add(hit_id)
+            merged_hits.append(hit)
+
+    if core:
+        absorb(_search_recurrence_hits(client, {"term": {"CORE_PROJECT_NUM.keyword": core}}))
+
+    years = _dedupe_fiscal_years(
+        _hits_to_fiscal_years(merged_hits, project_id=project_id),
+        current_project_id=project_id,
+    )
+    if len(years) <= 1 and title:
+        absorb(_search_recurrence_hits(client, {"term": {"PROJECT_TITLE.keyword": title}}))
+        years = _dedupe_fiscal_years(
+            _hits_to_fiscal_years(merged_hits, project_id=project_id),
+            current_project_id=project_id,
+        )
+
+    return years
+
+
+def _dedupe_fiscal_years(
+    years: list[dict[str, object]],
+    *,
+    current_project_id: str,
+) -> list[dict[str, object]]:
+    """Return one row per fiscal year; prefer the document the user is viewing."""
+    by_key: dict[object, dict[str, object]] = {}
+    for year in years:
+        fy = year.get("fy")
+        key: object = fy if fy is not None else year.get("project_id")
+        if key is None:
+            continue
+        existing = by_key.get(key)
+        if existing is None:
+            by_key[key] = year
+            continue
+        if year.get("project_id") == current_project_id:
+            by_key[key] = year
+            continue
+        if existing.get("project_id") == current_project_id:
+            continue
+        year_app = year.get("application_id")
+        existing_app = existing.get("application_id")
+        if isinstance(year_app, int) and isinstance(existing_app, int) and year_app < existing_app:
+            by_key[key] = year
+
+    return sorted(
+        by_key.values(),
+        key=lambda item: (
+            item.get("fy") is None,
+            item.get("fy") if isinstance(item.get("fy"), (int, float)) else 0,
+        ),
+    )
+
+
 def _recurrence_must_not(source: dict[str, object]) -> list[dict[str, object]]:
     """Exclude sibling years of the same recurring award from similarity results."""
     clauses: list[dict[str, object]] = []
@@ -264,18 +381,92 @@ def _recurrence_must_not(source: dict[str, object]) -> list[dict[str, object]]:
     return clauses
 
 
+def _normalize_core_num(core: str) -> str:
+    return " ".join(core.split()).casefold()
+
+
+def _normalize_recurrence_title(title: str) -> str:
+    return " ".join(title.split()).casefold()
+
+
 def _recurrence_group_key(record: dict[str, object]) -> str:
     """Stable key for deduplicating recurring awards across fiscal years."""
-    core = _recurrence_core_num(record)
-    if core:
-        return f"core:{core}"
     title = _recurrence_title(record)
     if title:
-        return f"title:{title}"
+        return f"title:{_normalize_recurrence_title(title)}"
+    core = _recurrence_core_num(record)
+    if core:
+        return f"core:{_normalize_core_num(core)}"
     record_id = record.get("_id")
     if record_id is not None:
         return f"id:{record_id}"
     return f"row:{id(record)}"
+
+
+def _append_year_variant(
+    variants: list[dict[str, object]],
+    variant: dict[str, object],
+) -> None:
+    """Add a fiscal-year variant unless that FY or project_id is already present."""
+    project_id = variant.get("project_id")
+    fy = variant.get("fy")
+    for existing in variants:
+        if project_id is not None and existing.get("project_id") == project_id:
+            return
+        if fy is not None and existing.get("fy") == fy:
+            return
+    variants.append(variant)
+
+
+def _merge_similar_group_into(
+    groups: dict[str, dict[str, object]],
+    primary_key: str,
+    other_key: str,
+) -> None:
+    """Merge a duplicate recurrence group into the primary group."""
+    primary = groups[primary_key]
+    other = groups[other_key]
+    primary_variants = primary.get("year_variants")
+    if not isinstance(primary_variants, list):
+        primary_variants = []
+    other_variants = other.get("year_variants")
+    if isinstance(other_variants, list):
+        for variant in other_variants:
+            if isinstance(variant, dict):
+                _append_year_variant(primary_variants, variant)
+    other_score = other.get("_score")
+    primary_score = primary.get("_score")
+    if isinstance(other_score, (int, float)) and (
+        not isinstance(primary_score, (int, float)) or other_score > primary_score
+    ):
+        preserved_variants = primary_variants
+        groups[primary_key] = dict(other)
+        groups[primary_key]["year_variants"] = preserved_variants
+    else:
+        primary["year_variants"] = primary_variants
+    del groups[other_key]
+
+
+def _merge_similar_groups_by_core(
+    groups: dict[str, dict[str, object]],
+    order: list[str],
+) -> tuple[dict[str, dict[str, object]], list[str]]:
+    """Merge groups that share the same core project number but different titles."""
+    core_index: dict[str, str] = {}
+    merged_order: list[str] = []
+    for key in order:
+        if key not in groups:
+            continue
+        grouped = groups[key]
+        core = _recurrence_core_num(grouped)
+        norm_core = _normalize_core_num(core) if core else None
+        if norm_core and norm_core in core_index:
+            _merge_similar_group_into(groups, core_index[norm_core], key)
+            continue
+        if norm_core:
+            core_index[norm_core] = key
+        merged_order.append(key)
+    return groups, merged_order
 
 
 def _group_similar_results(
@@ -306,13 +497,12 @@ def _group_similar_results(
         variants = grouped.get("year_variants")
         if not isinstance(variants, list):
             variants = []
-        variant_ids = {
+        if variant.get("project_id") not in {
             item.get("project_id")
             for item in variants
             if isinstance(item, dict) and item.get("project_id") is not None
-        }
-        if variant.get("project_id") not in variant_ids:
-            variants.append(variant)
+        }:
+            _append_year_variant(variants, variant)
         grouped["year_variants"] = variants
 
         record_score = record.get("_score")
@@ -323,6 +513,8 @@ def _group_similar_results(
             preserved_variants = grouped["year_variants"]
             groups[key] = dict(record)
             groups[key]["year_variants"] = preserved_variants
+
+    groups, order = _merge_similar_groups_by_core(groups, order)
 
     grouped_results: list[dict[str, object]] = []
     for key in order[:limit]:
@@ -359,31 +551,7 @@ def get_project_other_years(
     if not isinstance(source, dict):
         source = {}
 
-    response = client.search(
-        index=INDEX_NAME,
-        body={
-            "size": 50,
-            "query": _recurrence_match_query(source),
-            "_source": {"includes": ["FY", "APPLICATION_ID", "PROJECT_TITLE", "CORE_PROJECT_NUM"]},
-            "sort": [{"FY": {"order": "asc", "unmapped_type": "long"}}],
-        },
-    )
-    hits = response.get("hits", {}).get("hits", [])
-    years: list[dict[str, object]] = []
-    for hit in hits:
-        hit_id = hit.get("_id")
-        hit_source = hit.get("_source", {})
-        if not isinstance(hit_source, dict):
-            continue
-        fy = hit_source.get("FY")
-        years.append(
-            {
-                "project_id": hit_id,
-                "application_id": hit_source.get("APPLICATION_ID"),
-                "fy": fy,
-                "is_current": hit_id == project_id,
-            }
-        )
+    years = _collect_recurrence_years(client, source, project_id=project_id)
 
     return {
         "project_id": project_id,
