@@ -56,6 +56,7 @@ export default function App() {
 
   const [view, setView] = useState<View>("search");
   const [query, setQuery] = useState("");
+  const [projectTermFilters, setProjectTermFilters] = useState<string[]>([]);
   const [results, setResults] = useState<SearchResultRecord[]>([]);
   const [loading, setLoading] = useState(false);
 
@@ -199,6 +200,7 @@ export default function App() {
           state,
           fyMin: fyMinValue,
           fyMax: fyMaxValue,
+          projectTerms: projectTermFilters,
         });
         setResults(payload.results ?? []);
         setTotal(payload.total ?? 0);
@@ -207,7 +209,7 @@ export default function App() {
         setLoading(false);
       }
     },
-    [],
+    [projectTermFilters],
   );
 
   useEffect(() => {
@@ -223,6 +225,7 @@ export default function App() {
     void runSearch(query, currentPage, resultsPerPage);
   }, [
     query,
+    projectTermFilters,
     currentPage,
     resultsPerPage,
     runSearch,
@@ -274,6 +277,7 @@ export default function App() {
 
   const handleSearch = (nextQuery: string) => {
     setQuery(nextQuery);
+    setProjectTermFilters([]);
     setCurrentPage(1);
   };
 
@@ -301,6 +305,7 @@ export default function App() {
     setSelectedState("");
     setFyMin("");
     setFyMax("");
+    setProjectTermFilters([]);
     setCurrentPage(1);
   };
 
@@ -321,6 +326,18 @@ export default function App() {
       setFyMin(filters.fyMin);
       setFyMax(filters.fyMax);
       setQuery(searchQuery);
+      setProjectTermFilters([]);
+      setCurrentPage(1);
+      setView("search");
+      navigate("/");
+    },
+    [navigate],
+  );
+
+  const handleSearchFromProjectTerms = useCallback(
+    (payload: { terms: string[]; additionalQuery: string }) => {
+      setProjectTermFilters(payload.terms);
+      setQuery(payload.additionalQuery.trim());
       setCurrentPage(1);
       setView("search");
       navigate("/");
@@ -588,6 +605,7 @@ export default function App() {
               onBack={() => navigate("/")}
               onOpenInvestigator={handleOpenInvestigator}
               onOpenDetails={handleOpenDetails}
+              onSearchWithProjectTerms={handleSearchFromProjectTerms}
             />
           ) : (
             <div className="empty-state" role="status" aria-live="polite">
@@ -650,6 +668,9 @@ export default function App() {
                     <strong>{visibleTotal.toLocaleString()}</strong> results
                     {total > visibleTotal ? ` out of ${total.toLocaleString()}` : ""}
                     {query ? ` for "${query}"` : ""}
+                    {projectTermFilters.length > 0
+                      ? ` — matching project terms: ${projectTermFilters.join("; ")}`
+                      : ""}
                     {currentPage > 1 ? ` — page ${currentPage} of ${totalPages}` : ""}
                   </span>
                 )}
