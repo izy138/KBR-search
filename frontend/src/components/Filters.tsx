@@ -1,9 +1,219 @@
-import React, { useEffect, useState } from "react";
+import React, { useCallback, useEffect, useId, useLayoutEffect, useMemo, useRef, useState } from "react";
+import { createPortal } from "react-dom";
+
+type FilterSelectOption = {
+  value: string;
+  label: string;
+};
+
+type FilterSelectProps = {
+  value: string;
+  onChange: (value: string) => void;
+  options: readonly FilterSelectOption[];
+  placeholder: string;
+  ariaLabel?: string;
+  /** When set, menu is at least this wide (px) so long labels stay readable. */
+  menuMinWidthPx?: number;
+};
+
+const FilterSelect: React.FC<FilterSelectProps> = ({
+  value,
+  onChange,
+  options,
+  placeholder,
+  ariaLabel,
+  menuMinWidthPx,
+}) => {
+  const baseId = useId();
+  const listboxId = `${baseId}-listbox`;
+  const rootRef = useRef<HTMLDivElement>(null);
+  const triggerRef = useRef<HTMLButtonElement>(null);
+  const panelOuterRef = useRef<HTMLDivElement>(null);
+  const listRef = useRef<HTMLDivElement>(null);
+
+  const [open, setOpen] = useState(false);
+  const [coords, setCoords] = useState({ top: 0, left: 0, width: 0 });
+  const [highlightIndex, setHighlightIndex] = useState(0);
+
+  const flatOptions = useMemo(
+    (): readonly FilterSelectOption[] => [{ value: "", label: placeholder }, ...options],
+    [placeholder, options],
+  );
+
+  const selectedLabel =
+    flatOptions.find((o) => o.value === value)?.label ?? placeholder;
+
+  const updatePosition = useCallback(() => {
+    const el = triggerRef.current;
+    if (!el) return;
+    const r = el.getBoundingClientRect();
+    const triggerW = r.width;
+    const width =
+      menuMinWidthPx != null && menuMinWidthPx > 0
+        ? Math.max(triggerW, menuMinWidthPx)
+        : triggerW;
+    const left = Math.min(Math.max(8, r.left), Math.max(8, window.innerWidth - width - 8));
+    setCoords({ top: r.bottom + 4, left, width });
+  }, [menuMinWidthPx]);
+
+  useLayoutEffect(() => {
+    if (!open) return;
+    const idx = Math.max(0, flatOptions.findIndex((o) => o.value === value));
+    setHighlightIndex(idx);
+    updatePosition();
+  }, [open, value, flatOptions, updatePosition]);
+
+  useLayoutEffect(() => {
+    if (!open) return;
+    const onReposition = () => {
+      updatePosition();
+    };
+    window.addEventListener("resize", onReposition);
+    window.addEventListener("scroll", onReposition, true);
+    return () => {
+      window.removeEventListener("resize", onReposition);
+      window.removeEventListener("scroll", onReposition, true);
+    };
+  }, [open, updatePosition]);
+
+  useEffect(() => {
+    if (!open) return;
+    const onPointerDown = (e: MouseEvent) => {
+      const t = e.target as Node;
+      if (rootRef.current?.contains(t) || panelOuterRef.current?.contains(t)) return;
+      setOpen(false);
+    };
+    document.addEventListener("mousedown", onPointerDown);
+    return () => document.removeEventListener("mousedown", onPointerDown);
+  }, [open]);
+
+  useEffect(() => {
+    if (!open) return;
+    const onKey = (e: KeyboardEvent) => {
+      if (e.key === "Escape") {
+        e.preventDefault();
+        setOpen(false);
+        triggerRef.current?.focus();
+        return;
+      }
+      if (e.key === "ArrowDown") {
+        e.preventDefault();
+        setHighlightIndex((i) => Math.min(flatOptions.length - 1, i + 1));
+        return;
+      }
+      if (e.key === "ArrowUp") {
+        e.preventDefault();
+        setHighlightIndex((i) => Math.max(0, i - 1));
+        return;
+      }
+      if (e.key === "Home") {
+        e.preventDefault();
+        setHighlightIndex(0);
+        return;
+      }
+      if (e.key === "End") {
+        e.preventDefault();
+        setHighlightIndex(flatOptions.length - 1);
+        return;
+      }
+      if (e.key === "Enter") {
+        e.preventDefault();
+        const opt = flatOptions[highlightIndex];
+        if (opt) onChange(opt.value);
+        setOpen(false);
+        triggerRef.current?.focus();
+      }
+    };
+    window.addEventListener("keydown", onKey);
+    return () => window.removeEventListener("keydown", onKey);
+  }, [open, flatOptions, highlightIndex, onChange]);
+
+  useLayoutEffect(() => {
+    if (!open || !listRef.current) return;
+    const row = listRef.current.querySelector<HTMLElement>(`[data-option-index="${highlightIndex}"]`);
+    row?.scrollIntoView({ block: "nearest" });
+  }, [open, highlightIndex]);
+
+  const maxPanelHeight = Math.min(
+    window.innerHeight * 0.5,
+    Math.max(120, window.innerHeight - coords.top - 12),
+  );
+
+  const panel =
+    open &&
+    createPortal(
+      <div
+        ref={panelOuterRef}
+        className="filter-select-portal"
+        style={{ top: coords.top, left: coords.left, width: coords.width }}
+      >
+        <div
+          id={listboxId}
+          ref={listRef}
+          className="filter-select-panel"
+          role="listbox"
+          style={{ maxHeight: maxPanelHeight }}
+        >
+          {flatOptions.map((opt, index) => {
+            const isSelected = opt.value === value;
+            const isActive = index === highlightIndex;
+            return (
+              <button
+                key={opt.value === "" ? "__all__" : opt.value}
+                type="button"
+                role="option"
+                data-option-index={index}
+                aria-selected={isSelected}
+                className={
+                  isActive
+                    ? "filter-select-option filter-select-option--active"
+                    : "filter-select-option"
+                }
+                onMouseEnter={() => setHighlightIndex(index)}
+                title={opt.label}
+                onClick={() => {
+                  onChange(opt.value);
+                  setOpen(false);
+                  triggerRef.current?.focus();
+                }}
+              >
+                {opt.label}
+              </button>
+            );
+          })}
+        </div>
+      </div>,
+      document.body,
+    );
+
+  return (
+    <div ref={rootRef} className="filter-select-root">
+      <button
+        ref={triggerRef}
+        type="button"
+        className="sidebar-select filter-select-trigger"
+        aria-haspopup="listbox"
+        aria-expanded={open}
+        aria-controls={listboxId}
+        aria-label={ariaLabel}
+        title={selectedLabel}
+        onClick={() => {
+          setOpen((o) => !o);
+        }}
+      >
+        <span className="filter-select-trigger-label">{selectedLabel}</span>
+      </button>
+      {panel}
+    </div>
+  );
+};
 
 type FiltersProps = {
   icNames: string[];
   activityCodes: string[];
   states: string[];
+  /** When set (e.g. from dashboard year aggregates), FY dropdowns use these values. */
+  fiscalYearOptions?: number[];
   selectedPI: string;
   selectedIC: string;
   selectedActivity: string;
@@ -44,10 +254,14 @@ const formatDropdownLabel = (value: string): string => {
 
 const formatAllCapsLabel = (value: string): string => value.trim().toUpperCase();
 
+/** Default FY choices when parent does not pass `fiscalYearOptions` (e.g. search view). */
+const DEFAULT_FISCAL_YEAR_OPTIONS: readonly number[] = [2020, 2021, 2022, 2023, 2024, 2025];
+
 const Filters: React.FC<FiltersProps> = ({
   icNames,
   activityCodes,
   states,
+  fiscalYearOptions,
   selectedPI,
   selectedIC,
   selectedActivity,
@@ -57,6 +271,33 @@ const Filters: React.FC<FiltersProps> = ({
   onApply,
   onClear,
 }) => {
+  const fyChoices = useMemo(() => {
+    if (fiscalYearOptions && fiscalYearOptions.length > 0) {
+      return [...new Set(fiscalYearOptions)].sort((a, b) => a - b);
+    }
+    return [...DEFAULT_FISCAL_YEAR_OPTIONS];
+  }, [fiscalYearOptions]);
+
+  const icSelectOptions = useMemo(
+    () => icNames.map((ic) => ({ value: ic, label: formatDropdownLabel(ic) })),
+    [icNames],
+  );
+
+  const activitySelectOptions = useMemo(
+    () => activityCodes.map((code) => ({ value: code, label: formatAllCapsLabel(code) })),
+    [activityCodes],
+  );
+
+  const stateSelectOptions = useMemo(
+    () => states.map((s) => ({ value: s, label: formatAllCapsLabel(s) })),
+    [states],
+  );
+
+  const fySelectOptions = useMemo(
+    () => fyChoices.map((y) => ({ value: String(y), label: String(y) })),
+    [fyChoices],
+  );
+
   const [localPI, setLocalPI] = useState(selectedPI);
   const [localIC, setLocalIC] = useState(selectedIC);
   const [localActivity, setLocalActivity] = useState(selectedActivity);
@@ -76,13 +317,21 @@ const Filters: React.FC<FiltersProps> = ({
   const hasFilters = localPI || localIC || localActivity || localState || localFyMin || localFyMax;
 
   const handleApply = () => {
+    let nextFyMin = localFyMin;
+    let nextFyMax = localFyMax;
+    const nMin = nextFyMin ? Number.parseInt(nextFyMin, 10) : Number.NaN;
+    const nMax = nextFyMax ? Number.parseInt(nextFyMax, 10) : Number.NaN;
+    if (Number.isFinite(nMin) && Number.isFinite(nMax) && nMin > nMax) {
+      nextFyMin = String(nMax);
+      nextFyMax = String(nMin);
+    }
     onApply({
       pi: localPI,
       ic: localIC,
       activity: localActivity,
       state: localState,
-      fyMin: localFyMin,
-      fyMax: localFyMax,
+      fyMin: nextFyMin,
+      fyMax: nextFyMax,
     });
   };
 
@@ -115,66 +364,53 @@ const Filters: React.FC<FiltersProps> = ({
         />
       </div>
 
-      <div className="sidebar-section">
+      <div className="sidebar-section sidebar-section--ic">
         <div className="sidebar-label">NIH Institute / Center</div>
-        <select
-          className="sidebar-select"
+        <FilterSelect
           value={localIC}
-          onChange={(e) => setLocalIC(e.target.value)}
-        >
-          <option value="">All Institutes</option>
-          {icNames.map((ic) => (
-            <option key={ic} value={ic}>{formatDropdownLabel(ic)}</option>
-          ))}
-        </select>
+          onChange={setLocalIC}
+          options={icSelectOptions}
+          placeholder="All Institutes"
+          menuMinWidthPx={300}
+        />
       </div>
 
       <div className="sidebar-section">
         <div className="sidebar-label">Activity Code</div>
-        <select
-          className="sidebar-select"
+        <FilterSelect
           value={localActivity}
-          onChange={(e) => setLocalActivity(e.target.value)}
-        >
-          <option value="">All Codes</option>
-          {activityCodes.map((code) => (
-            <option key={code} value={code}>{formatAllCapsLabel(code)}</option>
-          ))}
-        </select>
+          onChange={setLocalActivity}
+          options={activitySelectOptions}
+          placeholder="All Codes"
+        />
       </div>
 
       <div className="sidebar-section">
         <div className="sidebar-label">State</div>
-        <select
-          className="sidebar-select"
+        <FilterSelect
           value={localState}
-          onChange={(e) => setLocalState(e.target.value)}
-        >
-          <option value="">All States</option>
-          {states.map((s) => (
-            <option key={s} value={s}>{formatAllCapsLabel(s)}</option>
-          ))}
-        </select>
+          onChange={setLocalState}
+          options={stateSelectOptions}
+          placeholder="All States"
+        />
       </div>
 
-      <div className="sidebar-section">
+      <div className="sidebar-section sidebar-section--fy">
         <div className="sidebar-label">Fiscal Year</div>
-        <div className="sidebar-range-row">
-          <input
-            type="number"
-            placeholder="From"
+        <div className="sidebar-range-row sidebar-range-row--fiscal">
+          <FilterSelect
+            ariaLabel="Fiscal year from"
             value={localFyMin}
-            onChange={(e) => setLocalFyMin(e.target.value)}
-            min="1990"
-            max="2030"
+            onChange={setLocalFyMin}
+            options={fySelectOptions}
+            placeholder="Any"
           />
-          <input
-            type="number"
-            placeholder="To"
+          <FilterSelect
+            ariaLabel="Fiscal year to"
             value={localFyMax}
-            onChange={(e) => setLocalFyMax(e.target.value)}
-            min="1990"
-            max="2030"
+            onChange={setLocalFyMax}
+            options={fySelectOptions}
+            placeholder="Any"
           />
         </div>
       </div>
