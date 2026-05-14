@@ -3,6 +3,7 @@ import { useNavigate } from "react-router-dom";
 import type { ProjectFiscalYear, ProjectYearVariant, SearchResultRecord } from "../api";
 import { getProjectOtherYears, searchSimilarToProjectId } from "../api";
 import { getOrderedPiNames } from "../utils/piNames";
+import { groupSimilarNeighbors } from "../utils/recurrenceGrouping";
 import ProjectActivityTermsChart from "./ProjectActivityTermsChart";
 
 type ProjectDetailsPageProps = {
@@ -100,24 +101,56 @@ function getProjectAbstract(item: SearchResultRecord): string | null {
 function getYearVariants(record: SearchResultRecord): ProjectYearVariant[] {
   const raw = record.year_variants;
   if (Array.isArray(raw)) {
-    return raw.filter(
-      (item): item is ProjectYearVariant =>
-        item != null &&
-        typeof item === "object" &&
-        typeof (item as ProjectYearVariant).project_id === "string",
-    );
+    const fromArray = raw
+      .map((item) => {
+        if (item == null || typeof item !== "object") return null;
+        const row = item as Record<string, unknown>;
+        const projectId =
+          typeof row.project_id === "string" && row.project_id.trim()
+            ? row.project_id
+            : typeof row.project_id === "number"
+              ? String(row.project_id)
+              : null;
+        if (!projectId) return null;
+        const fyRaw = row.fy;
+        const fy =
+          typeof fyRaw === "number" && Number.isFinite(fyRaw)
+            ? fyRaw
+            : typeof fyRaw === "string" && fyRaw.trim() && Number.isFinite(Number(fyRaw))
+              ? Number(fyRaw)
+              : undefined;
+        return {
+          project_id: projectId,
+          fy,
+          application_id:
+            typeof row.application_id === "number" ? row.application_id : undefined,
+        } satisfies ProjectYearVariant;
+      })
+      .filter((item): item is ProjectYearVariant => item != null);
+    if (fromArray.length > 0) return fromArray;
   }
   const recordId = record._id ?? record.id;
-  if (typeof recordId === "string") {
-    return [
-      {
-        project_id: recordId,
-        fy: typeof record.FY === "number" ? record.FY : undefined,
-        application_id: typeof record.APPLICATION_ID === "number" ? record.APPLICATION_ID : undefined,
-      },
-    ];
-  }
-  return [];
+  const projectId =
+    typeof recordId === "string" && recordId.trim()
+      ? recordId
+      : typeof recordId === "number"
+        ? String(recordId)
+        : null;
+  if (!projectId) return [];
+  const fy =
+    typeof record.FY === "number" && Number.isFinite(record.FY)
+      ? record.FY
+      : typeof record.FY === "string" && record.FY.trim() && Number.isFinite(Number(record.FY))
+        ? Number(record.FY)
+        : undefined;
+  return [
+    {
+      project_id: projectId,
+      fy,
+      application_id:
+        typeof record.APPLICATION_ID === "number" ? record.APPLICATION_ID : undefined,
+    },
+  ];
 }
 
 export default function ProjectDetailsPage({
@@ -142,6 +175,10 @@ export default function ProjectDetailsPage({
   const displayProjectYears = useMemo(
     () => dedupeFiscalYears(projectYears, projectId),
     [projectYears, projectId],
+  );
+  const groupedSimilarNeighbors = useMemo(
+    () => groupSimilarNeighbors(similarNeighbors),
+    [similarNeighbors],
   );
   const isLongAbstract =
     projectAbstract != null && projectAbstract.length > ABSTRACT_PREVIEW_LENGTH;
@@ -419,11 +456,11 @@ export default function ProjectDetailsPage({
             </p>
           ) : null}
         </div>
-      ) : similarNeighbors.length === 0 ? (
+      ) : groupedSimilarNeighbors.length === 0 ? (
         <p className="project-details-similar-muted">No similar projects returned.</p>
       ) : (
         <ol className="project-details-similar-list">
-          {similarNeighbors.map((neighbor, index) => {
+          {groupedSimilarNeighbors.map((neighbor, index) => {
             const yearVariants = dedupeYearVariants(getYearVariants(neighbor));
             const listKey = yearVariants.map((variant) => variant.project_id).join("-") || String(index);
             const primaryId = yearVariants[0]?.project_id ?? neighbor._id ?? neighbor.id ?? "";

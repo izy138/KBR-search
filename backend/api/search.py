@@ -260,18 +260,92 @@ def _recurrence_must_not(source: dict[str, object]) -> list[dict[str, object]]:
     return clauses
 
 
+def _normalize_core_num(core: str) -> str:
+    return " ".join(core.split()).casefold()
+
+
+def _normalize_recurrence_title(title: str) -> str:
+    return " ".join(title.split()).casefold()
+
+
 def _recurrence_group_key(record: dict[str, object]) -> str:
     """Stable key for deduplicating recurring awards across fiscal years."""
-    core = _recurrence_core_num(record)
-    if core:
-        return f"core:{core}"
     title = _recurrence_title(record)
     if title:
-        return f"title:{title}"
+        return f"title:{_normalize_recurrence_title(title)}"
+    core = _recurrence_core_num(record)
+    if core:
+        return f"core:{_normalize_core_num(core)}"
     record_id = record.get("_id")
     if record_id is not None:
         return f"id:{record_id}"
     return f"row:{id(record)}"
+
+
+def _append_year_variant(
+    variants: list[dict[str, object]],
+    variant: dict[str, object],
+) -> None:
+    """Add a fiscal-year variant unless that FY or project_id is already present."""
+    project_id = variant.get("project_id")
+    fy = variant.get("fy")
+    for existing in variants:
+        if project_id is not None and existing.get("project_id") == project_id:
+            return
+        if fy is not None and existing.get("fy") == fy:
+            return
+    variants.append(variant)
+
+
+def _merge_similar_group_into(
+    groups: dict[str, dict[str, object]],
+    primary_key: str,
+    other_key: str,
+) -> None:
+    """Merge a duplicate recurrence group into the primary group."""
+    primary = groups[primary_key]
+    other = groups[other_key]
+    primary_variants = primary.get("year_variants")
+    if not isinstance(primary_variants, list):
+        primary_variants = []
+    other_variants = other.get("year_variants")
+    if isinstance(other_variants, list):
+        for variant in other_variants:
+            if isinstance(variant, dict):
+                _append_year_variant(primary_variants, variant)
+    other_score = other.get("_score")
+    primary_score = primary.get("_score")
+    if isinstance(other_score, (int, float)) and (
+        not isinstance(primary_score, (int, float)) or other_score > primary_score
+    ):
+        preserved_variants = primary_variants
+        groups[primary_key] = dict(other)
+        groups[primary_key]["year_variants"] = preserved_variants
+    else:
+        primary["year_variants"] = primary_variants
+    del groups[other_key]
+
+
+def _merge_similar_groups_by_core(
+    groups: dict[str, dict[str, object]],
+    order: list[str],
+) -> tuple[dict[str, dict[str, object]], list[str]]:
+    """Merge groups that share the same core project number but different titles."""
+    core_index: dict[str, str] = {}
+    merged_order: list[str] = []
+    for key in order:
+        if key not in groups:
+            continue
+        grouped = groups[key]
+        core = _recurrence_core_num(grouped)
+        norm_core = _normalize_core_num(core) if core else None
+        if norm_core and norm_core in core_index:
+            _merge_similar_group_into(groups, core_index[norm_core], key)
+            continue
+        if norm_core:
+            core_index[norm_core] = key
+        merged_order.append(key)
+    return groups, merged_order
 
 
 def _group_similar_results(
@@ -302,13 +376,12 @@ def _group_similar_results(
         variants = grouped.get("year_variants")
         if not isinstance(variants, list):
             variants = []
-        variant_ids = {
+        if variant.get("project_id") not in {
             item.get("project_id")
             for item in variants
             if isinstance(item, dict) and item.get("project_id") is not None
-        }
-        if variant.get("project_id") not in variant_ids:
-            variants.append(variant)
+        }:
+            _append_year_variant(variants, variant)
         grouped["year_variants"] = variants
 
         record_score = record.get("_score")
@@ -319,6 +392,8 @@ def _group_similar_results(
             preserved_variants = grouped["year_variants"]
             groups[key] = dict(record)
             groups[key]["year_variants"] = preserved_variants
+
+    groups, order = _merge_similar_groups_by_core(groups, order)
 
     grouped_results: list[dict[str, object]] = []
     for key in order[:limit]:

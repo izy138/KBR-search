@@ -1,6 +1,7 @@
 import { useEffect, useState } from "react";
 import type { SearchResultRecord } from "../api";
 import { getProjectById, searchSimilarToProjectId } from "../api";
+import { groupSimilarNeighbors } from "../utils/recurrenceGrouping";
 import ResultsList from "./ResultsList";
 
 type SemanticSimilarProjectPageProps = {
@@ -59,7 +60,7 @@ export default function SemanticSimilarProjectPage({
       }
 
       if (similarOutcome.status === "fulfilled") {
-        setNeighbors(similarOutcome.value.results ?? []);
+        setNeighbors(groupSimilarNeighbors(similarOutcome.value.results ?? []));
       } else {
         const reason = similarOutcome.reason;
         const msg = reason instanceof Error ? reason.message : "Similarity search failed.";
