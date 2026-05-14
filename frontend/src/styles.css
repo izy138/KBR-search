@@ -1711,6 +1711,11 @@ button.filter-select-trigger {
   gap: 0;
 }
 
+.dashboard--refreshing {
+  opacity: 0.72;
+  transition: opacity 0.2s ease;
+}
+
 .dashboard-search-section {
   display: flex;
   justify-content: stretch;

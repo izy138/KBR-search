@@ -21,9 +21,12 @@ const PR_GEO_URL =
 /** Project-count thresholds for choropleth buckets */
 const COUNT_THRESHOLDS = [1000, 5000, 10000, 20000, 30000, 40000, 50000] as const;
 
-/** Eight-step choropleth — mint → navy */
+/** Fill for states with zero projects (or no data in the filtered set). */
+const ZERO_COUNT_FILL = "#e8ffea";
+
+/** Eight-step choropleth — mint → navy (non-zero counts only) */
 const MAP_COLOR_STOPS = [
-  "#c0f0c4", // 0–1k #88c292 #7DB888
+  "#c0f0c4", // 1–1k
   "#9ce6a7", // 1k–5k — medium green
   "#72d497", // 5k–10k — clear teal shift #3A9EAA
   "#3eb896", //10k–20k
@@ -165,7 +168,7 @@ export default function StateMap({ data }: StateMapProps) {
 
   const getFill = (geoName: string): string => {
     const point = stateByName.get(geoName);
-    if (!point) return MAP_COLOR_STOPS[0];
+    if (!point || point.count === 0) return ZERO_COUNT_FILL;
     return colorScale(point.count);
   };
 

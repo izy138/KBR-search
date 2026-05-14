@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useState } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
 import {
   getActivityData,
   getActivityFundingPie,
@@ -13,6 +13,7 @@ import {
 import type {
   ActivityDataPoint,
   ActivityFundingPieResponse,
+  AnalyticsFilterOptions,
   AvgGrantDataPoint,
   DashboardSummary,
   IcDataPoint,
@@ -23,7 +24,7 @@ import type {
 } from "../api";
 import ActivityFundingPiePanel from "./ActivityFundingPiePanel";
 import BarChartPanel from "./BarChartPanel";
-import Filters from "./Filters";
+import Filters, { type FiltersHandle } from "./Filters";
 import LineChartPanel from "./LineChartPanel";
 import ProjectTermsThemeCloud from "./ProjectTermsThemeCloud";
 import SearchBar from "./SearchBar";
@@ -153,6 +154,19 @@ interface DashboardData {
   avgGrant: AvgGrantDataPoint[];
 }
 
+export type DashboardSearchFilters = {
+  pi: string;
+  ic: string;
+  activity: string;
+  state: string;
+  fyMin: string;
+  fyMax: string;
+};
+
+type DashboardProps = {
+  onSearchNavigate: (query: string, filters: DashboardSearchFilters) => void;
+};
+
 // ─── KPI card subcomponent ────────────────────────────────────────────────────
 
 interface KpiCardProps {
@@ -175,10 +189,17 @@ function KpiCard({ label, value }: KpiCardProps) {
  * Analytics dashboard that fetches all data in parallel on mount and
  * renders KPI cards, a choropleth map, and multiple chart panels.
  */
-export default function Dashboard() {
+export default function Dashboard({ onSearchNavigate }: DashboardProps) {
+  const filtersRef = useRef<FiltersHandle>(null);
   const [data, setData] = useState<DashboardData | null>(null);
+  const [filterCatalog, setFilterCatalog] = useState<{
+    icNames: string[];
+    activityCodes: string[];
+    states: string[];
+    fiscalYearOptions: number[];
+  } | null>(null);
   const [error, setError] = useState<string | null>(null);
-  const [dashboardQuery, setDashboardQuery] = useState("");
+  const [refreshing, setRefreshing] = useState(false);
   const [selectedPI, setSelectedPI] = useState("");
   const [selectedIC, setSelectedIC] = useState("");
   const [selectedActivity, setSelectedActivity] = useState("");
@@ -190,6 +211,38 @@ export default function Dashboard() {
 
   const icChartLinearMax = IC_HYBRID_LINEAR_MAX_ALL;
   const icChartTickValues = [...IC_HYBRID_TICK_VALUES_ALL];
+
+  const appliedFilters = useMemo<AnalyticsFilterOptions>(
+    () => ({
+      pi: selectedPI,
+      ic: selectedIC,
+      activity: selectedActivity,
+      state: selectedState,
+      fyMin,
+      fyMax,
+    }),
+    [selectedPI, selectedIC, selectedActivity, selectedState, fyMin, fyMax],
+  );
+
+  const searchFilters = useMemo<DashboardSearchFilters>(
+    () => ({
+      pi: selectedPI,
+      ic: selectedIC,
+      activity: selectedActivity,
+      state: selectedState,
+      fyMin,
+      fyMax,
+    }),
+    [selectedPI, selectedIC, selectedActivity, selectedState, fyMin, fyMax],
+  );
+
+  const handleDashboardSearch = (nextQuery: string) => {
+    const filters =
+      filtersRef.current?.applyPendingFilters()
+      ?? filtersRef.current?.getPendingFilters()
+      ?? searchFilters;
+    onSearchNavigate(nextQuery, filters);
+  };
 
   const icChartRows = useMemo(() => {
     const icData = data?.icData ?? [];
@@ -205,7 +258,43 @@ export default function Dashboard() {
   useEffect(() => {
     let cancelled = false;
 
+    const loadCatalog = async () => {
+      try {
+        const [icData, activityData, stateData, yearData] = await Promise.all([
+          getIcData(),
+          getActivityData(80),
+          getStateData(),
+          getYearData(),
+        ]);
+        if (!cancelled) {
+          setFilterCatalog({
+            icNames: icData.map((point) => point.label),
+            activityCodes: activityData.map((point) => point.label),
+            states: stateData.map((point) => point.state),
+            fiscalYearOptions: yearData.map((d) => d.year),
+          });
+        }
+      } catch {
+        if (!cancelled) {
+          setFilterCatalog(null);
+        }
+      }
+    };
+
+    void loadCatalog();
+
+    return () => {
+      cancelled = true;
+    };
+  }, []);
+
+  useEffect(() => {
+    let cancelled = false;
+
     const load = async () => {
+      if (data) {
+        setRefreshing(true);
+      }
       try {
         const [
           summary,
@@ -218,15 +307,15 @@ export default function Dashboard() {
           topOrgs,
           avgGrant,
         ] = await Promise.all([
-          getDashboardSummary(),
-          getStateData(),
-          getIcData(),
-          getActivityData(80),
-          getActivityFundingPie({ limit: 150, pieSlices: 12 }),
+          getDashboardSummary(appliedFilters),
+          getStateData(appliedFilters),
+          getIcData(undefined, appliedFilters),
+          getActivityData(80, appliedFilters),
+          getActivityFundingPie({ limit: 150, pieSlices: 12 }, appliedFilters),
           getProjectTermThemeCloud(),
-          getYearData(),
-          getTopOrgs(),
-          getAvgGrantByIc(),
+          getYearData(appliedFilters),
+          getTopOrgs(appliedFilters),
+          getAvgGrantByIc(appliedFilters),
         ]);
 
         if (!cancelled) {
@@ -241,10 +330,15 @@ export default function Dashboard() {
             topOrgs,
             avgGrant,
           });
+          setError(null);
         }
       } catch (err) {
         if (!cancelled) {
           setError(err instanceof Error ? err.message : "Failed to load dashboard data.");
+        }
+      } finally {
+        if (!cancelled) {
+          setRefreshing(false);
         }
       }
     };
@@ -254,7 +348,7 @@ export default function Dashboard() {
     return () => {
       cancelled = true;
     };
-  }, []);
+  }, [appliedFilters]);
 
   if (error) {
     return (
@@ -264,7 +358,7 @@ export default function Dashboard() {
     );
   }
 
-  if (!data) {
+  if (!data || !filterCatalog) {
     return (
       <div className="dashboard-loading">
         <span>Loading analytics…</span>
@@ -272,10 +366,8 @@ export default function Dashboard() {
     );
   }
 
-  const { summary, stateData, icData, activityData, activityPie, termThemeCloud, yearData, topOrgs, avgGrant } = data;
-  const icNames = icData.map((point) => point.label);
-  const activityCodes = activityData.map((point) => point.label);
-  const states = stateData.map((point) => point.state);
+  const { summary, stateData, activityPie, termThemeCloud, yearData, topOrgs, avgGrant } = data;
+  const { icNames, activityCodes, states } = filterCatalog;
 
   const avgGrantValue =
     summary.total_documents > 0
@@ -295,12 +387,13 @@ export default function Dashboard() {
   }));
 
   return (
-    <div className="dashboard">
+    <div className={`dashboard${refreshing ? " dashboard--refreshing" : ""}`}>
       <Filters
+        ref={filtersRef}
         icNames={icNames}
         activityCodes={activityCodes}
         states={states}
-        fiscalYearOptions={yearData.map((d) => d.year)}
+        fiscalYearOptions={filterCatalog.fiscalYearOptions}
         selectedPI={selectedPI}
         selectedIC={selectedIC}
         selectedActivity={selectedActivity}
@@ -327,7 +420,7 @@ export default function Dashboard() {
 
       <div className="search-row">
         <div className="search-row-inner">
-          <SearchBar onSearch={setDashboardQuery} initialQuery={dashboardQuery} />
+          <SearchBar onSearch={handleDashboardSearch} submitOnClear={false} />
         </div>
       </div>
 
