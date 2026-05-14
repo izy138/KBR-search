@@ -1,4 +1,4 @@
-import { useCallback, useLayoutEffect, useRef, useState } from "react";
+import { useCallback, useLayoutEffect, useRef, useState, type MouseEventHandler } from "react";
 
 export interface VerticalOnlyBarShapeProps {
   x?: number;
@@ -12,6 +12,7 @@ export interface VerticalOnlyBarShapeProps {
   animationDuration?: number;
   /** When this value changes, bars snap instantly (e.g. linear/log toggle). */
   barAnimationSnapKey?: string;
+  onClick?: MouseEventHandler<SVGRectElement>;
 }
 
 const barHeightStore = new Map<string, number>();
@@ -39,6 +40,7 @@ export default function VerticalOnlyBarShape({
   barIdKey = "full_label",
   animationDuration = 400,
   barAnimationSnapKey = "default",
+  onClick,
 }: VerticalOnlyBarShapeProps) {
   const barId = String(
     payload?.[barIdKey] ?? payload?.full_label ?? payload?.short_label ?? x,
@@ -110,6 +112,8 @@ export default function VerticalOnlyBarShape({
       fill={fill}
       rx={rx}
       ry={rx}
+      onClick={onClick}
+      style={{ cursor: onClick ? "pointer" : undefined }}
     />
   );
 }
