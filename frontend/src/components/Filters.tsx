@@ -327,6 +327,9 @@ const formatAllCapsLabel = (value: string): string => value.trim().toUpperCase()
 /** Default FY choices when parent does not pass `fiscalYearOptions` (e.g. search view). */
 const DEFAULT_FISCAL_YEAR_OPTIONS: readonly number[] = [2020, 2021, 2022, 2023, 2024, 2025];
 
+/** Empty FY selection: UI shows this; Apply maps to catalog min/max years. */
+const FY_RANGE_PLACEHOLDER = "-";
+
 const Filters: React.FC<FiltersProps> = ({
   icNames,
   activityCodes,
@@ -393,8 +396,14 @@ const Filters: React.FC<FiltersProps> = ({
   const hasFilters = localPI || localIC || localActivity || localState || localFyMin || localFyMax;
 
   const handleApply = () => {
-    let nextFyMin = localFyMin;
-    let nextFyMax = localFyMax;
+    let nextFyMin = localFyMin.trim();
+    let nextFyMax = localFyMax.trim();
+
+    if (!nextFyMin && !nextFyMax && fyChoices.length > 0) {
+      nextFyMin = String(fyChoices[0]);
+      nextFyMax = String(fyChoices[fyChoices.length - 1]);
+    }
+
     const nMin = nextFyMin ? Number.parseInt(nextFyMin, 10) : Number.NaN;
     const nMax = nextFyMax ? Number.parseInt(nextFyMax, 10) : Number.NaN;
     if (Number.isFinite(nMin) && Number.isFinite(nMax) && nMin > nMax) {
@@ -483,14 +492,14 @@ const Filters: React.FC<FiltersProps> = ({
             value={localFyMin}
             onChange={setLocalFyMin}
             options={fySelectOptions}
-            placeholder="Any"
+            placeholder={FY_RANGE_PLACEHOLDER}
           />
           <FilterSelect
             ariaLabel="Fiscal year to"
             value={localFyMax}
             onChange={setLocalFyMax}
             options={fySelectOptions}
-            placeholder="Any"
+            placeholder={FY_RANGE_PLACEHOLDER}
           />
         </div>
       </div>
