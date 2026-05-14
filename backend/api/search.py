@@ -126,8 +126,8 @@ def search(
             }
         )
     for term in normalized_terms:
-        # `match` tokenizes `term` and, with operator="and", requires all tokens to
-        # appear in PROJECT_TERMS (not strict phrase ordering).
+        # `match` tokenizes `term` and, with operator="and", requires all tokens
+        # to appear anywhere in PROJECT_TERMS (order-independent, not exact phrase).
         must.append(
             {"match": {"PROJECT_TERMS": {"query": term, "operator": "and"}}},
         )
