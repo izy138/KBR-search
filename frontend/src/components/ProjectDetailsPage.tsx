@@ -484,7 +484,6 @@ export default function ProjectDetailsPage({
       <h2 id="project-details-similar-heading" className="project-details-similar-heading">
         Similar projects
       </h2>
-      
       {!projectId ? (
         <p className="project-details-similar-muted">No document id on this record; vector similarity is unavailable.</p>
       ) : similarLoading ? (

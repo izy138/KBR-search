@@ -69,7 +69,7 @@ def _require_matching_embedding_dimension(client: Any) -> None:
 
 
 def _normalize_project_terms(raw: list[str]) -> list[str]:
-    """Strip, cap count/length; order-preserving dedupe."""
+    """Strip terms, dedupe in order, cap to 20 terms, and truncate each to 200 chars."""
     seen: set[str] = set()
     out: list[str] = []
     for t in raw:
