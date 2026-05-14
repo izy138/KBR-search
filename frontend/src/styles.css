@@ -878,18 +878,18 @@ button.filter-select-trigger {
 }
 
 .project-details-similar-heading {
-  font-size: 0.95rem;
+  font-size: 0.98 rem;
   font-weight: 600;
   color: var(--text-primary);
   letter-spacing: -0.01em;
-  margin-bottom: 1.5rem;
+  margin-bottom: 0.5rem;
 }
 
-.project-details-similar-lede {
-  font-size: 0.8rem;
-  color: var(--text-muted);
-  line-height: 1.45;
-  margin-bottom: 0.85rem;
+.project-details-similar-heading-rule {
+  height: 0;
+  margin: 0 0 0.75rem;
+  border: 0;
+  border-bottom: 1px solid var(--border);
 }
 
 .project-details-similar-muted {
