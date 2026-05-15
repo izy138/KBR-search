@@ -469,47 +469,10 @@ def _merge_similar_groups_by_core(
     return groups, merged_order
 
 
-def _enrich_similar_year_variants(
-    client: object,
-    grouped: dict[str, object],
-) -> None:
-    """Attach all fiscal-year siblings for a recurring award, not only k-NN hits."""
-    project_id = grouped.get("_id")
-    if project_id is None:
-        return
-    if not _recurrence_core_num(grouped) and not _recurrence_title(grouped):
-        return
-    try:
-        years = _collect_recurrence_years(
-            client,
-            grouped,
-            project_id=str(project_id),
-        )
-    except HTTPException:
-        return
-    variants: list[dict[str, object]] = []
-    for year in years:
-        if not isinstance(year, dict):
-            continue
-        pid = year.get("project_id")
-        if pid is None:
-            continue
-        variants.append(
-            {
-                "project_id": pid,
-                "application_id": year.get("application_id"),
-                "fy": year.get("fy"),
-            }
-        )
-    if variants:
-        grouped["year_variants"] = variants
-
-
 def _group_similar_results(
     results: list[dict[str, object]],
     *,
     limit: int,
-    client: object | None = None,
 ) -> list[dict[str, object]]:
     """Collapse recurring fiscal-year rows into one hit with year_variants."""
     groups: dict[str, dict[str, object]] = {}
@@ -565,8 +528,6 @@ def _group_similar_results(
                     item.get("fy") if isinstance(item, dict) else 0,
                 ),
             )
-        if client is not None:
-            _enrich_similar_year_variants(client, grouped)
         grouped_results.append(grouped)
     return grouped_results
 
@@ -696,7 +657,7 @@ def search_similar_to_project(
     return {
         "project_id": project_id,
         "k": k,
-        "results": _group_similar_results(formatted, limit=k, client=client),
+        "results": _group_similar_results(formatted, limit=k),
     }
 
 
