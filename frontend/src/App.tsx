@@ -13,6 +13,7 @@ import InvestigatorPage from "./components/InvestigatorPage";
 import ProjectDetailsPage from "./components/ProjectDetailsPage";
 import ResultsList from "./components/ResultsList";
 import SearchBar from "./components/SearchBar";
+import TermCloud from "./components/TermCloud";
 import SemanticSimilarProjectPage from "./components/SemanticSimilarProjectPage";
 import SemanticVectorLabPage from "./components/SemanticVectorLabPage";
 import {
@@ -278,6 +279,11 @@ export default function App() {
   const handleSearch = (nextQuery: string) => {
     setQuery(nextQuery);
     setProjectTermFilters([]);
+    setCurrentPage(1);
+  };
+
+  const handleTermCloudSearch = (terms: string[]) => {
+    setProjectTermFilters(terms);
     setCurrentPage(1);
   };
 
@@ -639,6 +645,7 @@ export default function App() {
         ) : (
           <>
             <Filters
+              searchSlot={<SearchBar onSearch={handleSearch} initialQuery={query} />}
               icNames={searchFilterCatalog?.icNames ?? []}
               activityCodes={searchFilterCatalog?.activityCodes ?? []}
               states={searchFilterCatalog?.states ?? []}
@@ -653,11 +660,7 @@ export default function App() {
               onClear={handleClearFilters}
             />
 
-            <div className="search-row">
-              <div className="search-row-inner">
-                <SearchBar onSearch={handleSearch} initialQuery={query} />
-              </div>
-            </div>
+            <TermCloud onSearch={handleTermCloudSearch} />
 
             <div className="results-header">
               <div className="results-meta">
@@ -668,9 +671,33 @@ export default function App() {
                     <strong>{visibleTotal.toLocaleString()}</strong> results
                     {total > visibleTotal ? ` out of ${total.toLocaleString()}` : ""}
                     {query ? ` for "${query}"` : ""}
-                    {projectTermFilters.length > 0
-                      ? ` — matching project terms: ${projectTermFilters.join("; ")}`
-                      : ""}
+                    {projectTermFilters.length > 0 && (
+                      <span className="results-meta__term-filters">
+                        {" — "}
+                        {projectTermFilters.map((term) => (
+                          <span key={term} className="results-meta__term-chip">
+                            {term}
+                            <button
+                              type="button"
+                              className="results-meta__term-chip-x"
+                              onClick={() =>
+                                setProjectTermFilters((prev) => prev.filter((t) => t !== term))
+                              }
+                              aria-label={`Remove ${term} filter`}
+                            >
+                              ×
+                            </button>
+                          </span>
+                        ))}
+                        <button
+                          type="button"
+                          className="results-meta__clear-terms"
+                          onClick={() => setProjectTermFilters([])}
+                        >
+                          Clear all
+                        </button>
+                      </span>
+                    )}
                     {currentPage > 1 ? ` — page ${currentPage} of ${totalPages}` : ""}
                   </span>
                 )}
