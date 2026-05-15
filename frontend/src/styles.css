@@ -183,7 +183,7 @@ body {
   grid-column: 1 / -1;
   display: flex;
   justify-content: center;
-  padding-bottom: 0.15rem;
+  /* padding-bottom: 0.15rem; */
 }
 
 .filters-search-inner {
@@ -356,7 +356,7 @@ body {
   background: var(--surface);
   border: 2px solid var(--border);
   border-radius: var(--radius-md);
-  padding: 0.15rem 0.75rem;
+  padding: 0.3rem 0.55rem;
   gap: 0.5rem;
 }
 
@@ -395,7 +395,7 @@ body {
   border-radius: var(--radius-sm);
   padding: 0.38rem 0.9rem;
   font-family: 'DM Sans', sans-serif;
-  font-size: 12px;
+  font-size: 14px;
   font-weight: 500;
   cursor: pointer;
   transition: background 0.15s;
@@ -567,12 +567,14 @@ button.filter-select-trigger {
 
 .sidebar-text-input {
   width: 100%;
+  min-height: 2.35rem;
   padding: 0.42rem 0.62rem;
   border: 1px solid var(--border);
   border-radius: var(--radius-sm);
   background: var(--bg);
   font-family: 'DM Sans', sans-serif;
   font-size: 13px;
+  line-height: 1.35;
   color: var(--text-primary);
   outline: none;
   transition: border-color 0.15s;
@@ -1000,8 +1002,10 @@ button.filter-select-trigger {
 .project-details-similar-year-tags {
   display: flex;
   flex-wrap: wrap;
+  align-items: center;
   gap: 0.3rem;
   min-width: 0;
+  flex: 1 1 auto;
 }
 
 .project-details-similar-year-tag {
@@ -1022,6 +1026,68 @@ button.filter-select-trigger {
 .project-details-similar-year-tag:hover {
   border-color: var(--green);
   filter: brightness(0.97);
+}
+
+.project-details-similar-year-more-wrap {
+  position: relative;
+}
+
+.project-details-similar-year-more {
+  display: inline-flex;
+  align-items: center;
+  padding: 0.15rem 0.45rem;
+  border-radius: 999px;
+  border: 1px solid var(--border-strong);
+  background: var(--surface);
+  color: var(--text-secondary);
+  font-family: 'DM Sans', sans-serif;
+  font-size: 0.72rem;
+  font-weight: 600;
+  line-height: 1.2;
+  cursor: pointer;
+}
+
+.project-details-similar-year-more:hover,
+.project-details-similar-year-more[aria-expanded="true"] {
+  border-color: var(--text-muted);
+  color: var(--text-primary);
+  background: var(--surface-hover);
+}
+
+.project-details-similar-year-menu {
+  position: absolute;
+  top: calc(100% + 0.25rem);
+  left: 0;
+  z-index: 20;
+  min-width: 6.5rem;
+  max-height: 11rem;
+  overflow-y: auto;
+  margin: 0;
+  padding: 0.25rem;
+  list-style: none;
+  border-radius: var(--radius-sm);
+  border: 1px solid var(--border-strong);
+  background: var(--surface);
+  box-shadow: 0 8px 24px rgba(15, 23, 42, 0.12);
+}
+
+.project-details-similar-year-menu-item {
+  display: block;
+  width: 100%;
+  padding: 0.35rem 0.55rem;
+  border: none;
+  border-radius: calc(var(--radius-sm) - 2px);
+  background: transparent;
+  color: var(--green);
+  font-family: 'DM Sans', sans-serif;
+  font-size: 0.72rem;
+  font-weight: 600;
+  text-align: left;
+  cursor: pointer;
+}
+
+.project-details-similar-year-menu-item:hover {
+  background: var(--green-light);
 }
 
 .project-details-similar-item-cost {
