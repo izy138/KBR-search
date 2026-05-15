@@ -372,7 +372,7 @@ export default function Dashboard({ onSearchNavigate }: DashboardProps) {
           getStateData(appliedFilters),
           getIcData(undefined, appliedFilters),
           getActivityData(80, appliedFilters),
-          getActivityFundingPie({ limit: 150, pieSlices: 12 }, appliedFilters),
+          getActivityFundingPie({ limit: 500, pieSlices: 20 }, appliedFilters),
           getProjectTermThemeCloud(),
           getYearData(appliedFilters),
           getTopOrgs(appliedFilters),
