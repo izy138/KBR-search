@@ -232,6 +232,8 @@ export interface ActivityFundingPieResponse {
   merge_other: boolean;
   denominator: string;
   slices: ActivityPieSlice[];
+  /** Activity codes below `pie_slices` (when merge_other is false). */
+  tail_slices: ActivityPieSlice[];
   other: ActivityPieSlice | null;
   remainder: ActivityPieRemainder | null;
   sum_other_doc_count: number;

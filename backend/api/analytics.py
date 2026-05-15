@@ -238,6 +238,10 @@ def analytics_by_activity_funding_pie(
         "percent_of_all_indexed": round(rem_funding / denom, 6) if denom else 0.0,
       }
 
+  tail_slices: list[dict[str, object]] = []
+  if not merge_other and len(rows) > pie_slices:
+    tail_slices = [with_pct(r) for r in rows[pie_slices:]]
+
   by_activity_meta = aggs.get("by_activity", {})
   sum_other_doc_count = int(by_activity_meta.get("sum_other_doc_count") or 0)
 
@@ -248,6 +252,7 @@ def analytics_by_activity_funding_pie(
     "merge_other": merge_other,
     "denominator": "total_funding_all" if global_total > 0 else "sum_of_returned_buckets",
     "slices": slices,
+    "tail_slices": tail_slices,
     "other": other,
     "remainder": remainder,
     "sum_other_doc_count": sum_other_doc_count,

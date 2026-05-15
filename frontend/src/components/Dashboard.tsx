@@ -266,7 +266,7 @@ export default function Dashboard() {
           getStateData(),
           getIcData(),
           getActivityData(80),
-          getActivityFundingPie({ limit: 150, pieSlices: 12 }),
+          getActivityFundingPie({ limit: 500, pieSlices: 20 }),
           getProjectTermThemeCloud(),
           getYearData(),
           getTopOrgs(),
