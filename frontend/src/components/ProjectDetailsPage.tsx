@@ -4,7 +4,7 @@ import type { ProjectFiscalYear, ProjectYearVariant, SearchResultRecord } from "
 import { getProjectOtherYears, searchSimilarToProjectId } from "../api";
 import { getOrderedPiNames } from "../utils/piNames";
 import { groupSimilarNeighbors } from "../utils/recurrenceGrouping";
-import ProjectActivityTermsChart from "./ProjectActivityTermsChart";
+import ProjectSimilarProjectsChart from "./ProjectSimilarProjectsChart";
 
 type ProjectSearchTermsPayload = {
   terms: string[];
@@ -255,7 +255,6 @@ export default function ProjectDetailsPage({
   const [isAbstractExpanded, setIsAbstractExpanded] = useState<boolean>(false);
   const fiscalYears = item.FY != null ? String(item.FY) : "—";
   const projectDates = [item.PROJECT_START, item.PROJECT_END].filter(Boolean).join(" to ") || "—";
-  const activityId = typeof item.ACTIVITY === "string" ? item.ACTIVITY.trim() : "";
   const projectId = typeof item._id === "string" ? item._id : typeof item.id === "string" ? item.id : "";
   const [similarNeighbors, setSimilarNeighbors] = useState<SearchResultRecord[]>([]);
   const [similarLoading, setSimilarLoading] = useState<boolean>(false);
@@ -634,15 +633,31 @@ export default function ProjectDetailsPage({
       </section>
     </div>
 
-    {activityId && projectId ? (
-      <div className="project-activity-widget" role="region" aria-label="Activity funding comparison">
-        <ProjectActivityTermsChart activityId={activityId} projectId={projectId} />
+    {projectId ? (
+      <div className="project-activity-widget" role="region" aria-label="Similar projects funding comparison">
+        <ProjectSimilarProjectsChart
+          currentProject={item}
+          projectId={projectId}
+          neighbors={groupedSimilarNeighbors}
+          loading={similarLoading}
+          error={similarError}
+        />
       </div>
     ) : null}
     </div>
 
     <aside className="project-details-similar" aria-labelledby="project-details-similar-heading">
-      
+      {projectId ? (
+        <div className="project-details-similar-more-wrap project-details-similar-more-wrap--top">
+          <button
+            type="button"
+            className="project-details-similar-more"
+            onClick={() => navigate(`/semantic/similar/${encodeURIComponent(projectId)}`)}
+          >
+            See more similar projects
+          </button>
+        </div>
+      ) : null}
       <h2 id="project-details-similar-heading" className="project-details-similar-heading">
         Similar Projects
       </h2>
