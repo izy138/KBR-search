@@ -10,7 +10,8 @@ import {
 } from "recharts";
 import type { TooltipContentProps } from "recharts/types/component/Tooltip";
 import type { NameType, ValueType } from "recharts/types/component/DefaultTooltipContent";
-import type { YearDataPoint } from "../api";
+import type { YearDataPoint } from "../../api";
+import { formatDollarsCompact } from "../../utils/format";
 
 interface LineChartPanelProps {
   title: string;
@@ -22,13 +23,6 @@ interface LineChartPanelProps {
   panelClassName?: string;
   chartMargin?: { top?: number; right?: number; bottom?: number; left?: number };
 }
-
-const defaultFundingFormatter = (value: number): string => {
-  if (value >= 1e9) return `$${(value / 1e9).toFixed(1)}B`;
-  if (value >= 1e6) return `$${(value / 1e6).toFixed(1)}M`;
-  if (value >= 1e3) return `$${(value / 1e3).toFixed(1)}K`;
-  return `$${value}`;
-};
 
 /**
  * Dual-axis line chart showing project count (left axis) and
@@ -42,7 +36,7 @@ export default function LineChartPanel({
   panelClassName,
   chartMargin = { top: 4, right: 16, bottom: 4, left: 8 },
 }: LineChartPanelProps) {
-  const fundingFmt = formatter ?? defaultFundingFormatter;
+  const fundingFmt = formatter ?? formatDollarsCompact;
 
   const renderTooltip = (props: TooltipContentProps<ValueType, NameType>) => {
     if (!props.active || !props.payload?.length) return null;

@@ -1,5 +1,5 @@
 import { useEffect, useState } from "react";
-import { getTermTree, type TermNode } from "../api";
+import { getTermTree, type TermNode } from "../../api";
 
 /** Maximum number of leaf terms a user may select at once. */
 const MAX_SELECTION = 20;

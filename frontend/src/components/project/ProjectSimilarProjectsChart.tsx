@@ -1,7 +1,7 @@
 import { useMemo } from "react";
-import type { SearchResultRecord } from "../api";
-import { recurrenceGroupKey } from "../utils/recurrenceGrouping";
-import BarChartPanel from "./BarChartPanel";
+import type { SearchResultRecord } from "../../api";
+import { recurrenceGroupKey } from "../../utils/recurrenceGrouping";
+import BarChartPanel from "../charts/BarChartPanel";
 
 type ProjectSimilarProjectsChartProps = {
   currentProject: SearchResultRecord;

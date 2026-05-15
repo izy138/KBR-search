@@ -1,9 +1,10 @@
 import { useEffect, useMemo, useRef, useState } from "react";
 import { useNavigate } from "react-router-dom";
-import type { ProjectFiscalYear, ProjectYearVariant, SearchResultRecord } from "../api";
-import { getProjectOtherYears, searchSimilarToProjectId } from "../api";
-import { getOrderedPiNames } from "../utils/piNames";
-import { groupSimilarNeighbors } from "../utils/recurrenceGrouping";
+import type { ProjectFiscalYear, ProjectYearVariant, SearchResultRecord } from "../../api";
+import { getProjectOtherYears, searchSimilarToProjectId } from "../../api";
+import { getOrderedPiNames } from "../../utils/piNames";
+import { groupSimilarNeighbors } from "../../utils/recurrenceGrouping";
+import { formatDollarsFull } from "../../utils/format";
 import ProjectActivityTermsChart from "./ProjectActivityTermsChart";
 import ProjectSimilarProjectsChart from "./ProjectSimilarProjectsChart";
 import SimilarProjectYearTags from "./SimilarProjectYearTags";
@@ -148,15 +149,6 @@ function mergeFetchedIntoFamilyYears(
   );
 }
 
-function formatCurrency(value: number | undefined): string {
-  if (value == null || Number.isNaN(value)) return "—";
-  return new Intl.NumberFormat(undefined, {
-    style: "currency",
-    currency: "USD",
-    maximumFractionDigits: 0,
-  }).format(value);
-}
-
 function formatLocation(item: SearchResultRecord): string {
   const segments: string[] = [];
   if (item.ORG_CITY) segments.push(item.ORG_CITY);
@@ -184,33 +176,8 @@ function getProjectAbstract(item: SearchResultRecord): string | null {
 
 function getYearVariants(record: SearchResultRecord): ProjectYearVariant[] {
   const raw = record.year_variants;
-  if (Array.isArray(raw)) {
-    const fromArray = raw
-      .map((item) => {
-        if (item == null || typeof item !== "object") return null;
-        const row = item as Record<string, unknown>;
-        const projectId =
-          typeof row.project_id === "string" && row.project_id.trim()
-            ? row.project_id
-            : typeof row.project_id === "number"
-              ? String(row.project_id)
-              : null;
-        if (!projectId) return null;
-        const fyRaw = row.fy;
-        const fy =
-          typeof fyRaw === "number" && Number.isFinite(fyRaw)
-            ? fyRaw
-            : typeof fyRaw === "string" && fyRaw.trim() && Number.isFinite(Number(fyRaw))
-              ? Number(fyRaw)
-              : undefined;
-        return {
-          project_id: projectId,
-          fy,
-          application_id:
-            typeof row.application_id === "number" ? row.application_id : undefined,
-        } satisfies ProjectYearVariant;
-      })
-      .filter((item): item is ProjectYearVariant => item != null);
+  if (Array.isArray(raw) && raw.length > 0) {
+    const fromArray = raw.filter((item): item is ProjectYearVariant => item != null);
     if (fromArray.length > 0) return fromArray;
   }
   const recordId = record._id ?? record.id;
@@ -222,11 +189,7 @@ function getYearVariants(record: SearchResultRecord): ProjectYearVariant[] {
         : null;
   if (!projectId) return [];
   const fy =
-    typeof record.FY === "number" && Number.isFinite(record.FY)
-      ? record.FY
-      : typeof record.FY === "string" && record.FY.trim() && Number.isFinite(Number(record.FY))
-        ? Number(record.FY)
-        : undefined;
+    typeof record.FY === "number" && Number.isFinite(record.FY) ? record.FY : undefined;
   return [
     {
       project_id: projectId,
@@ -542,7 +505,7 @@ export default function ProjectDetailsPage({
 
         <div>
           <h2>Award Amount</h2>
-          <p>{formatCurrency(item.TOTAL_COST as number | undefined)}</p>
+          <p>{formatDollarsFull(item.TOTAL_COST)}</p>
         </div>
 
         <div>
@@ -697,7 +660,7 @@ export default function ProjectDetailsPage({
                   <div className="project-details-similar-item-trailing">
                     {neighbor.ACTIVITY ? <span className="tag activity">{neighbor.ACTIVITY}</span> : null}
                     <span className="project-details-similar-item-cost">
-                      {formatCurrency(neighbor.TOTAL_COST as number | undefined)}
+                      {formatDollarsFull(neighbor.TOTAL_COST)}
                     </span>
                   </div>
                 </div>

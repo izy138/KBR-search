@@ -1,4 +1,4 @@
-import { useEffect, useState, React } from "react";
+import { type MouseEvent, useEffect, useState } from "react";
 import { scaleThreshold } from "d3-scale";
 import {
   ComposableMap,
@@ -6,7 +6,8 @@ import {
   Geography,
 } from "react-simple-maps";
 import type { Geography as GeographyType } from "react-simple-maps";
-import type { StateDataPoint } from "../api";
+import type { StateDataPoint } from "../../api";
+import { formatDollarsCompact } from "../../utils/format";
 
 /** TopoJSON source — US states at 1:10m resolution */
 const GEO_URL = "https://cdn.jsdelivr.net/npm/us-atlas@3/states-10m.json";
@@ -126,13 +127,6 @@ interface StateMapProps {
   onStateSelect?: (stateAbbrev: string) => void;
 }
 
-const formatFunding = (n: number): string => {
-  if (n >= 1e9) return `$${(n / 1e9).toFixed(1)}B`;
-  if (n >= 1e6) return `$${(n / 1e6).toFixed(1)}M`;
-  if (n >= 1e3) return `$${(n / 1e3).toFixed(1)}K`;
-  return `$${n}`;
-};
-
 /**
  * US choropleth map shaded by NIH project count per state.
  * Uses react-simple-maps + d3-scale for the color scale.
@@ -180,7 +174,7 @@ export default function StateMap({
   };
 
   const isPointerStillOverMap = (
-    event: React.MouseEvent<SVGPathElement>,
+    event: MouseEvent<SVGPathElement>,
   ): boolean => {
     const canvas = event.currentTarget.closest(".state-map-canvas");
     if (!canvas) return false;
@@ -428,7 +422,7 @@ export default function StateMap({
         >
           <div className="map-tooltip-state">{tooltip.stateName}</div>
           <div className="map-tooltip-row">Projects: {tooltip.count.toLocaleString()}</div>
-          <div className="map-tooltip-row">Funding: {formatFunding(tooltip.totalFunding)}</div>
+          <div className="map-tooltip-row">Funding: {formatDollarsCompact(tooltip.totalFunding)}</div>
         </div>
       )}
     </div>

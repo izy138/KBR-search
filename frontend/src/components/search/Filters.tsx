@@ -1,9 +1,9 @@
-import React, {
-  forwardRef,
+import {
+  type CSSProperties,
+  type FC,
   useCallback,
   useEffect,
   useId,
-  useImperativeHandle,
   useLayoutEffect,
   useMemo,
   useRef,
@@ -69,7 +69,7 @@ const moveHighlightInOptionGrid = (
   return index;
 };
 
-const FilterSelect: React.FC<FilterSelectProps> = ({
+const FilterSelect: FC<FilterSelectProps> = ({
   value,
   onChange,
   options,
@@ -205,7 +205,7 @@ const FilterSelect: React.FC<FilterSelectProps> = ({
 
   const panelClassName = cols >= 2 ? "filter-select-panel filter-select-panel--grid" : "filter-select-panel";
 
-  const panelListStyle: React.CSSProperties = {
+  const panelListStyle: CSSProperties = {
     maxHeight: maxPanelHeight,
     ...(cols >= 2
       ? {
@@ -304,6 +304,12 @@ type FiltersProps = {
   selectedState: string;
   fyMin: string;
   fyMax: string;
+  onPIChange: (value: string) => void;
+  onICChange: (value: string) => void;
+  onActivityChange: (value: string) => void;
+  onStateChange: (value: string) => void;
+  onFyMinChange: (value: string) => void;
+  onFyMaxChange: (value: string) => void;
   onApply: (filters: {
     pi: string;
     ic: string;
@@ -313,25 +319,6 @@ type FiltersProps = {
     fyMax: string;
   }) => void;
   onClear: () => void;
-};
-
-export type FiltersHandle = {
-  getPendingFilters: () => {
-    pi: string;
-    ic: string;
-    activity: string;
-    state: string;
-    fyMin: string;
-    fyMax: string;
-  };
-  applyPendingFilters: () => {
-    pi: string;
-    ic: string;
-    activity: string;
-    state: string;
-    fyMin: string;
-    fyMax: string;
-  };
 };
 
 const formatDropdownLabel = (value: string): string => {
@@ -363,24 +350,27 @@ const DEFAULT_FISCAL_YEAR_OPTIONS: readonly number[] = [2020, 2021, 2022, 2023, 
 /** Empty FY selection: UI shows this; Apply maps to catalog min/max years. */
 const FY_RANGE_PLACEHOLDER = "-";
 
-const Filters = forwardRef<FiltersHandle, FiltersProps>(function Filters(
-  {
-    searchSlot,
-    icNames,
-    activityCodes,
-    states,
-    fiscalYearOptions,
-    selectedPI,
-    selectedIC,
-    selectedActivity,
-    selectedState,
-    fyMin,
-    fyMax,
-    onApply,
-    onClear,
-  },
-  ref,
-) {
+function Filters({
+  searchSlot,
+  icNames,
+  activityCodes,
+  states,
+  fiscalYearOptions,
+  selectedPI,
+  selectedIC,
+  selectedActivity,
+  selectedState,
+  fyMin,
+  fyMax,
+  onPIChange,
+  onICChange,
+  onActivityChange,
+  onStateChange,
+  onFyMinChange,
+  onFyMaxChange,
+  onApply,
+  onClear,
+}: FiltersProps) {
   const fyChoices = useMemo(() => {
     if (fiscalYearOptions && fiscalYearOptions.length > 0) {
       return [...new Set(fiscalYearOptions)].sort((a, b) => a - b);
@@ -414,27 +404,11 @@ const Filters = forwardRef<FiltersHandle, FiltersProps>(function Filters(
     [fyChoices],
   );
 
-  const [localPI, setLocalPI] = useState(selectedPI);
-  const [localIC, setLocalIC] = useState(selectedIC);
-  const [localActivity, setLocalActivity] = useState(selectedActivity);
-  const [localState, setLocalState] = useState(selectedState);
-  const [localFyMin, setLocalFyMin] = useState(fyMin);
-  const [localFyMax, setLocalFyMax] = useState(fyMax);
-
-  useEffect(() => {
-    setLocalPI(selectedPI);
-    setLocalIC(selectedIC);
-    setLocalActivity(selectedActivity);
-    setLocalState(selectedState);
-    setLocalFyMin(fyMin);
-    setLocalFyMax(fyMax);
-  }, [selectedPI, selectedIC, selectedActivity, selectedState, fyMin, fyMax]);
-
-  const hasFilters = localPI || localIC || localActivity || localState || localFyMin || localFyMax;
+  const hasFilters = selectedPI || selectedIC || selectedActivity || selectedState || fyMin || fyMax;
 
   const handleApply = useCallback(() => {
-    let nextFyMin = localFyMin.trim();
-    let nextFyMax = localFyMax.trim();
+    let nextFyMin = fyMin.trim();
+    let nextFyMax = fyMax.trim();
 
     if (!nextFyMin && !nextFyMax && fyChoices.length > 0) {
       nextFyMin = String(fyChoices[0]);
@@ -447,43 +421,15 @@ const Filters = forwardRef<FiltersHandle, FiltersProps>(function Filters(
       nextFyMin = String(nMax);
       nextFyMax = String(nMin);
     }
-    const applied = {
-      pi: localPI,
-      ic: localIC,
-      activity: localActivity,
-      state: localState,
+    onApply({
+      pi: selectedPI,
+      ic: selectedIC,
+      activity: selectedActivity,
+      state: selectedState,
       fyMin: nextFyMin,
       fyMax: nextFyMax,
-    };
-    onApply(applied);
-    return applied;
-  }, [localPI, localIC, localActivity, localState, localFyMin, localFyMax, fyChoices, onApply]);
-
-  useImperativeHandle(
-    ref,
-    () => ({
-      getPendingFilters: () => ({
-        pi: localPI,
-        ic: localIC,
-        activity: localActivity,
-        state: localState,
-        fyMin: localFyMin,
-        fyMax: localFyMax,
-      }),
-      applyPendingFilters: () => handleApply(),
-    }),
-    [localPI, localIC, localActivity, localState, localFyMin, localFyMax, handleApply],
-  );
-
-  const handleClear = () => {
-    setLocalPI("");
-    setLocalIC("");
-    setLocalActivity("");
-    setLocalState("");
-    setLocalFyMin("");
-    setLocalFyMax("");
-    onClear();
-  };
+    });
+  }, [selectedPI, selectedIC, selectedActivity, selectedState, fyMin, fyMax, fyChoices, onApply]);
 
   return (
     <section className="app-sidebar">
@@ -499,8 +445,8 @@ const Filters = forwardRef<FiltersHandle, FiltersProps>(function Filters(
           className="sidebar-text-input"
           type="text"
           placeholder="Type PI name"
-          value={localPI}
-          onChange={(e) => setLocalPI(e.target.value)}
+          value={selectedPI}
+          onChange={(e) => onPIChange(e.target.value)}
           onKeyDown={(e) => {
             if (e.key === "Enter") {
               e.preventDefault();
@@ -513,8 +459,8 @@ const Filters = forwardRef<FiltersHandle, FiltersProps>(function Filters(
       <div className="sidebar-section sidebar-section--ic">
         <div className="sidebar-label">NIH Institute / Center</div>
         <FilterSelect
-          value={localIC}
-          onChange={setLocalIC}
+          value={selectedIC}
+          onChange={onICChange}
           options={icSelectOptions}
           placeholder="All Institutes"
           menuMinWidthPx={300}
@@ -524,8 +470,8 @@ const Filters = forwardRef<FiltersHandle, FiltersProps>(function Filters(
       <div className="sidebar-section">
         <div className="sidebar-label">Activity Code</div>
         <FilterSelect
-          value={localActivity}
-          onChange={setLocalActivity}
+          value={selectedActivity}
+          onChange={onActivityChange}
           options={activitySelectOptions}
           placeholder="All Codes"
           listColumns={3}
@@ -536,8 +482,8 @@ const Filters = forwardRef<FiltersHandle, FiltersProps>(function Filters(
       <div className="sidebar-section">
         <div className="sidebar-label">State</div>
         <FilterSelect
-          value={localState}
-          onChange={setLocalState}
+          value={selectedState}
+          onChange={onStateChange}
           options={stateSelectOptions}
           placeholder="All States"
           listColumns={3}
@@ -550,15 +496,15 @@ const Filters = forwardRef<FiltersHandle, FiltersProps>(function Filters(
         <div className="sidebar-range-row sidebar-range-row--fiscal">
           <FilterSelect
             ariaLabel="Fiscal year from"
-            value={localFyMin}
-            onChange={setLocalFyMin}
+            value={fyMin}
+            onChange={onFyMinChange}
             options={fySelectOptions}
             placeholder={FY_RANGE_PLACEHOLDER}
           />
           <FilterSelect
             ariaLabel="Fiscal year to"
-            value={localFyMax}
-            onChange={setLocalFyMax}
+            value={fyMax}
+            onChange={onFyMaxChange}
             options={fySelectOptions}
             placeholder={FY_RANGE_PLACEHOLDER}
           />
@@ -566,18 +512,18 @@ const Filters = forwardRef<FiltersHandle, FiltersProps>(function Filters(
       </div>
 
       <div className="filters-actions">
-        <button className="btn-apply" onClick={handleApply}>
+        <button type="button" className="btn-apply" onClick={handleApply}>
           Apply Filters
         </button>
 
         {hasFilters && (
-          <button className="btn-clear" onClick={handleClear}>
+          <button type="button" className="btn-clear" onClick={onClear}>
             Clear All
           </button>
         )}
       </div>
     </section>
   );
-});
+}
 
 export default Filters;

@@ -1,8 +1,8 @@
 import { useEffect, useState } from "react";
-import type { SearchResultRecord } from "../api";
-import { getProjectById, searchSimilarToProjectId } from "../api";
-import { groupSimilarNeighbors } from "../utils/recurrenceGrouping";
-import ResultsList from "./ResultsList";
+import type { SearchResultRecord } from "../../api";
+import { getProjectById, searchSimilarToProjectId } from "../../api";
+import { groupSimilarNeighbors } from "../../utils/recurrenceGrouping";
+import ResultsList from "../search/ResultsList";
 
 type SemanticSimilarProjectPageProps = {
   projectId: string;
@@ -114,7 +114,7 @@ export default function SemanticSimilarProjectPage({
             <span className="semantic-hit-ic">{anchor.IC_NAME ?? ""}</span>
           </div>
           <p className="semantic-anchor-org">{anchor.ORG_NAME ?? "—"}</p>
-          <p className="semantic-anchor-cost">{formatUsd(anchor.TOTAL_COST as number | undefined)}</p>
+          <p className="semantic-anchor-cost">{formatUsd(anchor.TOTAL_COST)}</p>
           <div className="semantic-hit-actions">
             <button type="button" className="semantic-linkish" onClick={() => onOpenFullProject(projectId)}>
               Open full project page

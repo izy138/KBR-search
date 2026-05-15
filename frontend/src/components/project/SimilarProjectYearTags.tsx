@@ -1,5 +1,5 @@
 import { useEffect, useId, useRef, useState } from "react";
-import type { ProjectYearVariant } from "../api";
+import type { ProjectYearVariant } from "../../api";
 
 type SimilarProjectYearTagsProps = {
   variants: ProjectYearVariant[];

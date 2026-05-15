@@ -1,6 +1,6 @@
 import { useEffect, useState } from "react";
-import { getActivityProjectCompareData, type ActivityProjectCompareDataPoint } from "../api";
-import BarChartPanel from "./BarChartPanel";
+import { getActivityProjectCompareData, type ActivityProjectCompareDataPoint } from "../../api";
+import BarChartPanel from "../charts/BarChartPanel";
 
 type ProjectActivityCompareChartProps = {
   projectId: string;

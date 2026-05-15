@@ -1,4 +1,4 @@
-import type { ProjectTermThemeCloudResponse, ThemeBucket } from "../api";
+import type { ProjectTermThemeCloudResponse, ThemeBucket } from "../../api";
 
 interface ProjectTermsThemeCloudProps {
   payload: ProjectTermThemeCloudResponse;

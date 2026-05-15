@@ -1,4 +1,5 @@
-import { useEffect, useMemo, useRef, useState } from "react";
+import { useEffect, useMemo, useRef, useState, useCallback } from "react";
+import { useFilterCatalog } from "../../hooks/useFilterCatalog";
 import {
   getActivityData,
   getActivityFundingPie,
@@ -9,11 +10,10 @@ import {
   getStateData,
   getTopOrgs,
   getYearData,
-} from "../api";
+} from "../../api";
 import type {
   ActivityDataPoint,
   ActivityFundingPieResponse,
-  AnalyticsFilterOptions,
   AvgGrantDataPoint,
   DashboardSummary,
   IcDataPoint,
@@ -21,25 +21,17 @@ import type {
   ProjectTermThemeCloudResponse,
   StateDataPoint,
   YearDataPoint,
-} from "../api";
-import ActivityFundingPiePanel from "./ActivityFundingPiePanel";
-import BarChartPanel from "./BarChartPanel";
-import Filters, { type FiltersHandle } from "./Filters";
-import LineChartPanel from "./LineChartPanel";
+} from "../../api";
+import ActivityFundingPiePanel from "../charts/ActivityFundingPiePanel";
+import BarChartPanel from "../charts/BarChartPanel";
+import Filters from "../search/Filters";
+import LineChartPanel from "../charts/LineChartPanel";
 import ProjectTermsThemeCloud from "./ProjectTermsThemeCloud";
-import SearchBar from "./SearchBar";
+import SearchBar from "../search/SearchBar";
 import StateMap from "./StateMap";
-// ─── Formatting helpers ───────────────────────────────────────────────────────
+import { formatDollarsCompact } from "../../utils/format";
 
-/**
- * Formats a dollar amount with B/M/K suffixes for display.
- */
-function formatDollars(n: number): string {
-  if (n >= 1e9) return `$${(n / 1e9).toFixed(1)}B`;
-  if (n >= 1e6) return `$${(n / 1e6).toFixed(1)}M`;
-  if (n >= 1e3) return `$${(n / 1e3).toFixed(1)}K`;
-  return `$${n}`;
-}
+// ─── Formatting helpers ───────────────────────────────────────────────────────
 
 /**
  * Formats a count with locale-aware separators.
@@ -190,14 +182,9 @@ function KpiCard({ label, value }: KpiCardProps) {
  * renders KPI cards, a choropleth map, and multiple chart panels.
  */
 export default function Dashboard({ onSearchNavigate }: DashboardProps) {
-  const filtersRef = useRef<FiltersHandle>(null);
+  const hasLoadedOnceRef = useRef(false);
   const [data, setData] = useState<DashboardData | null>(null);
-  const [filterCatalog, setFilterCatalog] = useState<{
-    icNames: string[];
-    activityCodes: string[];
-    states: string[];
-    fiscalYearOptions: number[];
-  } | null>(null);
+  const filterCatalog = useFilterCatalog();
   const [error, setError] = useState<string | null>(null);
   const [refreshing, setRefreshing] = useState(false);
   const [selectedPI, setSelectedPI] = useState("");
@@ -259,7 +246,7 @@ export default function Dashboard({ onSearchNavigate }: DashboardProps) {
   const icChartLinearMax = IC_HYBRID_LINEAR_MAX_ALL;
   const icChartTickValues = [...IC_HYBRID_TICK_VALUES_ALL];
 
-  const appliedFilters = useMemo<AnalyticsFilterOptions>(
+  const dashboardFilters = useMemo<DashboardSearchFilters>(
     () => ({
       pi: selectedPI,
       ic: selectedIC,
@@ -271,25 +258,9 @@ export default function Dashboard({ onSearchNavigate }: DashboardProps) {
     [selectedPI, selectedIC, selectedActivity, selectedState, fyMin, fyMax],
   );
 
-  const searchFilters = useMemo<DashboardSearchFilters>(
-    () => ({
-      pi: selectedPI,
-      ic: selectedIC,
-      activity: selectedActivity,
-      state: selectedState,
-      fyMin,
-      fyMax,
-    }),
-    [selectedPI, selectedIC, selectedActivity, selectedState, fyMin, fyMax],
-  );
-
-  const handleDashboardSearch = (nextQuery: string) => {
-    const filters =
-      filtersRef.current?.applyPendingFilters()
-      ?? filtersRef.current?.getPendingFilters()
-      ?? searchFilters;
-    onSearchNavigate(nextQuery, filters);
-  };
+  const handleDashboardSearch = useCallback((nextQuery: string) => {
+    onSearchNavigate(nextQuery, dashboardFilters);
+  }, [dashboardFilters, onSearchNavigate]);
 
   const handleMapStateSelect = (stateAbbrev: string) => {
     setSelectedState(stateAbbrev.toUpperCase());
@@ -305,7 +276,7 @@ export default function Dashboard({ onSearchNavigate }: DashboardProps) {
     }
   };
 
-  const icChartRows = useMemo(() => {
+  const icChartRows = useMemo((): Array<Record<string, unknown>> => {
     const icData = data?.icData ?? [];
     return icData
       .map((point) => ({
@@ -319,41 +290,8 @@ export default function Dashboard({ onSearchNavigate }: DashboardProps) {
   useEffect(() => {
     let cancelled = false;
 
-    const loadCatalog = async () => {
-      try {
-        const [icData, activityData, stateData, yearData] = await Promise.all([
-          getIcData(),
-          getActivityData(80),
-          getStateData(),
-          getYearData(),
-        ]);
-        if (!cancelled) {
-          setFilterCatalog({
-            icNames: icData.map((point) => point.label),
-            activityCodes: activityData.map((point) => point.label),
-            states: stateData.map((point) => point.state),
-            fiscalYearOptions: yearData.map((d) => d.year),
-          });
-        }
-      } catch {
-        if (!cancelled) {
-          setFilterCatalog(null);
-        }
-      }
-    };
-
-    void loadCatalog();
-
-    return () => {
-      cancelled = true;
-    };
-  }, []);
-
-  useEffect(() => {
-    let cancelled = false;
-
     const load = async () => {
-      if (data) {
+      if (hasLoadedOnceRef.current) {
         setRefreshing(true);
       }
       try {
@@ -368,15 +306,15 @@ export default function Dashboard({ onSearchNavigate }: DashboardProps) {
           topOrgs,
           avgGrant,
         ] = await Promise.all([
-          getDashboardSummary(appliedFilters),
-          getStateData(appliedFilters),
-          getIcData(undefined, appliedFilters),
-          getActivityData(80, appliedFilters),
-          getActivityFundingPie({ limit: 500, pieSlices: 20 }, appliedFilters),
+          getDashboardSummary(dashboardFilters),
+          getStateData(dashboardFilters),
+          getIcData(undefined, dashboardFilters),
+          getActivityData(80, dashboardFilters),
+          getActivityFundingPie({ limit: 500, pieSlices: 20 }, dashboardFilters),
           getProjectTermThemeCloud(),
-          getYearData(appliedFilters),
-          getTopOrgs(appliedFilters),
-          getAvgGrantByIc(appliedFilters),
+          getYearData(dashboardFilters),
+          getTopOrgs(dashboardFilters),
+          getAvgGrantByIc(dashboardFilters),
         ]);
 
         if (!cancelled) {
@@ -391,6 +329,7 @@ export default function Dashboard({ onSearchNavigate }: DashboardProps) {
             topOrgs,
             avgGrant,
           });
+          hasLoadedOnceRef.current = true;
           setError(null);
         }
       } catch (err) {
@@ -409,7 +348,7 @@ export default function Dashboard({ onSearchNavigate }: DashboardProps) {
     return () => {
       cancelled = true;
     };
-  }, [appliedFilters]);
+  }, [dashboardFilters]);
 
   if (error) {
     return (
@@ -435,13 +374,13 @@ export default function Dashboard({ onSearchNavigate }: DashboardProps) {
       ? summary.total_funding / summary.total_documents
       : 0;
 
-  const topOrgsChartData = topOrgs.map((point) => ({
+  const topOrgsChartData: Array<Record<string, unknown>> = topOrgs.map((point) => ({
     ...point,
     short_label: abbreviateChartCategoryLabel(point.label),
     full_label: point.label,
   }));
 
-  const avgGrantChartData = avgGrant.map((point) => ({
+  const avgGrantChartData: Array<Record<string, unknown>> = avgGrant.map((point) => ({
     ...point,
     short_label: abbreviateChartCategoryLabel(point.label),
     full_label: point.label,
@@ -451,12 +390,12 @@ export default function Dashboard({ onSearchNavigate }: DashboardProps) {
     <BarChartPanel
       title="Top Organizations by Funding"
       panelClassName="chart-panel-top-orgs"
-      data={topOrgsChartData as unknown as Array<Record<string, unknown>>}
+      data={topOrgsChartData}
       dataKey="total_funding"
       labelKey="short_label"
       tooltipLabelKey="full_label"
       layout="horizontal"
-      formatter={formatDollars}
+      formatter={formatDollarsCompact}
       fillHeight={hasIcFilter}
       {...(hasIcFilter
         ? {
@@ -474,14 +413,13 @@ export default function Dashboard({ onSearchNavigate }: DashboardProps) {
     <ActivityFundingPiePanel
       title="Funding by Activity Code"
       pie={activityPie}
-      formatDollars={formatDollars}
+      formatDollars={formatDollarsCompact}
     />
   );
 
   return (
     <div className={`dashboard${refreshing ? " dashboard--refreshing" : ""}`}>
       <Filters
-        ref={filtersRef}
         searchSlot={<SearchBar onSearch={handleDashboardSearch} submitOnClear={false} />}
         icNames={icNames}
         activityCodes={activityCodes}
@@ -493,6 +431,12 @@ export default function Dashboard({ onSearchNavigate }: DashboardProps) {
         selectedState={selectedState}
         fyMin={fyMin}
         fyMax={fyMax}
+        onPIChange={setSelectedPI}
+        onICChange={setSelectedIC}
+        onActivityChange={setSelectedActivity}
+        onStateChange={setSelectedState}
+        onFyMinChange={setFyMin}
+        onFyMaxChange={setFyMax}
         onApply={(filters) => {
           setSelectedPI(filters.pi);
           setSelectedIC(filters.ic);
@@ -513,9 +457,9 @@ export default function Dashboard({ onSearchNavigate }: DashboardProps) {
 
       {/* KPI cards */}
       <div className="kpi-cards">
-        <KpiCard label="Total Funding" value={formatDollars(summary.total_funding)} />
+        <KpiCard label="Total Funding" value={formatDollarsCompact(summary.total_funding)} />
         <KpiCard label="Total Projects" value={formatCount(summary.total_documents)} />
-        <KpiCard label="Avg Grant" value={formatDollars(avgGrantValue)} />
+        <KpiCard label="Avg Grant" value={formatDollarsCompact(avgGrantValue)} />
       </div>
 
       {/* State map (+ IC-filter charts) + IC bar chart — aligned to KPI 3-column grid */}
@@ -561,7 +505,7 @@ export default function Dashboard({ onSearchNavigate }: DashboardProps) {
                 </button>
               </div>
             }
-            data={icChartRows as unknown as Array<Record<string, unknown>>}
+            data={icChartRows}
               dataKey="value"
               labelKey="short_label"
               tooltipLabelKey="full_label"
@@ -604,7 +548,7 @@ export default function Dashboard({ onSearchNavigate }: DashboardProps) {
                 panelClassName="chart-panel-year-trend"
                 data={yearData}
                 height={300}
-                formatter={formatDollars}
+                formatter={formatDollarsCompact}
               />
             </div>
             <div className="dashboard-grid-2-pie">{activityPiePanel}</div>
@@ -616,7 +560,7 @@ export default function Dashboard({ onSearchNavigate }: DashboardProps) {
               panelClassName="chart-panel-year-trend"
               data={yearData}
               height={300}
-              formatter={formatDollars}
+              formatter={formatDollarsCompact}
             />
           </div>
         )}
@@ -631,12 +575,12 @@ export default function Dashboard({ onSearchNavigate }: DashboardProps) {
         <BarChartPanel
           title="Average Grant by Institute (IC)"
           panelClassName="chart-panel-avg-grant"
-          data={avgGrantChartData as unknown as Array<Record<string, unknown>>}
+          data={avgGrantChartData}
           dataKey="avg_grant"
           labelKey="short_label"
           tooltipLabelKey="full_label"
           layout="horizontal"
-          formatter={formatDollars}
+          formatter={formatDollarsCompact}
           color="#7c3aed"
         />
       </div>
