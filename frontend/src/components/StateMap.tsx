@@ -1,4 +1,4 @@
-import { useEffect, useState } from "react";
+import { useEffect, useState, React } from "react";
 import { scaleThreshold } from "d3-scale";
 import {
   ComposableMap,
@@ -122,7 +122,7 @@ interface StateMapProps {
   data: StateDataPoint[];
   /** Active state filter (USPS abbrev); used to clear map-click highlight when filters reset. */
   selectedStateAbbrev?: string;
-  /** When set, clicking a state applies that USPS abbrev via this callback. */
+  /** When set, clicking a state applies that USPS abbrev; click again to clear (passes ""). */
   onStateSelect?: (stateAbbrev: string) => void;
 }
 
@@ -216,11 +216,17 @@ export default function StateMap({
   const handleStateClick = (geoName: string): void => {
     if (!onStateSelect) return;
     const abbrev = STATE_NAME_TO_ABBREV[geoName];
-    if (abbrev) {
-      const normalized = abbrev.toUpperCase();
-      onStateSelect(normalized);
-      setMapClickedAbbrev(normalized);
+    if (!abbrev) return;
+
+    const normalized = abbrev.toUpperCase();
+    if (normalized === normalizedSelectedAbbrev) {
+      onStateSelect("");
+      setMapClickedAbbrev(null);
+      return;
     }
+
+    onStateSelect(normalized);
+    setMapClickedAbbrev(normalized);
   };
 
   const getStroke = (geoName: string, isHovered: boolean, isSelected: boolean): string => {
