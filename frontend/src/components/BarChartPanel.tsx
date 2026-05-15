@@ -1,8 +1,9 @@
-import { useEffect, useRef, useState, type ReactNode } from "react";
+import { useEffect, useMemo, useRef, useState, type ReactNode } from "react";
 import {
   Bar,
   BarChart,
   CartesianGrid,
+  Rectangle,
   ResponsiveContainer,
   Tooltip,
   XAxis,
@@ -16,6 +17,29 @@ import {
 } from "./VerticalOnlyBarShape";
 
 let lastBarAnimationSnapKey: string | undefined;
+
+type ColoredBarShapeProps = {
+  x?: number;
+  y?: number;
+  width?: number;
+  height?: number;
+  radius?: number | [number, number, number, number];
+  payload?: Record<string, unknown>;
+  fill?: string;
+};
+
+function createColoredBarShape(
+  resolveFill: (row: Record<string, unknown>) => string,
+  defaultFill: string,
+): (props: ColoredBarShapeProps) => JSX.Element {
+  return function ColoredBarShape(props: ColoredBarShapeProps) {
+    const { x = 0, y = 0, width = 0, height = 0, radius = 0, payload, fill } = props;
+    const barFill = payload ? resolveFill(payload) : fill ?? defaultFill;
+    return (
+      <Rectangle x={x} y={y} width={width} height={height} radius={radius} fill={barFill} />
+    );
+  };
+}
 
 function syncVerticalBarSnapKey(snapKey: string): void {
   if (lastBarAnimationSnapKey !== snapKey) {
@@ -56,6 +80,8 @@ interface BarChartPanelProps {
   tooltipFormatter?: (value: number) => string;
   formatter?: (value: number) => string;
   color?: string;
+  /** When set, each row's fill comes from this field (falls back to `color`). */
+  barFillKey?: string;
   height?: number;
   /** Extra space reserved for angled category labels on horizontal charts */
   xAxisHeight?: number;
@@ -112,6 +138,7 @@ export default function BarChartPanel({
   formatter,
   height = 500,
   color = "#1a56db",
+  barFillKey,
   xAxisHeight = 90,
   xAxisAngle = -40,
   xAxisFontSize = 11,
@@ -240,11 +267,21 @@ export default function BarChartPanel({
     onBarClick(barEntry.payload);
   };
 
+  const coloredBarShape = useMemo(() => {
+    if (!barFillKey) return undefined;
+    return createColoredBarShape((row) => {
+      const custom = row[barFillKey];
+      if (typeof custom === "string" && custom.trim()) return custom;
+      return color;
+    }, color);
+  }, [barFillKey, color, chartData]);
+
   const useVerticalBarAnimation = barAnimation === "vertical";
   const verticalBarShape = useVerticalBarShapeRenderer(
     tooltipLabelKey ?? labelKey,
     barAnimationSnapKey,
   );
+  const barShape = useVerticalBarAnimation ? verticalBarShape : coloredBarShape;
 
   if (useVerticalBarAnimation) {
     syncVerticalBarSnapKey(barAnimationSnapKey);
@@ -283,7 +320,14 @@ export default function BarChartPanel({
               cursor={{ fill: "var(--accent-light)" }}
               position={{ x: 16, y: 16 }}
             />
-            <Bar dataKey={barDataKey} fill={color} radius={[0, 3, 3, 0]} maxBarSize={24} onClick={onBarClick ? handleBarClick : undefined} />
+            <Bar
+              dataKey={barDataKey}
+              fill={color}
+              radius={[0, 3, 3, 0]}
+              maxBarSize={24}
+              shape={barShape}
+              onClick={onBarClick ? handleBarClick : undefined}
+            />
           </BarChart>
         ) : (
           <BarChart
@@ -328,7 +372,7 @@ export default function BarChartPanel({
               fill={color}
               radius={[3, 3, 0, 0]}
               isAnimationActive={!useVerticalBarAnimation && animateBars}
-              shape={useVerticalBarAnimation ? verticalBarShape : undefined}
+              shape={barShape}
               onClick={onBarClick ? handleBarClick : undefined}
               {...(resolvedBarSize != null
                 ? { barSize: resolvedBarSize }
