@@ -482,6 +482,7 @@ export default function Dashboard({ onSearchNavigate }: DashboardProps) {
     <div className={`dashboard${refreshing ? " dashboard--refreshing" : ""}`}>
       <Filters
         ref={filtersRef}
+        searchSlot={<SearchBar onSearch={handleDashboardSearch} submitOnClear={false} />}
         icNames={icNames}
         activityCodes={activityCodes}
         states={states}
@@ -509,12 +510,6 @@ export default function Dashboard({ onSearchNavigate }: DashboardProps) {
           setFyMax("");
         }}
       />
-
-      <div className="search-row">
-        <div className="search-row-inner">
-          <SearchBar onSearch={handleDashboardSearch} submitOnClear={false} />
-        </div>
-      </div>
 
       {/* KPI cards */}
       <div className="kpi-cards">
