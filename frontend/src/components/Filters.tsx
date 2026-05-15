@@ -289,6 +289,8 @@ const FilterSelect: React.FC<FilterSelectProps> = ({
 };
 
 type FiltersProps = {
+  /** Rendered at the top of the filter panel (e.g. search bar). */
+  searchSlot?: React.ReactNode;
   icNames: string[];
   activityCodes: string[];
   states: string[];
@@ -361,6 +363,7 @@ const FY_RANGE_PLACEHOLDER = "-";
 
 const Filters = forwardRef<FiltersHandle, FiltersProps>(function Filters(
   {
+    searchSlot,
     icNames,
     activityCodes,
     states,
@@ -482,6 +485,12 @@ const Filters = forwardRef<FiltersHandle, FiltersProps>(function Filters(
 
   return (
     <section className="app-sidebar">
+      {searchSlot ? (
+        <div className="filters-search-slot">
+          <div className="filters-search-inner">{searchSlot}</div>
+        </div>
+      ) : null}
+
       <div className="sidebar-section">
         <div className="sidebar-label">Principal Investigator</div>
         <input

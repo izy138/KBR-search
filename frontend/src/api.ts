@@ -394,6 +394,16 @@ export function getProjectTermThemeCloud(): Promise<ProjectTermThemeCloudRespons
   return fetchAnalytics<ProjectTermThemeCloudResponse>("/analytics/project-term-theme-cloud");
 }
 
+export interface TermNode {
+  id: string;
+  label: string;
+  children?: TermNode[];
+}
+
+export function getTermTree(): Promise<TermNode[]> {
+  return fetchAnalytics<TermNode[]>("/analytics/term-tree");
+}
+
 export function getYearData(filters?: AnalyticsFilterOptions): Promise<YearDataPoint[]> {
   return fetchAnalytics<YearDataPoint[]>("/analytics/by-year", filters);
 }
