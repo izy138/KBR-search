@@ -3,12 +3,11 @@ import {
   type FormEvent,
   useCallback,
   useEffect,
-  useMemo,
   useRef,
   useState,
 } from "react";
 import { matchPath, useLocation, useNavigate } from "react-router-dom";
-import Dashboard from "./components/Dashboard";
+import Dashboard, { type DashboardSearchFilters } from "./components/Dashboard";
 import Filters from "./components/Filters";
 import InvestigatorPage from "./components/InvestigatorPage";
 import ProjectDetailsPage from "./components/ProjectDetailsPage";
@@ -17,8 +16,12 @@ import SearchBar from "./components/SearchBar";
 import SemanticSimilarProjectPage from "./components/SemanticSimilarProjectPage";
 import SemanticVectorLabPage from "./components/SemanticVectorLabPage";
 import {
+  getActivityData,
+  getIcData,
   getProjectsByInvestigator,
   getProjectById,
+  getStateData,
+  getYearData,
   type SearchResultRecord,
   searchProjects,
 } from "./api";
@@ -53,6 +56,7 @@ export default function App() {
 
   const [view, setView] = useState<View>("search");
   const [query, setQuery] = useState("");
+  const [projectTermFilters, setProjectTermFilters] = useState<string[]>([]);
   const [results, setResults] = useState<SearchResultRecord[]>([]);
   const [loading, setLoading] = useState(false);
 
@@ -109,6 +113,22 @@ export default function App() {
   const totalPages = Math.max(1, Math.ceil(visibleTotal / resultsPerPage));
   const pageNumbers = getPageNumbers(currentPage, totalPages);
   const mainRef = useRef<HTMLElement | null>(null);
+  const searchFiltersRef = useRef({
+    pi: selectedPI,
+    ic: selectedIC,
+    activity: selectedActivity,
+    state: selectedState,
+    fyMin,
+    fyMax,
+  });
+  searchFiltersRef.current = {
+    pi: selectedPI,
+    ic: selectedIC,
+    activity: selectedActivity,
+    state: selectedState,
+    fyMin,
+    fyMax,
+  };
   const projectRouteMatch = matchPath("/projects/:projectId", location.pathname);
   const selectedProjectId = projectRouteMatch?.params.projectId ?? null;
   const semanticSimilarMatch = matchPath("/semantic/similar/:projectId", location.pathname);
@@ -124,44 +144,63 @@ export default function App() {
   const investigatorTotalPages = Math.max(1, Math.ceil(investigatorVisibleTotal / investigatorPerPage));
   const investigatorPageNumbers = getPageNumbers(investigatorPage, investigatorTotalPages);
 
-  // Derive filter options from loaded results (simple approach — can be replaced with API aggs)
-  const icNames = useMemo(() => {
-    const set = new Set<string>();
-    results.forEach((r) => {
-      if (r.IC_NAME) set.add(r.IC_NAME);
-    });
-    return Array.from(set).sort();
-  }, [results]);
+  /** Same analytics-driven option lists as `Dashboard` / `Filters` there. */
+  const [searchFilterCatalog, setSearchFilterCatalog] = useState<{
+    icNames: string[];
+    activityCodes: string[];
+    states: string[];
+    fiscalYearOptions: number[];
+  } | null>(null);
 
-  const activityCodes = useMemo(() => {
-    const set = new Set<string>();
-    results.forEach((r) => {
-      if (r.ACTIVITY) set.add(r.ACTIVITY);
-    });
-    return Array.from(set).sort();
-  }, [results]);
-
-  const states = useMemo(() => {
-    const set = new Set<string>();
-    results.forEach((r) => {
-      if (r.ORG_STATE) set.add(r.ORG_STATE);
-    });
-    return Array.from(set).sort();
-  }, [results]);
+  useEffect(() => {
+    let cancelled = false;
+    const load = async () => {
+      try {
+        const [icData, activityData, stateData, yearData] = await Promise.all([
+          getIcData(),
+          getActivityData(80),
+          getStateData(),
+          getYearData(),
+        ]);
+        if (cancelled) return;
+        setSearchFilterCatalog({
+          icNames: icData.map((p) => p.label),
+          activityCodes: activityData.map((p) => p.label),
+          states: stateData.map((p) => p.state),
+          fiscalYearOptions: yearData.map((d) => d.year),
+        });
+      } catch {
+        if (!cancelled) setSearchFilterCatalog(null);
+      }
+    };
+    void load();
+    return () => {
+      cancelled = true;
+    };
+  }, []);
 
   const runSearch = useCallback(
     async (q: string, page: number, limit: number) => {
+      const {
+        pi,
+        ic,
+        activity,
+        state,
+        fyMin: fyMinValue,
+        fyMax: fyMaxValue,
+      } = searchFiltersRef.current;
       setLoading(true);
       try {
         const payload = await searchProjects(q, {
           page,
           limit,
-          pi: selectedPI,
-          ic: selectedIC,
-          activity: selectedActivity,
-          state: selectedState,
-          fyMin,
-          fyMax,
+          pi,
+          ic,
+          activity,
+          state,
+          fyMin: fyMinValue,
+          fyMax: fyMaxValue,
+          projectTerms: projectTermFilters,
         });
         setResults(payload.results ?? []);
         setTotal(payload.total ?? 0);
@@ -170,7 +209,7 @@ export default function App() {
         setLoading(false);
       }
     },
-    [selectedPI, selectedIC, selectedActivity, selectedState, fyMin, fyMax],
+    [projectTermFilters],
   );
 
   useEffect(() => {
@@ -186,10 +225,17 @@ export default function App() {
     void runSearch(query, currentPage, resultsPerPage);
   }, [
     query,
+    projectTermFilters,
     currentPage,
     resultsPerPage,
     runSearch,
     view,
+    selectedPI,
+    selectedIC,
+    selectedActivity,
+    selectedState,
+    fyMin,
+    fyMax,
     selectedProjectId,
     selectedInvestigatorName,
     semanticSimilarProjectId,
@@ -231,6 +277,7 @@ export default function App() {
 
   const handleSearch = (nextQuery: string) => {
     setQuery(nextQuery);
+    setProjectTermFilters([]);
     setCurrentPage(1);
   };
 
@@ -258,8 +305,45 @@ export default function App() {
     setSelectedState("");
     setFyMin("");
     setFyMax("");
+    setProjectTermFilters([]);
     setCurrentPage(1);
   };
+
+  const handleDashboardSearchNavigate = useCallback(
+    (searchQuery: string, filters: DashboardSearchFilters) => {
+      searchFiltersRef.current = {
+        pi: filters.pi,
+        ic: filters.ic,
+        activity: filters.activity,
+        state: filters.state,
+        fyMin: filters.fyMin,
+        fyMax: filters.fyMax,
+      };
+      setSelectedPI(filters.pi);
+      setSelectedIC(filters.ic);
+      setSelectedActivity(filters.activity);
+      setSelectedState(filters.state);
+      setFyMin(filters.fyMin);
+      setFyMax(filters.fyMax);
+      setQuery(searchQuery);
+      setProjectTermFilters([]);
+      setCurrentPage(1);
+      setView("search");
+      navigate("/");
+    },
+    [navigate],
+  );
+
+  const handleSearchFromProjectTerms = useCallback(
+    (payload: { terms: string[]; additionalQuery: string }) => {
+      setProjectTermFilters(payload.terms);
+      setQuery(payload.additionalQuery.trim());
+      setCurrentPage(1);
+      setView("search");
+      navigate("/");
+    },
+    [navigate],
+  );
 
   const handlePerPageChange = (e: ChangeEvent<HTMLSelectElement>) => {
     setResultsPerPage(Number(e.target.value));
@@ -479,7 +563,7 @@ export default function App() {
         style={view === "dashboard" && !isSemanticRoute ? undefined : { display: "none" }}
         aria-hidden={view !== "dashboard" || isSemanticRoute}
       >
-        <Dashboard />
+        <Dashboard onSearchNavigate={handleDashboardSearchNavigate} />
       </section>
       <main
         className="app-main"
@@ -521,6 +605,7 @@ export default function App() {
               onBack={() => navigate("/")}
               onOpenInvestigator={handleOpenInvestigator}
               onOpenDetails={handleOpenDetails}
+              onSearchWithProjectTerms={handleSearchFromProjectTerms}
             />
           ) : (
             <div className="empty-state" role="status" aria-live="polite">
@@ -554,9 +639,10 @@ export default function App() {
         ) : (
           <>
             <Filters
-              icNames={icNames}
-              activityCodes={activityCodes}
-              states={states}
+              icNames={searchFilterCatalog?.icNames ?? []}
+              activityCodes={searchFilterCatalog?.activityCodes ?? []}
+              states={searchFilterCatalog?.states ?? []}
+              fiscalYearOptions={searchFilterCatalog?.fiscalYearOptions}
               selectedPI={selectedPI}
               selectedIC={selectedIC}
               selectedActivity={selectedActivity}
@@ -582,6 +668,9 @@ export default function App() {
                     <strong>{visibleTotal.toLocaleString()}</strong> results
                     {total > visibleTotal ? ` out of ${total.toLocaleString()}` : ""}
                     {query ? ` for "${query}"` : ""}
+                    {projectTermFilters.length > 0
+                      ? ` — matching project terms: ${projectTermFilters.join("; ")}`
+                      : ""}
                     {currentPage > 1 ? ` — page ${currentPage} of ${totalPages}` : ""}
                   </span>
                 )}
