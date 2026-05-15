@@ -33,4 +33,4 @@ htmlcov/
 .idea/
 
 isa.md
-docs/
+docs/*
