@@ -1,5 +1,5 @@
-import React from "react";
-import type { AnalyticsCategory } from "../api";
+import { type FC } from "react";
+import type { AnalyticsCategory } from "../../api";
 
 type ChartsProps = {
   data: AnalyticsCategory[];
@@ -7,7 +7,7 @@ type ChartsProps = {
   onLoad: () => void;
 };
 
-const Charts: React.FC<ChartsProps> = ({ data, visible, onLoad }) => {
+const Charts: FC<ChartsProps> = ({ data, visible, onLoad }) => {
   if (!visible) {
     return (
       <div className="analytics-placeholder">

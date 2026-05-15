@@ -1,6 +1,7 @@
-import React, { useState, useCallback, useMemo } from "react";
-import type { SearchResultRecord } from "../api";
-import { getOrderedPiNames } from "../utils/piNames";
+import { type AriaAttributes, type FC, Fragment, useState, useCallback, useMemo } from "react";
+import type { SearchResultRecord } from "../../api";
+import { getOrderedPiNames } from "../../utils/piNames";
+import { formatDollarsCompact } from "../../utils/format";
 
 // ─── Types ────────────────────────────────────────────────────────────────────
 
@@ -47,13 +48,6 @@ const COLUMNS: ColumnDef[] = [
 
 // ─── Helpers ─────────────────────────────────────────────────────────────────
 
-function formatCost(value: number | undefined): string {
-  if (value == null || isNaN(value)) return "—";
-  if (value >= 1_000_000) return `$${(value / 1_000_000).toFixed(2)}M`;
-  if (value >= 1_000) return `$${(value / 1_000).toFixed(0)}K`;
-  return `$${value}`;
-}
-
 function getSortValue(item: SearchResultRecord, column: ColumnKey): string | number {
   const raw = item[column];
   if (raw == null) return "";
@@ -90,7 +84,7 @@ function applyPrimarySort(
   });
 }
 
-const ChevronIcon: React.FC<{ direction: SortDirection }> = ({ direction }) => {
+const ChevronIcon: FC<{ direction: SortDirection }> = ({ direction }) => {
   if (direction === "asc") {
     return (
       <svg
@@ -141,13 +135,13 @@ interface SortHeaderProps {
 
 // ─── Sticky Header ────────────────────────────────────────────────────────────
 
-const ResultsHeader: React.FC<SortHeaderProps> = ({ sort, onSort }) => (
+const ResultsHeader: FC<SortHeaderProps> = ({ sort, onSort }) => (
   <div className="results-table-header" role="row">
     <div className="results-table-header-grid">
       {COLUMNS.map((col) => {
         const isActive = sort.column === col.key && sort.direction !== "none";
         const currentDirection: SortDirection = sort.column === col.key ? sort.direction : "none";
-        const ariaSort: React.AriaAttributes["aria-sort"] =
+        const ariaSort: AriaAttributes["aria-sort"] =
           sort.column === col.key
             ? sort.direction === "asc"
               ? "ascending"
@@ -159,6 +153,7 @@ const ResultsHeader: React.FC<SortHeaderProps> = ({ sort, onSort }) => (
         return (
           <button
             key={col.key}
+            type="button"
             className={`results-table-th${isActive ? " results-table-th--active" : ""}${currentDirection === "asc" ? " results-table-th--active-asc" : ""}${currentDirection === "desc" ? " results-table-th--active-desc" : ""}`}
             role="columnheader"
             aria-sort={ariaSort}
@@ -181,7 +176,7 @@ const ResultsHeader: React.FC<SortHeaderProps> = ({ sort, onSort }) => (
 
 // ─── Skeleton Row ─────────────────────────────────────────────────────────────
 
-const SkeletonRow: React.FC = () => (
+const SkeletonRow: FC = () => (
   <div className="result-row result-row--skeleton" aria-hidden="true">
     <div className="result-row-cols">
       {COLUMNS.map((col) => (
@@ -205,10 +200,10 @@ interface ResultRowProps {
   onOpenInvestigator?: (name: string) => void;
 }
 
-const ResultRow: React.FC<ResultRowProps> = ({ item, onOpenDetails, onOpenInvestigator }) => {
+const ResultRow: FC<ResultRowProps> = ({ item, onOpenDetails, onOpenInvestigator }) => {
   const title =
     item.PROJECT_TITLE ?? item.title ?? item.project_title ?? "Untitled Project";
-  const totalCost = item.TOTAL_COST as number | undefined;
+  const totalCost = item.TOTAL_COST;
   const orderedPiNames = getOrderedPiNames(item.PI_NAMEs);
 
   const cellValues: Record<ColumnKey, string> = {
@@ -218,7 +213,7 @@ const ResultRow: React.FC<ResultRowProps> = ({ item, onOpenDetails, onOpenInvest
     ORG_STATE:     item.ORG_STATE     ?? "—",
     ACTIVITY:      item.ACTIVITY      ?? "—",
     FY:            item.FY != null    ? String(item.FY) : "—",
-    TOTAL_COST:    formatCost(totalCost),
+    TOTAL_COST:    totalCost != null && !Number.isNaN(totalCost) ? formatDollarsCompact(totalCost) : "—",
   };
 
   const handleActivate = useCallback(() => {
@@ -253,7 +248,7 @@ const ResultRow: React.FC<ResultRowProps> = ({ item, onOpenDetails, onOpenInvest
                 {orderedPiNames.length > 0 ? (
                   onOpenInvestigator ? (
                     orderedPiNames.map((name, index) => (
-                      <React.Fragment key={name}>
+                      <Fragment key={name}>
                         <button
                           type="button"
                           className="pi-link-button"
@@ -268,7 +263,7 @@ const ResultRow: React.FC<ResultRowProps> = ({ item, onOpenDetails, onOpenInvest
                           {name}
                         </button>
                         {index < orderedPiNames.length - 1 ? "; " : ""}
-                      </React.Fragment>
+                      </Fragment>
                     ))
                   ) : (
                     orderedPiNames.join("; ")
@@ -296,7 +291,7 @@ const ResultRow: React.FC<ResultRowProps> = ({ item, onOpenDetails, onOpenInvest
 
 // ─── Main Component ───────────────────────────────────────────────────────────
 
-const ResultsList: React.FC<ResultsListProps> = ({
+const ResultsList: FC<ResultsListProps> = ({
   results,
   primarySort,
   loading,

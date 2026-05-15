@@ -3,33 +3,73 @@ const API_BASE_URL = import.meta.env.VITE_API_BASE_URL ?? "http://localhost:8000
 export interface SearchResultRecord {
   _id?: string;
   id?: string;
-  // Core CSV fields
+  // Search scoring / ranking metadata
+  _score?: number;
+  _rank_keyword?: number;
+  _rank_vector?: number;
+  _fused_score?: number;
+  // Core CSV fields — identifiers
   APPLICATION_ID?: number;
+  APPLICATION_TYPE?: number;
+  CORE_PROJECT_NUM?: string;
+  FULL_PROJECT_NUM?: string;
+  SERIAL_NUMBER?: string;
+  SUFFIX?: string;
+  SUBPROJECT_ID?: string;
+  SUPPORT_YEAR?: number;
+  // Project metadata
   PROJECT_TITLE?: string;
   ACTIVITY?: string;
   IC_NAME?: string;
+  ADMINISTERING_IC?: string;
+  FUNDING_ICs?: string;
+  FUNDING_MECHANISM?: string;
+  NIH_SPENDING_CATS?: string;
+  ASSISTANCE_LISTING_NUMBER?: string;
+  OPPORTUNITY_NUMBER?: string;
+  ARRA_FUNDED?: string;
+  // Dates and financials
+  FY?: number;
+  PROJECT_START?: string;
+  PROJECT_END?: string;
+  BUDGET_START?: string;
+  BUDGET_END?: string;
+  AWARD_NOTICE_DATE?: string;
+  TOTAL_COST?: number;
+  TOTAL_COST_SUB_PROJECT?: number;
+  DIRECT_COST_AMT?: number;
+  INDIRECT_COST_AMT?: number;
+  // Organization fields
   ORG_NAME?: string;
   ORG_STATE?: string;
   ORG_CITY?: string;
   ORG_ZIPCODE?: string;
   ORG_COUNTRY?: string;
-  FY?: number;
-  TOTAL_COST?: number;
-  DIRECT_COST_AMT?: number;
-  INDIRECT_COST_AMT?: number;
+  ORG_DEPT?: string;
+  ORG_DISTRICT?: string;
+  ORG_DUNS?: string;
+  ORG_FIPS?: string;
+  ORG_IPF_CODE?: string;
+  ED_INST_TYPE?: string;
+  // Personnel
   PI_NAMEs?: string;
+  PI_IDS?: string;
+  PROGRAM_OFFICER_NAME?: string;
+  // Study section / review
+  STUDY_SECTION?: string;
   STUDY_SECTION_NAME?: string;
-  PROJECT_START?: string;
-  PROJECT_END?: string;
+  // Text / abstract fields
   PROJECT_TERMS?: string;
   ABSTRACT_TEXT?: string;
   PROJECT_ABSTRACT?: string;
+  PHR?: string;
+  // Fiscal year variants embedded in search results
+  year_variants?: ProjectYearVariant[];
   // Lowercase aliases accessed by display logic in App.tsx
   title?: string;
   project_title?: string;
   abstract?: string;
   category?: string;
-  [key: string]: unknown;
 }
 
 export interface SearchResponse {

@@ -7,19 +7,11 @@ import {
   searchHybrid,
   searchProjects,
   searchSimilarByText,
-} from "../api";
+} from "../../api";
+import { formatDollarsFull } from "../../utils/format";
 
 const DEFAULT_K = 12;
 const PICK_SEARCH_LIMIT = 12;
-
-function formatUsd(n: number | undefined): string {
-  if (n == null || Number.isNaN(Number(n))) return "—";
-  return new Intl.NumberFormat(undefined, {
-    style: "currency",
-    currency: "USD",
-    maximumFractionDigits: 0,
-  }).format(n);
-}
 
 function ResultSnippet({ item }: { item: SearchResultRecord }): JSX.Element {
   const id = item._id ?? item.id ?? "";
@@ -421,7 +413,7 @@ export default function SemanticVectorLabPage(): JSX.Element {
                     </div>
                     <ResultSnippet item={item} />
                     <div className="semantic-hit-meta semantic-hit-funding">
-                      {formatUsd(item.TOTAL_COST as number | undefined)}
+                      {formatDollarsFull(item.TOTAL_COST)}
                     </div>
                     {id ? (
                       <div className="semantic-hit-actions">

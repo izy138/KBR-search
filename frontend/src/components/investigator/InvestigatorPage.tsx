@@ -1,5 +1,6 @@
-import type { SearchResultRecord } from "../api";
-import ResultsList from "./ResultsList";
+import type { SearchResultRecord } from "../../api";
+import Pagination from "../shared/Pagination";
+import ResultsList from "../search/ResultsList";
 
 type InvestigatorPageProps = {
   investigatorName: string;
@@ -69,38 +70,12 @@ export default function InvestigatorPage({
       )}
 
       {!loading && !error && totalPages > 1 && (
-        <div className="pagination">
-          <button
-            className="btn-page"
-            onClick={() => onPageChange(Math.max(1, currentPage - 1))}
-            disabled={currentPage === 1}
-          >
-            ←
-          </button>
-
-          {pageNumbers.map((item, index) =>
-            item === "..." ? (
-              <span key={`investigator-ellipsis-${index}`} className="page-ellipsis">…</span>
-            ) : (
-              <button
-                key={item}
-                className={`btn-page${item === currentPage ? " active" : ""}`}
-                onClick={() => onPageChange(item as number)}
-                disabled={item === currentPage}
-              >
-                {item}
-              </button>
-            ),
-          )}
-
-          <button
-            className="btn-page"
-            onClick={() => onPageChange(Math.min(totalPages, currentPage + 1))}
-            disabled={currentPage >= totalPages}
-          >
-            →
-          </button>
-        </div>
+        <Pagination
+          currentPage={currentPage}
+          totalPages={totalPages}
+          pageNumbers={pageNumbers}
+          onPageChange={onPageChange}
+        />
       )}
     </>
   );

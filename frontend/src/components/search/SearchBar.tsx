@@ -1,4 +1,4 @@
-import React, { useEffect, useState } from "react";
+import { type FC, useEffect, useState } from "react";
 
 type SearchBarProps = {
   onSearch: (query: string) => void;
@@ -7,7 +7,7 @@ type SearchBarProps = {
   submitOnClear?: boolean;
 };
 
-const SearchBar: React.FC<SearchBarProps> = ({
+const SearchBar: FC<SearchBarProps> = ({
   onSearch,
   initialQuery = "",
   submitOnClear = true,

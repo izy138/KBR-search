@@ -10,7 +10,7 @@ import {
 } from "recharts";
 import type { TooltipContentProps } from "recharts/types/component/Tooltip";
 import type { NameType, ValueType } from "recharts/types/component/DefaultTooltipContent";
-import type { ActivityFundingPieResponse, ActivityPieSlice } from "../api";
+import type { ActivityFundingPieResponse, ActivityPieSlice } from "../../api";
 
 /** Wrapper height for the chart area (Recharts box). Pie radii are separate — raise this for more padding around the rings. */
 const PIE_CONTAINER_HEIGHT_PX = 400;
