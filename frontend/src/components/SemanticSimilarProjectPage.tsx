@@ -1,6 +1,7 @@
 import { useEffect, useState } from "react";
 import type { SearchResultRecord } from "../api";
 import { getProjectById, searchSimilarToProjectId } from "../api";
+import { groupSimilarNeighbors } from "../utils/recurrenceGrouping";
 import ResultsList from "./ResultsList";
 
 type SemanticSimilarProjectPageProps = {
@@ -59,7 +60,7 @@ export default function SemanticSimilarProjectPage({
       }
 
       if (similarOutcome.status === "fulfilled") {
-        setNeighbors(similarOutcome.value.results ?? []);
+        setNeighbors(groupSimilarNeighbors(similarOutcome.value.results ?? []));
       } else {
         const reason = similarOutcome.reason;
         const msg = reason instanceof Error ? reason.message : "Similarity search failed.";
@@ -97,21 +98,15 @@ export default function SemanticSimilarProjectPage({
       </button>
 
       <header className="semantic-similar-header">
-        <h1 className="semantic-similar-title">Similar projects</h1>
-        <p className="semantic-similar-sub">
-          Up to {SIMILAR_FULL_PAGE_K} nearest grants in embedding space for{" "}
-          <code className="semantic-inline-code">{projectId}</code>. Same table layout as search
-          results; default order follows vector similarity (Most relevant sort).
-        </p>
+        <h2 className="semantic-similar-title">Similar Projects</h2>
+        
       </header>
 
       {anchorError ? <p className="semantic-lab-error">{anchorError}</p> : null}
 
       {anchor && !anchorError ? (
         <section className="semantic-anchor-card" aria-labelledby="anchor-h">
-          <h2 id="anchor-h" className="semantic-lab-h2">
-            Anchor project
-          </h2>
+          
           <h3 className="semantic-anchor-title">{anchorTitle}</h3>
           <div className="semantic-hit-meta semantic-anchor-meta">
             <span className="tag activity">{anchorActivity}</span>
@@ -143,7 +138,7 @@ export default function SemanticSimilarProjectPage({
       {showResultsTable ? (
         <section className="semantic-similar-results-block" aria-labelledby="similar-results-h">
           <h2 id="similar-results-h" className="semantic-lab-h2 semantic-similar-results-heading">
-            {loading ? "Loading similar grants…" : `${neighbors.length} similar projects`}
+            {loading ? "Loading similar grants…" : `${neighbors.length} Similar Projects`}
           </h2>
           <ResultsList
             results={neighbors}

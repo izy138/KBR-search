@@ -1,8 +1,9 @@
-import type { ReactNode } from "react";
+import { useEffect, useMemo, useRef, useState, type ReactNode } from "react";
 import {
   Bar,
   BarChart,
   CartesianGrid,
+  Rectangle,
   ResponsiveContainer,
   Tooltip,
   XAxis,
@@ -10,6 +11,42 @@ import {
 } from "recharts";
 import type { TooltipContentProps } from "recharts/types/component/Tooltip";
 import type { NameType, ValueType } from "recharts/types/component/DefaultTooltipContent";
+import {
+  clearVerticalBarHeightStore,
+  useVerticalBarShapeRenderer,
+} from "./VerticalOnlyBarShape";
+
+let lastBarAnimationSnapKey: string | undefined;
+
+type ColoredBarShapeProps = {
+  x?: number;
+  y?: number;
+  width?: number;
+  height?: number;
+  radius?: number | [number, number, number, number];
+  payload?: Record<string, unknown>;
+  fill?: string;
+};
+
+function createColoredBarShape(
+  resolveFill: (row: Record<string, unknown>) => string,
+  defaultFill: string,
+): (props: ColoredBarShapeProps) => JSX.Element {
+  return function ColoredBarShape(props: ColoredBarShapeProps) {
+    const { x = 0, y = 0, width = 0, height = 0, radius = 0, payload, fill } = props;
+    const barFill = payload ? resolveFill(payload) : fill ?? defaultFill;
+    return (
+      <Rectangle x={x} y={y} width={width} height={height} radius={radius} fill={barFill} />
+    );
+  };
+}
+
+function syncVerticalBarSnapKey(snapKey: string): void {
+  if (lastBarAnimationSnapKey !== snapKey) {
+    lastBarAnimationSnapKey = snapKey;
+    clearVerticalBarHeightStore();
+  }
+}
 
 interface BarChartPanelProps {
   title: string;
@@ -43,6 +80,8 @@ interface BarChartPanelProps {
   tooltipFormatter?: (value: number) => string;
   formatter?: (value: number) => string;
   color?: string;
+  /** When set, each row's fill comes from this field (falls back to `color`). */
+  barFillKey?: string;
   height?: number;
   /** Extra space reserved for angled category labels on horizontal charts */
   xAxisHeight?: number;
@@ -55,8 +94,22 @@ interface BarChartPanelProps {
   barSize?: number;
   /** When true, bar width scales with category count instead of maxBarSize */
   dynamicBarSize?: boolean;
+  /** Gap between bar categories (Recharts barCategoryGap) */
+  barCategoryGap?: string | number;
+  /** Remount the chart when this key changes (e.g. scale mode) to avoid cross-scale animation */
+  chartKey?: string;
+  /** `vertical` animates bar height only; `default` uses Recharts' built-in animation */
+  barAnimation?: "default" | "vertical";
+  /** Animate bar size changes (only applies when barAnimation is `default`) */
+  animateBars?: boolean;
+  /** Bars snap instantly when this key changes (pass scale mode for linear/log toggles) */
+  barAnimationSnapKey?: string;
   /** Recharts outer margin */
   chartMargin?: { top?: number; right?: number; bottom?: number; left?: number };
+  /** Size the chart area to the remaining panel height (parent must define height) */
+  fillHeight?: boolean;
+  /** Fired when a bar is clicked; receives the row payload (includes label / full_label). */
+  onBarClick?: (row: Record<string, unknown>) => void;
 }
 
 /**
@@ -85,6 +138,7 @@ export default function BarChartPanel({
   formatter,
   height = 500,
   color = "#1a56db",
+  barFillKey,
   xAxisHeight = 90,
   xAxisAngle = -40,
   xAxisFontSize = 11,
@@ -93,8 +147,40 @@ export default function BarChartPanel({
   maxBarSize = 40,
   barSize,
   dynamicBarSize = false,
+  barCategoryGap = "2%",
+  chartKey,
+  barAnimation = "default",
+  animateBars = true,
+  barAnimationSnapKey = "default",
   chartMargin = { top: 4, right: 16, bottom: 24, left: 8 },
+  fillHeight = false,
+  onBarClick,
 }: BarChartPanelProps) {
+  const chartBodyRef = useRef<HTMLDivElement>(null);
+  const [measuredChartHeight, setMeasuredChartHeight] = useState(0);
+
+  useEffect(() => {
+    if (!fillHeight) {
+      setMeasuredChartHeight(0);
+      return;
+    }
+
+    const chartBody = chartBodyRef.current;
+    if (!chartBody) return;
+
+    const updateHeight = (): void => {
+      setMeasuredChartHeight(chartBody.getBoundingClientRect().height);
+    };
+
+    updateHeight();
+
+    const observer = new ResizeObserver(updateHeight);
+    observer.observe(chartBody);
+
+    return () => observer.disconnect();
+  }, [fillHeight, data.length, layout]);
+
+  const chartHeight = fillHeight ? Math.max(measuredChartHeight, 1) : height;
   const renderTooltip = (props: TooltipContentProps<ValueType, NameType>) => {
     if (!props.active || !props.payload?.length) return null;
     const entry = props.payload[0];
@@ -125,17 +211,16 @@ export default function BarChartPanel({
   const usesValueTransform = valueTransform != null;
   const useLogScale = valueScale === "log" && !usesValueTransform;
   const plotDataKey = `${dataKey}__plot`;
-  const chartData = usesValueTransform
-    ? data.map((row) => {
-        const raw = Number(row[dataKey]);
-        return {
-          ...row,
-          [`${dataKey}__raw`]: raw,
-          [plotDataKey]: valueTransform(raw),
-        };
-      })
-    : data;
-  const barDataKey = usesValueTransform ? plotDataKey : dataKey;
+  const chartData = data.map((row) => {
+    const raw = Number(row[dataKey]);
+    const plotValue = usesValueTransform ? valueTransform(raw) : raw;
+    return {
+      ...row,
+      [`${dataKey}__raw`]: raw,
+      [plotDataKey]: plotValue,
+    };
+  });
+  const barDataKey = plotDataKey;
 
   const axisDomain: [number | "auto", number | "auto"] = usesValueTransform
     ? [0, 1]
@@ -170,8 +255,37 @@ export default function BarChartPanel({
       : undefined);
 
   const panelClass = panelClassName
-    ? `chart-panel ${panelClassName}`
-    : "chart-panel";
+    ? `chart-panel ${panelClassName}${fillHeight ? " chart-panel--fill-height" : ""}${onBarClick ? " chart-panel--bar-clickable" : ""}`
+    : fillHeight
+      ? `chart-panel chart-panel--fill-height${onBarClick ? " chart-panel--bar-clickable" : ""}`
+      : onBarClick
+        ? "chart-panel chart-panel--bar-clickable"
+      : "chart-panel";
+
+  const handleBarClick = (barEntry: { payload?: Record<string, unknown> }): void => {
+    if (!onBarClick || !barEntry.payload) return;
+    onBarClick(barEntry.payload);
+  };
+
+  const coloredBarShape = useMemo(() => {
+    if (!barFillKey) return undefined;
+    return createColoredBarShape((row) => {
+      const custom = row[barFillKey];
+      if (typeof custom === "string" && custom.trim()) return custom;
+      return color;
+    }, color);
+  }, [barFillKey, color, chartData]);
+
+  const useVerticalBarAnimation = barAnimation === "vertical";
+  const verticalBarShape = useVerticalBarShapeRenderer(
+    tooltipLabelKey ?? labelKey,
+    barAnimationSnapKey,
+  );
+  const barShape = useVerticalBarAnimation ? verticalBarShape : coloredBarShape;
+
+  if (useVerticalBarAnimation) {
+    syncVerticalBarSnapKey(barAnimationSnapKey);
+  }
 
   return (
     <div className={panelClass}>
@@ -186,7 +300,8 @@ export default function BarChartPanel({
       ) : (
         <div className="chart-panel-title">{title}</div>
       )}
-      <ResponsiveContainer width="100%" height={height}>
+      <div ref={fillHeight ? chartBodyRef : undefined} className="chart-panel-chart-body">
+        <ResponsiveContainer width="100%" height={chartHeight}>
         {isVertical ? (
           <BarChart data={chartData} layout="vertical" margin={{ top: 4, right: 16, bottom: 4, left: 8 }}>
             <CartesianGrid strokeDasharray="3 3" horizontal={false} stroke="var(--border)" />
@@ -205,15 +320,29 @@ export default function BarChartPanel({
               cursor={{ fill: "var(--accent-light)" }}
               position={{ x: 16, y: 16 }}
             />
-            <Bar dataKey={barDataKey} fill={color} radius={[0, 3, 3, 0]} maxBarSize={24} />
+            <Bar
+              dataKey={barDataKey}
+              fill={color}
+              radius={[0, 3, 3, 0]}
+              maxBarSize={24}
+              shape={barShape}
+              onClick={onBarClick ? handleBarClick : undefined}
+            />
           </BarChart>
         ) : (
           <BarChart
+            key={chartKey}
             data={chartData}
             margin={chartMargin}
-            barCategoryGap="2%"
+            barCategoryGap={barCategoryGap}
+            {...(resolvedBarSize == null && !dynamicBarSize ? { maxBarSize } : {})}
           >
-            <CartesianGrid strokeDasharray="3 3" vertical={false} stroke="var(--border)" />
+            <CartesianGrid
+              strokeDasharray="3 3"
+              vertical={false}
+              stroke="var(--border)"
+              animationDuration={useVerticalBarAnimation ? 0 : undefined}
+            />
             <XAxis
               type="category"
               dataKey={labelKey}
@@ -230,6 +359,7 @@ export default function BarChartPanel({
               width={yAxisWidth}
               tickMargin={yAxisTickMargin}
               type="number"
+              animationDuration={useVerticalBarAnimation ? 0 : undefined}
               {...valueAxisProps}
             />
             <Tooltip
@@ -241,6 +371,9 @@ export default function BarChartPanel({
               dataKey={barDataKey}
               fill={color}
               radius={[3, 3, 0, 0]}
+              isAnimationActive={!useVerticalBarAnimation && animateBars}
+              shape={barShape}
+              onClick={onBarClick ? handleBarClick : undefined}
               {...(resolvedBarSize != null
                 ? { barSize: resolvedBarSize }
                 : { maxBarSize })}
@@ -248,6 +381,7 @@ export default function BarChartPanel({
           </BarChart>
         )}
       </ResponsiveContainer>
+      </div>
     </div>
   );
 }

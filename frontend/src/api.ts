@@ -34,6 +34,7 @@ export interface SearchResultRecord {
 
 export interface SearchResponse {
   query: string;
+  project_terms?: string[];
   limit: number;
   total: number;
   visible_total?: number;
@@ -102,6 +103,7 @@ export type SearchProjectsOptions = {
   state?: string;
   fyMin?: string;
   fyMax?: string;
+  projectTerms?: string[];
 };
 
 export async function searchProjects(
@@ -118,6 +120,7 @@ export async function searchProjects(
     state = "",
     fyMin = "",
     fyMax = "",
+    projectTerms = [],
   } = options;
   const url = new URL(`${API_BASE_URL}/search/`);
   url.searchParams.set("q", query);
@@ -132,6 +135,10 @@ export async function searchProjects(
   if (state) url.searchParams.set("state", state);
   if (fyMin) url.searchParams.set("fy_min", fyMin);
   if (fyMax) url.searchParams.set("fy_max", fyMax);
+  for (const term of projectTerms) {
+    const trimmed = term.trim();
+    if (trimmed) url.searchParams.append("project_terms", trimmed);
+  }
   const response = await fetch(url.toString());
   if (!response.ok) {
     throw new Error(`Search request failed: ${response.status}`);
@@ -208,6 +215,54 @@ export interface ActivityDataPoint {
   count: number;
 }
 
+/** One slice of activity-code funding (pie API or merged "Other"). */
+export interface ActivityPieSlice {
+  label: string;
+  total_funding: number;
+  count: number;
+  percent_of_funding: number;
+}
+
+/** Funding in activity buckets not drawn as pie slices (when merge_other is false). */
+export interface ActivityPieRemainder {
+  codes_in_tail: number;
+  total_funding: number;
+  project_count: number;
+  percent_of_all_indexed: number;
+}
+
+/** JSON payload for the activity funding pie chart (`GET /analytics/by-activity-funding-pie`). */
+export interface ActivityFundingPieResponse {
+  total_funding_indexed: number;
+  activity_buckets_fetched: number;
+  pie_slices_cap: number;
+  merge_other: boolean;
+  denominator: string;
+  slices: ActivityPieSlice[];
+  /** Activity codes below `pie_slices` (when merge_other is false). */
+  tail_slices: ActivityPieSlice[];
+  other: ActivityPieSlice | null;
+  remainder: ActivityPieRemainder | null;
+  sum_other_doc_count: number;
+  more_activities_than_buckets: boolean;
+}
+
+/** One bucket for the PROJECT_TERMS theme word cloud (precomputed JSON). */
+export interface ThemeBucket {
+  label: string;
+  weight: number;
+}
+
+/** `GET /analytics/project-term-theme-cloud` — from notebook `project_term_theme_counts.json`. */
+export interface ProjectTermThemeCloudResponse {
+  generated_at: string | null;
+  method: string | null;
+  low_confidence_cosine?: number | null;
+  buckets: ThemeBucket[];
+  source_path?: string;
+  message?: string;
+}
+
 export interface YearDataPoint {
   year: number;
   count: number;
@@ -260,44 +315,111 @@ export interface DashboardSummary {
 
 // ─── Analytics fetch helpers ──────────────────────────────────────────────────
 
-async function fetchAnalytics<T>(path: string): Promise<T> {
-  const response = await fetch(`${API_BASE_URL}${path}`);
+export type AnalyticsFilterOptions = {
+  pi?: string;
+  ic?: string;
+  activity?: string;
+  state?: string;
+  fyMin?: string;
+  fyMax?: string;
+};
+
+function appendAnalyticsFilters(params: URLSearchParams, filters?: AnalyticsFilterOptions): void {
+  if (!filters) return;
+  if (filters.pi) params.set("pi", filters.pi);
+  if (filters.ic) params.set("ic", filters.ic);
+  if (filters.activity) params.set("activity", filters.activity);
+  if (filters.state) params.set("state", filters.state);
+  if (filters.fyMin) params.set("fy_min", filters.fyMin);
+  if (filters.fyMax) params.set("fy_max", filters.fyMax);
+}
+
+async function fetchAnalytics<T>(path: string, filters?: AnalyticsFilterOptions): Promise<T> {
+  const url = new URL(`${API_BASE_URL}${path}`);
+  appendAnalyticsFilters(url.searchParams, filters);
+  const response = await fetch(url.toString());
   if (!response.ok) {
     throw new Error(`Analytics request failed (${path}): ${response.status}`);
   }
   return response.json() as Promise<T>;
 }
 
-export function getStateData(): Promise<StateDataPoint[]> {
-  return fetchAnalytics<StateDataPoint[]>("/analytics/by-state");
+export function getStateData(filters?: AnalyticsFilterOptions): Promise<StateDataPoint[]> {
+  return fetchAnalytics<StateDataPoint[]>("/analytics/by-state", filters);
 }
 
-export function getIcData(fy?: number): Promise<IcDataPoint[]> {
-  const path =
-    fy != null
-      ? `/analytics/by-ic?fy=${encodeURIComponent(String(fy))}`
-      : "/analytics/by-ic";
+export function getIcData(fy?: number, filters?: AnalyticsFilterOptions): Promise<IcDataPoint[]> {
+  const params = new URLSearchParams();
+  if (fy != null) {
+    params.set("fy", String(fy));
+  }
+  appendAnalyticsFilters(params, filters);
+  const qs = params.toString();
+  const path = qs ? `/analytics/by-ic?${qs}` : "/analytics/by-ic";
   return fetchAnalytics<IcDataPoint[]>(path);
 }
 
-export function getActivityData(): Promise<ActivityDataPoint[]> {
-  return fetchAnalytics<ActivityDataPoint[]>("/analytics/by-activity");
+export function getActivityData(
+  limit = 50,
+  filters?: AnalyticsFilterOptions,
+): Promise<ActivityDataPoint[]> {
+  const params = new URLSearchParams({ limit: String(limit) });
+  appendAnalyticsFilters(params, filters);
+  return fetchAnalytics<ActivityDataPoint[]>(`/analytics/by-activity?${params.toString()}`);
 }
 
-export function getYearData(): Promise<YearDataPoint[]> {
-  return fetchAnalytics<YearDataPoint[]>("/analytics/by-year");
+export function getActivityFundingPie(
+  options?: {
+    limit?: number;
+    pieSlices?: number;
+    mergeOther?: boolean;
+  },
+  filters?: AnalyticsFilterOptions,
+): Promise<ActivityFundingPieResponse> {
+  const params = new URLSearchParams();
+  if (options?.limit != null) {
+    params.set("limit", String(options.limit));
+  }
+  if (options?.pieSlices != null) {
+    params.set("pie_slices", String(options.pieSlices));
+  }
+  if (options?.mergeOther != null) {
+    params.set("merge_other", options.mergeOther ? "true" : "false");
+  }
+  appendAnalyticsFilters(params, filters);
+  const qs = params.toString();
+  const path = qs ? `/analytics/by-activity-funding-pie?${qs}` : "/analytics/by-activity-funding-pie";
+  return fetchAnalytics<ActivityFundingPieResponse>(path);
 }
 
-export function getTopOrgs(): Promise<OrgDataPoint[]> {
-  return fetchAnalytics<OrgDataPoint[]>("/analytics/top-orgs");
+export function getProjectTermThemeCloud(): Promise<ProjectTermThemeCloudResponse> {
+  return fetchAnalytics<ProjectTermThemeCloudResponse>("/analytics/project-term-theme-cloud");
 }
 
-export function getAvgGrantByIc(): Promise<AvgGrantDataPoint[]> {
-  return fetchAnalytics<AvgGrantDataPoint[]>("/analytics/avg-grant-by-ic");
+export interface TermNode {
+  id: string;
+  label: string;
+  children?: TermNode[];
 }
 
-export function getDashboardSummary(): Promise<DashboardSummary> {
-  return fetchAnalytics<DashboardSummary>("/analytics/summary");
+export function getTermTree(): Promise<TermNode[]> {
+  return fetchAnalytics<TermNode[]>("/analytics/term-tree");
+}
+
+export function getYearData(filters?: AnalyticsFilterOptions): Promise<YearDataPoint[]> {
+  return fetchAnalytics<YearDataPoint[]>("/analytics/by-year", filters);
+}
+
+export function getTopOrgs(filters?: AnalyticsFilterOptions): Promise<OrgDataPoint[]> {
+  return fetchAnalytics<OrgDataPoint[]>("/analytics/top-orgs", filters);
+}
+
+export function getAvgGrantByIc(filters?: AnalyticsFilterOptions): Promise<AvgGrantDataPoint[]> {
+  return fetchAnalytics<AvgGrantDataPoint[]>("/analytics/avg-grant-by-ic", filters);
+}
+
+export function getDashboardSummary(filters?: AnalyticsFilterOptions): Promise<DashboardSummary> {
+  return fetchAnalytics<DashboardSummary>("/analytics/summary", filters);
 }
 
 export function getActivityTermsData(
