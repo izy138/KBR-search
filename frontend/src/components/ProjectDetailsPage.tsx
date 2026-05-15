@@ -5,6 +5,7 @@ import { getProjectOtherYears, searchSimilarToProjectId } from "../api";
 import { getOrderedPiNames } from "../utils/piNames";
 import { groupSimilarNeighbors } from "../utils/recurrenceGrouping";
 import ProjectActivityTermsChart from "./ProjectActivityTermsChart";
+import ProjectSimilarProjectsChart from "./ProjectSimilarProjectsChart";
 import SimilarProjectYearTags from "./SimilarProjectYearTags";
 
 type ProjectSearchTermsPayload = {
