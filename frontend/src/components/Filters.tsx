@@ -11,6 +11,8 @@ import React, {
 } from "react";
 import { createPortal } from "react-dom";
 
+import ReactSlider from 'react-slider'
+
 type FilterSelectOption = {
   value: string;
   label: string;

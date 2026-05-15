@@ -90,7 +90,7 @@ export default function ProjectSimilarProjectsChart({
   neighbors,
   loading,
   error,
-}: ProjectSimilarProjectsChartProps): JSX.Element {
+}: ProjectSimilarProjectsChartProps): React.HTMLElement {
   const barFills = getSimilarChartBarFills();
   const chartData = useMemo(() => {
     const fills = getSimilarChartBarFills();
