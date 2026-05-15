@@ -24,6 +24,7 @@ _TERM_HIERARCHY: list[dict[str, object]] = [
   {
     "id": "health",
     "label": "Health",
+    "children": [
       {
         "id": "health.oncology",
         "label": "Oncology",
