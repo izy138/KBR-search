@@ -4,7 +4,9 @@ import type { ProjectFiscalYear, ProjectYearVariant, SearchResultRecord } from "
 import { getProjectOtherYears, searchSimilarToProjectId } from "../api";
 import { getOrderedPiNames } from "../utils/piNames";
 import { groupSimilarNeighbors } from "../utils/recurrenceGrouping";
+import ProjectActivityTermsChart from "./ProjectActivityTermsChart";
 import ProjectSimilarProjectsChart from "./ProjectSimilarProjectsChart";
+import SimilarProjectYearTags from "./SimilarProjectYearTags";
 
 type ProjectSearchTermsPayload = {
   terms: string[];
@@ -688,25 +690,10 @@ export default function ProjectDetailsPage({
             return (
               <li key={listKey} className="project-details-similar-item">
                 <div className="project-details-similar-item-top">
-                  {yearVariants.length > 0 ? (
-                    <div
-                      className="project-details-similar-year-tags"
-                      aria-label="Fiscal years for this similar project"
-                    >
-                      {yearVariants.map((variant) => (
-                        <button
-                          key={`${variant.fy ?? "na"}-${variant.project_id}`}
-                          type="button"
-                          className="project-details-similar-year-tag"
-                          onClick={() => handleOpenYearVariant(variant)}
-                        >
-                          {variant.fy != null ? `FY ${variant.fy}` : "Year"}
-                        </button>
-                      ))}
-                    </div>
-                  ) : (
-                    <div className="project-details-similar-year-tags" aria-hidden="true" />
-                  )}
+                  <SimilarProjectYearTags
+                    variants={yearVariants}
+                    onSelect={handleOpenYearVariant}
+                  />
                   <div className="project-details-similar-item-trailing">
                     {neighbor.ACTIVITY ? <span className="tag activity">{neighbor.ACTIVITY}</span> : null}
                     <span className="project-details-similar-item-cost">
