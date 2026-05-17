@@ -2,7 +2,6 @@ import { useEffect, useState } from "react";
 import type { SearchResultRecord } from "../../api";
 import { getProjectById, searchSimilarToProjectId } from "../../api";
 import { groupSimilarNeighbors } from "../../utils/recurrenceGrouping";
-import { CLS_BACK_LINK, CLS_TAG_ACTIVITY, CLS_TAG_FY } from "../../utils/sharedStyles";
 import ResultsList from "../search/ResultsList";
 
 type SemanticSimilarProjectPageProps = {
@@ -101,7 +100,7 @@ export default function SemanticSimilarProjectPage({
   return (
     <div className="w-full max-w-none m-0 pt-[0.35rem] pb-10">
       <div className="mb-3">
-        <button type="button" className={CLS_BACK_LINK} onClick={onBackToLab}>
+        <button type="button" className="inline-block p-0 border-none bg-transparent text-accent font-sans text-[15.5px] cursor-pointer hover:underline" onClick={onBackToLab}>
           ← Vector search lab
         </button>
       </div>
@@ -121,8 +120,8 @@ export default function SemanticSimilarProjectPage({
             {anchorTitle}
           </h3>
           <div className={`${CLS_HIT_META} mb-[0.35rem]`}>
-            <span className={CLS_TAG_ACTIVITY}>{anchorActivity}</span>
-            <span className={CLS_TAG_FY}>FY {anchorFy}</span>
+            <span className="inline-block px-[0.42rem] py-[0.12rem] rounded-full text-[0.72rem] font-semibold leading-[1.3] bg-accent-light text-accent-text">{anchorActivity}</span>
+            <span className="inline-block px-[0.42rem] py-[0.12rem] rounded-full text-[0.72rem] font-semibold leading-[1.3] bg-green-light text-green">FY {anchorFy}</span>
             <span className="text-text-muted">{anchor.IC_NAME ?? ""}</span>
           </div>
           <p className="m-0 mb-1 text-[0.875rem] text-text-secondary">{anchor.ORG_NAME ?? "—"}</p>

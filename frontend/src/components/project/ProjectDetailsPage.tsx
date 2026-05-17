@@ -7,7 +7,7 @@ import { getOrderedPiNames } from "../../utils/piNames";
 import { groupSimilarNeighbors } from "../../utils/recurrenceGrouping";
 import { formatDollarsFull } from "../../utils/format";
 import { cn } from "../../utils/cn";
-import { CLS_BACK_LINK, CLS_LINK_BTN, CLS_PI_LINK, CLS_TAG_ACTIVITY } from "../../utils/sharedStyles";
+const CLS_LINK_BTN = "p-0 border-none bg-transparent text-accent font-sans text-[0.8125rem] font-semibold cursor-pointer hover:underline";
 import FiscalYearTag from "./FiscalYearTag";
 import ProjectActivityTermsChart from "./ProjectActivityTermsChart";
 import ProjectSimilarProjectsChart from "./ProjectSimilarProjectsChart";
@@ -439,7 +439,7 @@ export default function ProjectDetailsPage({
     <div className="flex flex-col gap-[1.25rem] min-w-0 w-full">
     <div className="bg-surface border border-border rounded-lg p-6 w-full min-w-0">
       <div className="grid grid-cols-[auto_1fr_auto] items-center gap-x-4 gap-y-3 mb-4">
-        <button type="button" className={CLS_BACK_LINK} onClick={onBack}>
+        <button type="button" className="inline-block p-0 border-none bg-transparent text-accent font-sans text-[15.5px] cursor-pointer hover:underline" onClick={onBack}>
           Back to results
         </button>
         {displayProjectYears.length > 1 ? (
@@ -497,7 +497,7 @@ export default function ProjectDetailsPage({
                   {onOpenInvestigator ? (
                     <button
                       type="button"
-                      className={CLS_PI_LINK}
+                      className="p-0 border-none bg-transparent text-accent font-[inherit] cursor-pointer hover:underline"
                       onClick={() => onOpenInvestigator(name)}
                     >
                       {name}
@@ -625,7 +625,7 @@ export default function ProjectDetailsPage({
     </div>
 
     {projectId ? (
-      <div className="project-activity-widget" role="region" aria-label="Similar projects funding comparison">
+      <div className="bg-surface border border-border rounded-[--radius-lg] p-5 w-full min-w-0 [&>section]:!mb-0" role="region" aria-label="Similar projects funding comparison">
         <ProjectSimilarProjectsChart
           currentProject={item}
           projectId={projectId}
@@ -684,7 +684,7 @@ export default function ProjectDetailsPage({
                     onSelect={handleOpenYearVariant}
                   />
                   <div className="flex items-center justify-end gap-[0.4rem] flex-shrink-0 ml-auto">
-                    {neighbor.ACTIVITY ? <span className={CLS_TAG_ACTIVITY}>{neighbor.ACTIVITY}</span> : null}
+                    {neighbor.ACTIVITY ? <span className="inline-block px-[0.42rem] py-[0.12rem] rounded-full text-[0.72rem] font-semibold leading-[1.3] bg-accent-light text-accent-text">{neighbor.ACTIVITY}</span> : null}
                     <span className="font-mono text-[0.78rem] font-medium text-text-secondary whitespace-nowrap">
                       {formatDollarsFull(neighbor.TOTAL_COST)}
                     </span>

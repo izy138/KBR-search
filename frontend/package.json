@@ -9,6 +9,7 @@
     "preview": "vite preview --host 0.0.0.0 --port 4173"
   },
   "dependencies": {
+    "@babel/runtime": "^7.29.2",
     "d3-scale": "^4.0.2",
     "react": "^18.3.1",
     "react-dom": "^18.3.1",

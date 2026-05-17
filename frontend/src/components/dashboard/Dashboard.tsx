@@ -25,11 +25,13 @@ import type {
 import ActivityFundingPiePanel from "../charts/ActivityFundingPiePanel";
 import BarChartPanel from "../charts/BarChartPanel";
 import Filters from "../search/Filters";
+import type { FilterValues } from "../../types/filters";
 import LineChartPanel from "../charts/LineChartPanel";
 import ProjectTermsThemeCloud from "./ProjectTermsThemeCloud";
-import SearchBar from "../search/SearchBar";
+import TermCloud from "./TermCloud";
 import StateMap from "./StateMap";
 import { formatDollarsCompact } from "../../utils/format";
+import { cn } from "../../utils/cn";
 
 // ─── Formatting helpers ───────────────────────────────────────────────────────
 
@@ -151,17 +153,11 @@ interface DashboardData {
   avgGrant: AvgGrantDataPoint[];
 }
 
-export type DashboardSearchFilters = {
-  pi: string;
-  ic: string;
-  activity: string;
-  state: string;
-  fyMin: string;
-  fyMax: string;
-};
+export type DashboardSearchFilters = FilterValues;
 
 type DashboardProps = {
   onSearchNavigate: (query: string, filters: DashboardSearchFilters) => void;
+  onTermSearchNavigate: (terms: string[], filters: DashboardSearchFilters) => void;
 };
 
 // ─── KPI card subcomponent ────────────────────────────────────────────────────
@@ -186,7 +182,7 @@ function KpiCard({ label, value }: KpiCardProps) {
  * Analytics dashboard that fetches all data in parallel on mount and
  * renders KPI cards, a choropleth map, and multiple chart panels.
  */
-export default function Dashboard({ onSearchNavigate }: DashboardProps) {
+export default function Dashboard({ onSearchNavigate, onTermSearchNavigate }: DashboardProps) {
   const hasLoadedOnceRef = useRef(false);
   const [data, setData] = useState<DashboardData | null>(null);
   const filterCatalog = useFilterCatalog();
@@ -230,8 +226,7 @@ export default function Dashboard({ onSearchNavigate }: DashboardProps) {
       ? { height: mapMeasureHeight, maxHeight: mapMeasureHeight }
       : undefined;
 
-  const icFilterSlotStyle = hasIcFilter ? measuredSlotStyle : undefined;
-  const icChartSlotStyle = !hasIcFilter ? measuredSlotStyle : undefined;
+  const mainChartSlotStyle = measuredSlotStyle;
 
   const hasActiveFilters = useMemo(
     () => Boolean(selectedPI || selectedIC || selectedActivity || selectedState || fyMin || fyMax),
@@ -266,6 +261,10 @@ export default function Dashboard({ onSearchNavigate }: DashboardProps) {
   const handleDashboardSearch = useCallback((nextQuery: string) => {
     onSearchNavigate(nextQuery, dashboardFilters);
   }, [dashboardFilters, onSearchNavigate]);
+
+  const handleTermBrowseSearch = useCallback((terms: string[]) => {
+    onTermSearchNavigate(terms, dashboardFilters);
+  }, [dashboardFilters, onTermSearchNavigate]);
 
   const handleMapStateSelect = (stateAbbrev: string) => {
     setSelectedState(stateAbbrev.toUpperCase());
@@ -394,7 +393,7 @@ export default function Dashboard({ onSearchNavigate }: DashboardProps) {
   const topOrgsPanel = (
     <BarChartPanel
       title="Top Organizations by Funding"
-      panelClassName="chart-panel-top-orgs"
+      panelClassName="min-h-[310px]"
       data={topOrgsChartData}
       dataKey="total_funding"
       labelKey="short_label"
@@ -402,15 +401,66 @@ export default function Dashboard({ onSearchNavigate }: DashboardProps) {
       layout="horizontal"
       formatter={formatDollarsCompact}
       fillHeight={hasIcFilter}
-      {...(hasIcFilter
+    />
+  );
+
+  const icProjectsPanel = (
+    <BarChartPanel
+      title="Projects by Institute (IC)"
+      panelClassName="min-h-0 w-full max-w-full px-4 pt-[0.9rem] pb-[0.05rem] [&_.recharts-responsive-container]:-ml-3 [&_.recharts-responsive-container]:-mb-[0.35rem] [&_.recharts-responsive-container]:!w-[calc(100%+12px)]"
+      headerEnd={
+        <div className="inline-flex border border-border rounded-[--radius-sm] shrink-0 overflow-hidden" role="group" aria-label="Count axis scale">
+          <button
+            type="button"
+            className={cn("bg-surface border-none text-text-secondary cursor-pointer font-[inherit] text-[0.8125rem] font-medium px-[0.65rem] py-[0.35rem] transition-[background,color] duration-150 hover:bg-surface-hover hover:text-text-primary", !icProjectsUseLogScale && "!bg-accent !text-white")}
+            onClick={() => setIcProjectsLogScale(false)}
+          >
+            Linear
+          </button>
+          <button
+            type="button"
+            className={cn("bg-surface border-none text-text-secondary cursor-pointer font-[inherit] text-[0.8125rem] font-medium px-[0.65rem] py-[0.35rem] transition-[background,color] duration-150 hover:bg-surface-hover hover:text-text-primary border-l border-border", icProjectsUseLogScale && "!bg-accent !text-white")}
+            onClick={() => setIcProjectsLogScale(true)}
+            disabled={hasActiveFilters}
+            title={hasActiveFilters ? "Log scale is only available with no filters applied" : undefined}
+          >
+            Log
+          </button>
+        </div>
+      }
+      data={icChartRows}
+      dataKey="value"
+      labelKey="short_label"
+      tooltipLabelKey="full_label"
+      layout="horizontal"
+      fillHeight
+      xAxisHeight={58}
+      xAxisAngle={-45}
+      xAxisFontSize={12}
+      yAxisFontSize={12}
+      yAxisWidth={60}
+      yAxisTickMargin={4}
+      chartMargin={{ top: 4, right: 4, bottom: 4, left: 0 }}
+      barCategoryGap="10%"
+      maxBarSize={30}
+      barAnimation="vertical"
+      barAnimationSnapKey={icProjectsUseLogScale ? "hybrid-log" : "linear"}
+      onBarClick={handleIcBarClick}
+      {...(icProjectsUseLogScale
         ? {
-            xAxisHeight: 48,
-            xAxisAngle: -35,
-            xAxisFontSize: 9,
-            yAxisWidth: 56,
-            chartMargin: { top: 6, right: 8, bottom: 2, left: 3 },
+            valueTransform: (value: number) =>
+              icProjectsValueToPlot(value, icChartLinearMax),
+            plotToValue: (plot: number) =>
+              icProjectsPlotToValue(plot, icChartLinearMax),
+            valueTickValues: icChartTickValues,
+            formatter: formatHybridCountTick,
+            tooltipFormatter: formatCount,
           }
-        : {})}
+        : {
+            valueScale: "linear" as const,
+            formatter: formatCount,
+            tooltipFormatter: formatCount,
+          })}
     />
   );
 
@@ -424,25 +474,17 @@ export default function Dashboard({ onSearchNavigate }: DashboardProps) {
   );
 
   return (
-    <div className={`dashboard${refreshing ? " dashboard--refreshing" : ""}`}>
+    <div className={cn("w-full px-6 py-[1.1rem] flex flex-col", refreshing && "opacity-[0.72] transition-opacity duration-200")}>
       <Filters
-        searchSlot={<SearchBar onSearch={handleDashboardSearch} submitOnClear={false} />}
-        icNames={icNames}
-        activityCodes={activityCodes}
-        states={states}
-        fiscalYearOptions={filterCatalog.fiscalYearOptions}
-        selectedPI={selectedPI}
-        selectedIC={selectedIC}
-        selectedActivity={selectedActivity}
-        selectedState={selectedState}
-        fyMin={fyMin}
-        fyMax={fyMax}
-        onPIChange={setSelectedPI}
-        onICChange={setSelectedIC}
-        onActivityChange={setSelectedActivity}
-        onStateChange={setSelectedState}
-        onFyMinChange={setFyMin}
-        onFyMaxChange={setFyMax}
+        applied={dashboardFilters}
+        catalog={{
+          icNames,
+          activityCodes,
+          states,
+          fiscalYearOptions: filterCatalog.fiscalYearOptions,
+        }}
+        onSearch={handleDashboardSearch}
+        searchSubmitOnClear={false}
         onApply={(filters) => {
           setSelectedPI(filters.pi);
           setSelectedIC(filters.ic);
@@ -468,120 +510,42 @@ export default function Dashboard({ onSearchNavigate }: DashboardProps) {
         <KpiCard label="Avg Grant" value={formatDollarsCompact(avgGrantValue)} />
       </div>
 
-      {/* State map (+ IC-filter charts) + IC bar chart — aligned to KPI 3-column grid */}
-      <div className={`dashboard-grid-2${hasIcFilter ? " dashboard-grid-2--ic-filter" : ""}`}>
-        <div ref={mapMeasureRef} className="dashboard-grid-2-map-measure">
+      {/* State map + main chart slot (IC projects or top orgs when IC filtered) */}
+      <div className="grid grid-cols-3 gap-3 w-full max-w-full min-w-0 max-[768px]:grid-cols-1">
+        <div ref={mapMeasureRef} className="col-start-1 row-start-1 self-start min-w-0 max-[768px]:col-auto max-[768px]:row-auto">
           <StateMap
             data={stateData}
             selectedStateAbbrev={selectedState}
             onStateSelect={handleMapStateSelect}
           />
         </div>
-        {hasIcFilter && (
-          <>
-            <div className="dashboard-grid-2-orgs" style={icFilterSlotStyle}>
-              {topOrgsPanel}
-            </div>
-            <div className="dashboard-grid-2-pie" style={icFilterSlotStyle}>
-              {activityPiePanel}
-            </div>
-          </>
-        )}
-        <div className="dashboard-ic-chart-scroll" style={icChartSlotStyle}>
-          <BarChartPanel
-            title="Projects by Institute (IC)"
-            panelClassName="chart-panel-ic-projects"
-            headerEnd={
-              <div className="chart-scale-toggle" role="group" aria-label="Count axis scale">
-                <button
-                  type="button"
-                  className={icProjectsUseLogScale ? "" : "active"}
-                  onClick={() => setIcProjectsLogScale(false)}
-                >
-                  Linear
-                </button>
-                <button
-                  type="button"
-                  className={icProjectsUseLogScale ? "active" : ""}
-                  onClick={() => setIcProjectsLogScale(true)}
-                  disabled={hasActiveFilters}
-                  title={hasActiveFilters ? "Log scale is only available with no filters applied" : undefined}
-                >
-                  Log
-                </button>
-              </div>
-            }
-            data={icChartRows}
-              dataKey="value"
-              labelKey="short_label"
-              tooltipLabelKey="full_label"
-            layout="horizontal"
-            fillHeight={!hasIcFilter}
-            {...(hasIcFilter ? { height: 360 } : {})}
-            xAxisHeight={58}
-            xAxisAngle={-45}
-            xAxisFontSize={12}
-            yAxisFontSize={12}
-            yAxisWidth={60}
-            yAxisTickMargin={4}
-            chartMargin={{ top: 4, right: 4, bottom: 4, left: 0 }}
-            barCategoryGap="10%"
-            maxBarSize={30}
-            barAnimation="vertical"
-            barAnimationSnapKey={icProjectsUseLogScale ? "hybrid-log" : "linear"}
-            onBarClick={!hasIcFilter ? handleIcBarClick : undefined}
-            {...(icProjectsUseLogScale
-              ? {
-                  valueTransform: (value: number) =>
-                    icProjectsValueToPlot(value, icChartLinearMax),
-                  plotToValue: (plot: number) =>
-                    icProjectsPlotToValue(plot, icChartLinearMax),
-                  valueTickValues: icChartTickValues,
-                  formatter: formatHybridCountTick,
-                  tooltipFormatter: formatCount,
-                }
-              : {
-                  valueScale: "linear" as const,
-                  formatter: formatCount,
-                  tooltipFormatter: formatCount,
-                })}
-          />
+        <div className="col-start-2 col-end-[-1] row-start-1 self-start min-w-0 overflow-hidden w-full max-w-full max-[768px]:col-auto max-[768px]:row-auto" style={mainChartSlotStyle}>
+          {hasIcFilter ? topOrgsPanel : icProjectsPanel}
         </div>
-        {!hasIcFilter ? (
-          <div className="dashboard-grid-2-year-pie-row">
-            <div className="dashboard-grid-2-year">
-              <LineChartPanel
-                title="Projects & Funding by Year"
-                panelClassName="chart-panel-year-trend"
-                data={yearData}
-                height={YEAR_LINE_CHART_HEIGHT}
-                formatter={formatDollarsCompact}
-              />
-            </div>
-            <div className="dashboard-grid-2-pie">{activityPiePanel}</div>
-          </div>
-        ) : (
-          <div className="dashboard-grid-2-year">
+        <div className="col-span-full row-start-2 grid grid-cols-2 gap-3 items-stretch min-w-0 max-[768px]:grid-cols-1 max-[768px]:col-auto max-[768px]:row-auto">
+          <div className="flex flex-col min-w-0">
             <LineChartPanel
               title="Projects & Funding by Year"
-              panelClassName="chart-panel-year-trend"
+              panelClassName="min-h-[330px] flex-1"
               data={yearData}
               height={YEAR_LINE_CHART_HEIGHT}
               formatter={formatDollarsCompact}
             />
           </div>
-        )}
+          <div className="flex flex-col min-w-0">{activityPiePanel}</div>
+        </div>
       </div>
 
-      <div className="dashboard-term-themes-row">
+      <div className="mt-[0.85rem] w-full">
         <ProjectTermsThemeCloud payload={termThemeCloud} />
+        <TermCloud onSearch={handleTermBrowseSearch} />
       </div>
 
-      <div className="dashboard-grid-3">
+      <div className="grid grid-cols-2 gap-[0.85rem] [&>*:last-child]:col-span-full max-[768px]:grid-cols-1">
         {!hasIcFilter && topOrgsPanel}
         <BarChartPanel
           title="Average Grant by Institute (IC)"
-          panelClassName="chart-panel-avg-grant"
+          panelClassName="min-h-[310px]"
           data={avgGrantChartData}
           dataKey="avg_grant"
           labelKey="short_label"

@@ -43,8 +43,8 @@ export default function LineChartPanel({
     if (!props.active || !props.payload?.length) return null;
 
     return (
-      <div className="chart-tooltip">
-        <div className="chart-tooltip-title">FY {props.label}</div>
+      <div className="bg-surface border border-border rounded-[--radius-md] shadow-md text-[0.8125rem] px-[0.875rem] py-[0.625rem] pointer-events-none min-w-[160px] z-10">
+        <div className="text-text-primary font-semibold mb-1 text-[0.82rem]">FY {props.label}</div>
         {props.payload.map((entry) => {
           const rawValue = entry.value;
           const numericValue = typeof rawValue === "number" ? rawValue : Number(rawValue);
@@ -54,7 +54,7 @@ export default function LineChartPanel({
               : numericValue.toLocaleString();
 
           return (
-            <div key={entry.dataKey as string} className="chart-tooltip-row" style={{ color: entry.color }}>
+            <div key={entry.dataKey as string} className="text-text-secondary" style={{ color: entry.color }}>
               {entry.name}: {displayValue}
             </div>
           );
@@ -63,11 +63,11 @@ export default function LineChartPanel({
     );
   };
 
-  const panelClass = cn("chart-panel", panelClassName);
+  const panelClass = cn("bg-surface border border-border rounded-[--radius-lg] w-full px-4 py-[0.9rem] min-h-[310px]", panelClassName);
 
   return (
     <div className={panelClass}>
-      <div className="chart-panel-title">{title}</div>
+      <div className="text-text-primary text-[0.9rem] font-semibold mb-[0.65rem]">{title}</div>
       <ResponsiveContainer width="100%" height={height}>
         <LineChart data={data} margin={chartMargin}>
           <CartesianGrid strokeDasharray="3 3" stroke="var(--border)" />

@@ -2,7 +2,6 @@ import { type AriaAttributes, type FC, Fragment, useState, useCallback, useMemo 
 import type { SearchResultRecord } from "../../api";
 import { getOrderedPiNames } from "../../utils/piNames";
 import { formatDollarsCompact } from "../../utils/format";
-import { CLS_EMPTY_STATE, CLS_PI_LINK } from "../../utils/sharedStyles";
 
 // ─── Types ────────────────────────────────────────────────────────────────────
 
@@ -293,7 +292,7 @@ const ResultRow: FC<ResultRowProps> = ({ item, onOpenDetails, onOpenInvestigator
                         <Fragment key={name}>
                           <button
                             type="button"
-                            className={CLS_PI_LINK}
+                            className="p-0 border-none bg-transparent text-accent font-[inherit] cursor-pointer hover:underline"
                             onClick={(event) => {
                               event.stopPropagation();
                               onOpenInvestigator(name);
@@ -386,7 +385,7 @@ const ResultsList: FC<ResultsListProps> = ({
 
   if (results.length === 0) {
     return (
-      <div className={CLS_EMPTY_STATE}>
+      <div className="flex flex-col items-center justify-center px-6 py-12 text-center text-text-muted text-[0.92rem]">
         <svg
           width="40"
           height="40"

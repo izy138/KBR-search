@@ -48,7 +48,7 @@ const SearchBar: FC<SearchBarProps> = ({
       </svg>
       <input
         type="text"
-        className="min-w-0 flex-1 border-none bg-transparent py-[0.52rem] font-sans text-[13px] text-text-primary outline-none placeholder:text-text-muted"
+        className="min-w-0 flex-1 border-none bg-transparent py-[0.52rem] font-sans text-[14px] text-text-primary outline-none placeholder:text-text-muted"
         placeholder="Search NIH projects by title, PI, keywords…"
         value={query}
         onChange={(e) => setQuery(e.target.value)}
