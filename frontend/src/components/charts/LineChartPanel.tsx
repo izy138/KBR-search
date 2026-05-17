@@ -8,6 +8,7 @@ import {
   XAxis,
   YAxis,
 } from "recharts";
+import { cn } from "../../utils/cn";
 import type { TooltipContentProps } from "recharts/types/component/Tooltip";
 import type { NameType, ValueType } from "recharts/types/component/DefaultTooltipContent";
 import type { YearDataPoint } from "../../api";
@@ -62,9 +63,7 @@ export default function LineChartPanel({
     );
   };
 
-  const panelClass = panelClassName
-    ? `chart-panel ${panelClassName}`
-    : "chart-panel";
+  const panelClass = cn("chart-panel", panelClassName);
 
   return (
     <div className={panelClass}>

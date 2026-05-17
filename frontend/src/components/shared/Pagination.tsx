@@ -1,4 +1,5 @@
 import { type FormEvent } from "react";
+import { cn } from "../../utils/cn";
 
 type PaginationProps = {
   currentPage: number;
@@ -9,6 +10,12 @@ type PaginationProps = {
   onJumpToPageInputChange?: (value: string) => void;
   onJumpToPageSubmit?: (e: FormEvent<HTMLFormElement>) => void;
 };
+
+const btnPage =
+  "min-w-[34px] h-[34px] px-2 border border-border rounded-sm bg-surface text-text-secondary font-sans text-[15px] cursor-pointer transition-all duration-100 flex items-center justify-center hover:not-disabled:border-border-strong hover:not-disabled:text-text-primary hover:not-disabled:bg-surface-hover disabled:opacity-40 disabled:cursor-default";
+
+const btnPageActive =
+  "min-w-[34px] h-[34px] px-2 border border-accent rounded-sm bg-accent text-white font-sans text-[15px] font-medium cursor-default flex items-center justify-center opacity-40 disabled:opacity-40";
 
 /**
  * Computes the page number list to display in pagination, inserting an ellipsis
@@ -60,10 +67,10 @@ export default function Pagination({
     onJumpToPageSubmit !== undefined;
 
   return (
-    <div className="pagination">
+    <div className="flex items-center gap-1 mt-6 flex-wrap">
       <button
         type="button"
-        className="btn-page"
+        className={btnPage}
         onClick={() => onPageChange(1)}
         disabled={currentPage === 1}
         aria-label="Go to first page"
@@ -73,7 +80,7 @@ export default function Pagination({
 
       <button
         type="button"
-        className="btn-page"
+        className={btnPage}
         onClick={() => onPageChange(Math.max(1, currentPage - 1))}
         disabled={currentPage === 1}
         aria-label="Go to previous page"
@@ -83,12 +90,12 @@ export default function Pagination({
 
       {pageNumbers.map((item, index) =>
         item === "..." ? (
-          <span key={`ellipsis-${index}`} className="page-ellipsis">…</span>
+          <span key={`ellipsis-${index}`} className="text-text-muted text-[13px] px-1">…</span>
         ) : (
           <button
             key={item}
             type="button"
-            className={`btn-page${item === currentPage ? " active" : ""}`}
+            className={item === currentPage ? btnPageActive : btnPage}
             onClick={() => onPageChange(item as number)}
             disabled={item === currentPage}
             aria-label={`Go to page ${item}`}
@@ -101,7 +108,7 @@ export default function Pagination({
 
       <button
         type="button"
-        className="btn-page"
+        className={btnPage}
         onClick={() => onPageChange(Math.min(totalPages, currentPage + 1))}
         disabled={currentPage >= totalPages}
         aria-label="Go to next page"
@@ -111,7 +118,7 @@ export default function Pagination({
 
       <button
         type="button"
-        className="btn-page"
+        className={btnPage}
         onClick={() => onPageChange(totalPages)}
         disabled={currentPage >= totalPages}
         aria-label="Go to last page"
@@ -120,9 +127,9 @@ export default function Pagination({
       </button>
 
       {hasJumpToPage && (
-        <form className="page-jump-form" onSubmit={onJumpToPageSubmit}>
+        <form className="inline-flex items-center gap-1 ml-8" onSubmit={onJumpToPageSubmit}>
           <input
-            className="page-jump-input"
+            className="w-14 h-[34px] border border-border rounded-sm bg-surface text-text-primary font-sans text-[13px] text-center px-[0.35rem] focus:outline-2 focus:outline-accent/40 focus:outline-offset-1 focus:border-accent"
             type="text"
             inputMode="numeric"
             pattern="[0-9]*"
@@ -130,7 +137,7 @@ export default function Pagination({
             onChange={(e) => onJumpToPageInputChange(e.target.value.replace(/\D/g, ""))}
             aria-label={`Jump to page between 1 and ${totalPages}`}
           />
-          <button type="submit" className="btn-page btn-page-jump">
+          <button type="submit" className={cn(btnPage, "min-w-[44px]")}>
             Go
           </button>
         </form>

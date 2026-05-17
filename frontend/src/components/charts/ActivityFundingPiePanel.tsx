@@ -1,6 +1,7 @@
 import { useMemo } from "react";
 import {
   Cell,
+  DefaultLegendContent,
   Legend,
   Pie,
   PieChart,
@@ -8,6 +9,7 @@ import {
   Sector,
   Tooltip,
 } from "recharts";
+import type { LegendPayload } from "recharts";
 import type { TooltipContentProps } from "recharts/types/component/Tooltip";
 import type { NameType, ValueType } from "recharts/types/component/DefaultTooltipContent";
 import type { ActivityFundingPieResponse, ActivityPieSlice } from "../../api";
@@ -366,8 +368,8 @@ export default function ActivityFundingPiePanel({
     );
   };
 
-  const legendFormatter = (value: string, entry: unknown) => {
-    const row = (entry as { payload?: PieRow }).payload;
+  const legendFormatter = (value: string, entry: LegendPayload) => {
+    const row = entry.payload as PieRow | undefined;
     if (!row) {
       return value;
     }
@@ -494,11 +496,13 @@ export default function ActivityFundingPiePanel({
                 wrapperStyle={{ transition: "none", outline: "none" }}
               />
               <Legend
-                payload={legendPayload}
                 layout="vertical"
                 align="right"
                 verticalAlign="middle"
                 formatter={legendFormatter}
+                content={(props) => (
+                  <DefaultLegendContent {...props} payload={legendPayload} />
+                )}
                 wrapperStyle={{
                   paddingLeft: 4,
                   maxHeight: chartHeight - 40,

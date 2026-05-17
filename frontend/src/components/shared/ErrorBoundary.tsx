@@ -31,21 +31,12 @@ export default class ErrorBoundary extends Component<ErrorBoundaryProps, ErrorBo
   render(): ReactNode {
     if (this.state.hasError) {
       return this.props.fallback ?? (
-        <div style={{ padding: "2rem", textAlign: "center", color: "var(--text-secondary)" }}>
-          <p style={{ fontSize: 15, fontWeight: 600 }}>Something went wrong.</p>
+        <div className="p-8 text-center text-text-secondary">
+          <p className="text-[15px] font-semibold">Something went wrong.</p>
           <button
             type="button"
             onClick={() => this.setState({ hasError: false })}
-            style={{
-              marginTop: "0.75rem",
-              padding: "0.5rem 1rem",
-              background: "var(--accent)",
-              color: "#fff",
-              border: "none",
-              borderRadius: "var(--radius-sm)",
-              cursor: "pointer",
-              fontSize: 13,
-            }}
+            className="mt-3 px-4 py-2 bg-accent text-white border-none rounded-sm cursor-pointer text-[13px]"
           >
             Try again
           </button>

@@ -1,5 +1,7 @@
 import { useEffect, useId, useRef, useState } from "react";
 import type { ProjectYearVariant } from "../../api";
+import { cn } from "../../utils/cn";
+import FiscalYearTag from "./FiscalYearTag";
 
 type SimilarProjectYearTagsProps = {
   variants: ProjectYearVariant[];
@@ -7,6 +9,15 @@ type SimilarProjectYearTagsProps = {
 };
 
 const VISIBLE_RECENT_COUNT = 2;
+
+const moreBtn =
+  "inline-flex items-center px-[0.45rem] py-[0.15rem] rounded-full border border-border-strong bg-surface text-text-secondary font-sans text-[0.72rem] font-semibold leading-[1.2] cursor-pointer hover:border-text-muted hover:text-text-primary hover:bg-surface-hover";
+
+const moreBtnOpen =
+  "border-text-muted text-text-primary bg-surface-hover";
+
+const menuItem =
+  "block w-full px-[0.55rem] py-[0.35rem] border-none rounded-[4px] bg-transparent text-green font-sans text-[0.72rem] font-semibold text-left cursor-pointer hover:bg-green-light";
 
 function formatFyLabel(fy: number | undefined): string {
   return fy != null ? `FY ${fy}` : "Year";
@@ -49,7 +60,7 @@ export default function SimilarProjectYearTags({
   }, [menuOpen]);
 
   if (visibleRecent.length === 0) {
-    return <div className="project-details-similar-year-tags" aria-hidden="true" />;
+    return <div className="flex flex-wrap items-center gap-[0.3rem] min-w-0 flex-auto" aria-hidden="true" />;
   }
 
   const handleSelect = (variant: ProjectYearVariant): void => {
@@ -60,24 +71,23 @@ export default function SimilarProjectYearTags({
   return (
     <div
       ref={rootRef}
-      className="project-details-similar-year-tags"
+      className="flex flex-wrap items-center gap-[0.3rem] min-w-0 flex-auto"
       aria-label="Fiscal years for this similar project"
     >
       {visibleRecent.map((variant) => (
-        <button
+        <FiscalYearTag
           key={`${variant.fy ?? "na"}-${variant.project_id}`}
-          type="button"
-          className="project-details-similar-year-tag"
+          compact
           onClick={() => handleSelect(variant)}
         >
           {formatFyLabel(variant.fy)}
-        </button>
+        </FiscalYearTag>
       ))}
       {priorCount > 0 ? (
-        <div className="project-details-similar-year-more-wrap">
+        <div className="relative">
           <button
             type="button"
-            className="project-details-similar-year-more"
+            className={cn(moreBtn, menuOpen && moreBtnOpen)}
             aria-expanded={menuOpen}
             aria-haspopup="menu"
             aria-controls={menuId}
@@ -89,7 +99,7 @@ export default function SimilarProjectYearTags({
           {menuOpen ? (
             <ul
               id={menuId}
-              className="project-details-similar-year-menu"
+              className="absolute top-[calc(100%+0.25rem)] left-0 z-20 min-w-[6.5rem] max-h-44 overflow-y-auto m-0 p-1 list-none rounded-sm border border-border-strong bg-surface shadow-[0_8px_24px_rgba(15,23,42,0.12)]"
               role="menu"
               aria-label="Earlier fiscal years"
             >
@@ -97,7 +107,7 @@ export default function SimilarProjectYearTags({
                 <li key={`${variant.fy ?? "na"}-${variant.project_id}`} role="none">
                   <button
                     type="button"
-                    className="project-details-similar-year-menu-item"
+                    className={menuItem}
                     role="menuitem"
                     onClick={() => handleSelect(variant)}
                   >

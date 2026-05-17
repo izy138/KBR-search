@@ -2,6 +2,7 @@ import { type AriaAttributes, type FC, Fragment, useState, useCallback, useMemo 
 import type { SearchResultRecord } from "../../api";
 import { getOrderedPiNames } from "../../utils/piNames";
 import { formatDollarsCompact } from "../../utils/format";
+import { CLS_EMPTY_STATE, CLS_PI_LINK } from "../../utils/sharedStyles";
 
 // ─── Types ────────────────────────────────────────────────────────────────────
 
@@ -46,6 +47,18 @@ const COLUMNS: ColumnDef[] = [
   { key: "TOTAL_COST",    label: "Total Cost"    },
 ];
 
+/**
+ * Shared 7-column grid template used by both the header and every result row.
+ * The negative margins on columns 5–7 compensate for the gap-x-8 on those
+ * visually narrower columns (state abbreviation, activity badge, FY badge).
+ */
+const CLS_COLS_GRID = "grid grid-cols-[20%_23%_28%_5%_5%_3%_8%] gap-x-8 items-center";
+
+const CLS_TH_BASE =
+  "inline-flex items-center gap-1 bg-transparent border-none px-[0.2rem] py-[0.24rem] cursor-pointer font-sans text-[10px] font-semibold tracking-[0.06em] uppercase text-text-muted rounded-sm transition-[color,background] duration-150 whitespace-nowrap overflow-hidden text-ellipsis min-w-0 hover:text-text-secondary hover:bg-surface-hover focus-visible:outline-2 focus-visible:outline-accent focus-visible:outline-offset-1";
+
+const CLS_CELL_VALUE_BASE = "block text-[11.5px] text-text-secondary whitespace-nowrap overflow-hidden text-ellipsis leading-[1.3]";
+
 // ─── Helpers ─────────────────────────────────────────────────────────────────
 
 function getSortValue(item: SearchResultRecord, column: ColumnKey): string | number {
@@ -88,7 +101,7 @@ const ChevronIcon: FC<{ direction: SortDirection }> = ({ direction }) => {
   if (direction === "asc") {
     return (
       <svg
-        className="sort-chevron sort-chevron--active sort-chevron--asc"
+        className="shrink-0 transition-[color] duration-150 text-sort-asc"
         width="10"
         height="10"
         viewBox="0 0 10 10"
@@ -102,7 +115,7 @@ const ChevronIcon: FC<{ direction: SortDirection }> = ({ direction }) => {
   if (direction === "desc") {
     return (
       <svg
-        className="sort-chevron sort-chevron--active sort-chevron--desc"
+        className="shrink-0 transition-[color] duration-150 text-sort-desc"
         width="10"
         height="10"
         viewBox="0 0 10 10"
@@ -115,7 +128,7 @@ const ChevronIcon: FC<{ direction: SortDirection }> = ({ direction }) => {
   }
   return (
     <svg
-      className="sort-chevron sort-chevron--neutral"
+      className="shrink-0 transition-[color] duration-150 text-text-muted opacity-60"
       width="10"
       height="10"
       viewBox="0 0 10 10"
@@ -136,9 +149,12 @@ interface SortHeaderProps {
 // ─── Sticky Header ────────────────────────────────────────────────────────────
 
 const ResultsHeader: FC<SortHeaderProps> = ({ sort, onSort }) => (
-  <div className="results-table-header" role="row">
-    <div className="results-table-header-grid">
-      {COLUMNS.map((col) => {
+  <div
+    className={`sticky top-0 z-10 bg-bg border-b-2 border-border-strong px-[1.25rem] py-[0.36rem] ${CLS_COLS_GRID}`}
+    role="row"
+  >
+    <div className="contents">
+      {COLUMNS.map((col, colIndex) => {
         const isActive = sort.column === col.key && sort.direction !== "none";
         const currentDirection: SortDirection = sort.column === col.key ? sort.direction : "none";
         const ariaSort: AriaAttributes["aria-sort"] =
@@ -150,11 +166,26 @@ const ResultsHeader: FC<SortHeaderProps> = ({ sort, onSort }) => (
               : "none"
             : "none";
 
+        const negMargin =
+          colIndex === 4 ? "-ml-8" :
+          colIndex === 5 ? "-ml-16" :
+          colIndex === 6 ? "-ml-16" : "";
+
+        const thClass = [
+          CLS_TH_BASE,
+          isActive ? "font-bold" : "",
+          currentDirection === "asc" ? "text-sort-asc" : "",
+          currentDirection === "desc" ? "text-sort-desc" : "",
+          negMargin,
+        ]
+          .filter(Boolean)
+          .join(" ");
+
         return (
           <button
             key={col.key}
             type="button"
-            className={`results-table-th${isActive ? " results-table-th--active" : ""}${currentDirection === "asc" ? " results-table-th--active-asc" : ""}${currentDirection === "desc" ? " results-table-th--active-desc" : ""}`}
+            className={thClass}
             role="columnheader"
             aria-sort={ariaSort}
             onClick={() => onSort(col.key)}
@@ -165,7 +196,7 @@ const ResultsHeader: FC<SortHeaderProps> = ({ sort, onSort }) => (
               }
             }}
           >
-            <span className="results-table-th-label">{col.label}</span>
+            <span className="overflow-hidden text-ellipsis whitespace-nowrap text-[11.5px]">{col.label}</span>
             <ChevronIcon direction={currentDirection} />
           </button>
         );
@@ -177,15 +208,18 @@ const ResultsHeader: FC<SortHeaderProps> = ({ sort, onSort }) => (
 // ─── Skeleton Row ─────────────────────────────────────────────────────────────
 
 const SkeletonRow: FC = () => (
-  <div className="result-row result-row--skeleton" aria-hidden="true">
-    <div className="result-row-cols">
+  <div
+    className="bg-surface px-[1.25rem] py-[0.4rem] cursor-default pointer-events-none border-b border-border last:border-b-0"
+    aria-hidden="true"
+  >
+    <div className={`mt-[0.6rem] ${CLS_COLS_GRID}`}>
       {COLUMNS.map((col) => (
-        <div key={col.key} className="result-row-cell">
+        <div key={col.key} className="overflow-hidden">
           <div className="skeleton-line" style={{ width: "70%" }} />
         </div>
       ))}
     </div>
-    <div className="result-row-bottom">
+    <div className="flex items-baseline justify-between gap-4">
       <div className="skeleton-line" style={{ width: "55%" }} />
       <div className="skeleton-line" style={{ width: "12%", marginLeft: "auto" }} />
     </div>
@@ -222,7 +256,7 @@ const ResultRow: FC<ResultRowProps> = ({ item, onOpenDetails, onOpenInvestigator
 
   return (
     <div
-      className="result-row"
+      className="group bg-surface px-[1.25rem] py-[0.4rem] cursor-pointer transition-[background] duration-100 border-b border-border last:border-b-0 hover:bg-surface-hover focus-visible:outline-2 focus-visible:outline-accent focus-visible:outline-offset-[-2px]"
       role="row"
       tabIndex={0}
       onClick={handleActivate}
@@ -235,56 +269,69 @@ const ResultRow: FC<ResultRowProps> = ({ item, onOpenDetails, onOpenInvestigator
       aria-label={`Project: ${title}`}
     >
       {/* First line: title */}
-      <div className="result-row-bottom" role="presentation">
-        <h3 className="result-title">{title}</h3>
+      <div className="flex items-baseline justify-between gap-4" role="presentation">
+        <h3 className="flex-1 min-w-0 text-[14.5px] font-semibold text-text-primary leading-[1.4] whitespace-nowrap overflow-hidden text-ellipsis mb-0 mt-[0.45rem] group-hover:text-accent">
+          {title}
+        </h3>
       </div>
 
       {/* Second line: column-aligned metadata strip */}
-      <div className="result-row-cols" role="presentation">
-        {COLUMNS.map((col) => (
-          <div key={col.key} className="result-row-cell" role="cell">
-            {col.key === "PI_NAMEs" ? (
-              <span className="result-row-cell-value">
-                {orderedPiNames.length > 0 ? (
-                  onOpenInvestigator ? (
-                    orderedPiNames.map((name, index) => (
-                      <Fragment key={name}>
-                        <button
-                          type="button"
-                          className="pi-link-button"
-                          onClick={(event) => {
-                            event.stopPropagation();
-                            onOpenInvestigator(name);
-                          }}
-                          onKeyDown={(event) => {
-                            event.stopPropagation();
-                          }}
-                        >
-                          {name}
-                        </button>
-                        {index < orderedPiNames.length - 1 ? "; " : ""}
-                      </Fragment>
-                    ))
+      <div className={`mt-[0.6rem] ${CLS_COLS_GRID}`} role="presentation">
+        {COLUMNS.map((col, colIndex) => {
+          const negMargin =
+            colIndex === 4 ? "-ml-8" :
+            colIndex === 5 ? "-ml-16" :
+            colIndex === 6 ? "-ml-16" : "";
+
+          return (
+            <div key={col.key} className={`overflow-hidden ${negMargin}`} role="cell">
+              {col.key === "PI_NAMEs" ? (
+                <span className={CLS_CELL_VALUE_BASE}>
+                  {orderedPiNames.length > 0 ? (
+                    onOpenInvestigator ? (
+                      orderedPiNames.map((name, index) => (
+                        <Fragment key={name}>
+                          <button
+                            type="button"
+                            className={CLS_PI_LINK}
+                            onClick={(event) => {
+                              event.stopPropagation();
+                              onOpenInvestigator(name);
+                            }}
+                            onKeyDown={(event) => {
+                              event.stopPropagation();
+                            }}
+                          >
+                            {name}
+                          </button>
+                          {index < orderedPiNames.length - 1 ? "; " : ""}
+                        </Fragment>
+                      ))
+                    ) : (
+                      orderedPiNames.join("; ")
+                    )
                   ) : (
-                    orderedPiNames.join("; ")
-                  )
-                ) : (
-                  "—"
-                )}
-              </span>
-            ) : (
-              <span
-                className={`result-row-cell-value${
-                  col.key === "ACTIVITY" ? " result-row-cell-value--activity" : ""
-                }${col.key === "FY" ? " result-row-cell-value--fy" : ""}`}
-              >
-                {cellValues[col.key]}
-              </span>
-            )}
-          </div>
-        ))}
+                    "—"
+                  )}
+                </span>
+              ) : col.key === "ACTIVITY" ? (
+                <span className="inline-block bg-accent-light text-accent-text rounded-full px-[0.42rem] py-[0.12rem] text-[10px] font-medium tracking-[0.01em]">
+                  {cellValues[col.key]}
+                </span>
+              ) : col.key === "FY" ? (
+                <span className="inline-block bg-green-light text-green rounded-full px-[0.42rem] py-[0.12rem] text-[10px] font-medium">
+                  {cellValues[col.key]}
+                </span>
+              ) : (
+                <span className={CLS_CELL_VALUE_BASE}>
+                  {cellValues[col.key]}
+                </span>
+              )}
+            </div>
+          );
+        })}
       </div>
-      
+
     </div>
   );
 };
@@ -326,7 +373,7 @@ const ResultsList: FC<ResultsListProps> = ({
 
   if (loading) {
     return (
-      <div className="results-list" role="table" aria-label="Search results loading" aria-busy="true">
+      <div className="flex flex-col gap-px bg-border border border-border rounded-lg overflow-hidden" role="table" aria-label="Search results loading" aria-busy="true">
         <ResultsHeader sort={sort} onSort={handleSort} />
         <div role="rowgroup">
           {Array.from({ length: 5 }).map((_, i) => (
@@ -339,7 +386,7 @@ const ResultsList: FC<ResultsListProps> = ({
 
   if (results.length === 0) {
     return (
-      <div className="empty-state">
+      <div className={CLS_EMPTY_STATE}>
         <svg
           width="40"
           height="40"
@@ -347,14 +394,14 @@ const ResultsList: FC<ResultsListProps> = ({
           fill="none"
           stroke="currentColor"
           strokeWidth="1.5"
-          style={{ color: "var(--text-muted)", margin: "0 auto 0.75rem", display: "block" }}
+          className="block mx-auto mb-3 text-text-muted"
           aria-hidden="true"
         >
           <circle cx="18" cy="18" r="11" />
           <path d="M27 27L35 35" strokeLinecap="round" />
           <path d="M13 18h10M18 13v10" strokeLinecap="round" />
         </svg>
-        <strong style={{ color: "var(--text-secondary)", fontSize: 15 }}>No results found</strong>
+        <strong className="text-text-secondary text-[15px]">No results found</strong>
         <p>Try adjusting your search terms or filters.</p>
       </div>
     );
@@ -362,7 +409,7 @@ const ResultsList: FC<ResultsListProps> = ({
 
   return (
     <div
-      className="results-list"
+      className="flex flex-col gap-px bg-border border border-border rounded-lg overflow-hidden"
       role="table"
       aria-label="Search results"
       aria-rowcount={results.length}
