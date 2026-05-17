@@ -87,6 +87,7 @@ interface BarChartPanelProps {
   xAxisHeight?: number;
   xAxisAngle?: number;
   xAxisFontSize?: number;
+  yAxisFontSize?: number;
   yAxisWidth?: number;
   yAxisTickMargin?: number;
   maxBarSize?: number;
@@ -141,7 +142,8 @@ export default function BarChartPanel({
   barFillKey,
   xAxisHeight = 90,
   xAxisAngle = -40,
-  xAxisFontSize = 11,
+  xAxisFontSize = 10,
+  yAxisFontSize = 11,
   yAxisWidth = 100,
   yAxisTickMargin = 9,
   maxBarSize = 40,
@@ -237,7 +239,7 @@ export default function BarChartPanel({
   };
 
   const valueAxisProps = {
-    tick: { fontSize: 11, fill: "var(--text-secondary)" },
+    tick: { fontSize: yAxisFontSize, fill: "var(--text-secondary)" },
     tickFormatter: axisTickFormatter,
     scale: useLogScale ? ("log" as const) : ("linear" as const),
     domain: axisDomain,

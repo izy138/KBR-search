@@ -104,6 +104,11 @@ const IC_HYBRID_TICK_VALUES_ALL = [
   100, 500, 1000, 5000, 10000, 20000, 30000, 40000, 50000, 77000,
 ] as const;
 
+/** Recharts box height for the year trend line chart. */
+const YEAR_LINE_CHART_HEIGHT = 320;
+/** Recharts box height for the activity funding pie (larger to fit scaled ring radii). */
+const ACTIVITY_PIE_CHART_HEIGHT = 360;
+
 /**
  * Shortens long institute or organization names for chart axes; pair with
  * `full_label` on the same row for tooltips.
@@ -414,6 +419,7 @@ export default function Dashboard({ onSearchNavigate }: DashboardProps) {
       title="Funding by Activity Code"
       pie={activityPie}
       formatDollars={formatDollarsCompact}
+      chartHeight={ACTIVITY_PIE_CHART_HEIGHT}
     />
   );
 
@@ -514,7 +520,8 @@ export default function Dashboard({ onSearchNavigate }: DashboardProps) {
             {...(hasIcFilter ? { height: 360 } : {})}
             xAxisHeight={58}
             xAxisAngle={-45}
-            xAxisFontSize={10}
+            xAxisFontSize={12}
+            yAxisFontSize={12}
             yAxisWidth={60}
             yAxisTickMargin={4}
             chartMargin={{ top: 4, right: 4, bottom: 4, left: 0 }}
@@ -547,7 +554,7 @@ export default function Dashboard({ onSearchNavigate }: DashboardProps) {
                 title="Projects & Funding by Year"
                 panelClassName="chart-panel-year-trend"
                 data={yearData}
-                height={300}
+                height={YEAR_LINE_CHART_HEIGHT}
                 formatter={formatDollarsCompact}
               />
             </div>
@@ -559,7 +566,7 @@ export default function Dashboard({ onSearchNavigate }: DashboardProps) {
               title="Projects & Funding by Year"
               panelClassName="chart-panel-year-trend"
               data={yearData}
-              height={300}
+              height={YEAR_LINE_CHART_HEIGHT}
               formatter={formatDollarsCompact}
             />
           </div>
@@ -581,6 +588,8 @@ export default function Dashboard({ onSearchNavigate }: DashboardProps) {
           tooltipLabelKey="full_label"
           layout="horizontal"
           formatter={formatDollarsCompact}
+          xAxisFontSize={12}
+          yAxisFontSize={12}
           color="#7c3aed"
         />
       </div>
