@@ -8,6 +8,15 @@ type TermCloudProps = {
   onSearch: (terms: string[]) => void;
 };
 
+const CLS_CAT_PILL_BASE =
+  "inline-flex items-center gap-[0.35rem] px-[0.85rem] py-[0.45rem] rounded-full bg-tag-bg text-tag-text border border-border text-sm font-semibold cursor-pointer transition-[background,border-color,color] duration-150 hover:border-border-strong";
+
+const CLS_SUBCAT_PILL_BASE =
+  "inline-flex items-center px-[0.65rem] py-[0.3rem] rounded-full bg-surface text-text-secondary border border-border text-[0.825rem] cursor-pointer transition-[background,border-color,color] duration-150 hover:border-border-strong";
+
+const CLS_LEAF_BASE =
+  "inline-flex items-center px-[0.55rem] py-1 rounded-sm bg-tag-bg text-tag-text border border-border text-[0.8rem] cursor-pointer transition-[background,border-color,color] duration-150 hover:border-border-strong";
+
 /**
  * Recursively counts how many of a node's descendants (including itself if it
  * is a leaf) are present in `selected`.
@@ -93,32 +102,32 @@ export default function TermCloud({ onSearch }: TermCloudProps): React.ReactElem
   const selectedCount = selectedTerms.size;
 
   return (
-    <div className="term-cloud">
+    <div className="mx-0 my-2 px-3">
       <button
         type="button"
-        className="term-cloud__header"
+        className="flex items-center gap-2 w-full py-2 bg-transparent border-none text-text-secondary text-sm font-semibold cursor-pointer tracking-[0.02em] hover:text-text-primary"
         onClick={() => setCollapsed((prev) => !prev)}
         aria-expanded={!collapsed}
       >
-        <span className="term-cloud__chevron">{collapsed ? "▸" : "▾"}</span>
+        <span className="text-[0.7rem] transition-transform duration-150">{collapsed ? "▸" : "▾"}</span>
         Browse research terms
         {collapsed && selectedCount > 0 && (
-          <span className="term-cloud__header-count">({selectedCount} selected)</span>
+          <span className="font-normal text-[0.8rem] text-accent-text">({selectedCount} selected)</span>
         )}
       </button>
 
       {!collapsed && loading && (
-        <p style={{ padding: "0.5rem", color: "var(--text-muted)" }}>Loading terms…</p>
+        <p className="p-2 text-text-muted">Loading terms…</p>
       )}
 
       {!collapsed && error && (
-        <p style={{ padding: "0.5rem", color: "var(--text-muted)" }}>{error}</p>
+        <p className="p-2 text-text-muted">{error}</p>
       )}
 
       {!collapsed && !loading && !error && (
         <>
           {/* Top-level category pills */}
-          <div className="term-cloud__categories">
+          <div className="flex flex-wrap gap-2 py-[0.4rem]">
             {tree.map((cat) => {
               const descendantCount = countSelectedDescendants(cat, selectedTerms);
               const isExpanded = expandedCategories.has(cat.id);
@@ -126,13 +135,15 @@ export default function TermCloud({ onSearch }: TermCloudProps): React.ReactElem
                 <button
                   key={cat.id}
                   type="button"
-                  className={`term-cloud__cat-pill${isExpanded ? " term-cloud__cat-pill--expanded" : ""}`}
+                  className={`${CLS_CAT_PILL_BASE}${isExpanded ? " bg-accent-light border-accent text-accent-text" : ""}`}
                   onClick={() => toggleInSet(setExpandedCategories, cat.id)}
                   aria-expanded={isExpanded}
                 >
                   {cat.label}
                   {descendantCount > 0 && (
-                    <span className="term-cloud__badge">{descendantCount}</span>
+                    <span className="inline-flex items-center justify-center min-w-[1.2rem] h-[1.2rem] rounded-full bg-accent text-white text-[0.7rem] font-semibold px-[0.3rem]">
+                      {descendantCount}
+                    </span>
                   )}
                 </button>
               );
@@ -144,14 +155,14 @@ export default function TermCloud({ onSearch }: TermCloudProps): React.ReactElem
             if (!expandedCategories.has(cat.id) || !cat.children) return null;
             return (
               <div key={cat.id}>
-                <div className="term-cloud__subcats">
+                <div className="flex flex-wrap gap-[0.4rem] py-[0.35rem] pl-4">
                   {cat.children.map((sub) => {
                     const isSubExpanded = expandedSubcats.has(sub.id);
                     return (
                       <button
                         key={sub.id}
                         type="button"
-                        className={`term-cloud__subcat-pill${isSubExpanded ? " term-cloud__subcat-pill--expanded" : ""}`}
+                        className={`${CLS_SUBCAT_PILL_BASE}${isSubExpanded ? " bg-accent-light border-accent text-accent-text" : ""}`}
                         onClick={() => toggleInSet(setExpandedSubcats, sub.id)}
                         aria-expanded={isSubExpanded}
                       >
@@ -165,14 +176,14 @@ export default function TermCloud({ onSearch }: TermCloudProps): React.ReactElem
                 {cat.children.map((sub) => {
                   if (!expandedSubcats.has(sub.id) || !sub.children) return null;
                   return (
-                    <div key={sub.id} className="term-cloud__leaves">
+                    <div key={sub.id} className="flex flex-wrap gap-[0.35rem] py-1 pl-8">
                       {sub.children.map((leaf) => {
                         const isSelected = selectedTerms.has(leaf.label);
                         return (
                           <button
                             key={leaf.id}
                             type="button"
-                            className={`term-cloud__leaf${isSelected ? " term-cloud__leaf--selected" : ""}`}
+                            className={`${CLS_LEAF_BASE}${isSelected ? " bg-accent text-white border-accent" : ""}`}
                             onClick={() => handleToggleLeaf(leaf.label)}
                             aria-pressed={isSelected}
                           >
@@ -189,21 +200,21 @@ export default function TermCloud({ onSearch }: TermCloudProps): React.ReactElem
           })}
 
           {showMaxWarning && (
-            <p className="term-cloud__warning">Maximum {MAX_SELECTION} terms</p>
+            <p className="text-[0.78rem] text-text-muted py-1">Maximum {MAX_SELECTION} terms</p>
           )}
 
           {selectedCount > 0 && (
-            <div className="term-cloud__actions">
+            <div className="flex items-center gap-3 py-[0.6rem] mt-2 border-t border-border">
               <button
                 type="button"
-                className="btn-search term-cloud__search-btn"
+                className="bg-accent text-white border-none rounded-[var(--radius-sm)] px-[0.9rem] py-[0.38rem] font-sans text-[14px] font-medium cursor-pointer whitespace-nowrap transition-[background] duration-150 hover:bg-accent-hover"
                 onClick={handleSearch}
               >
                 Search {selectedCount} term{selectedCount > 1 ? "s" : ""}
               </button>
               <button
                 type="button"
-                className="term-cloud__clear"
+                className="bg-transparent border-none text-accent-text cursor-pointer text-[0.825rem] underline py-[0.3rem] px-0 hover:text-text-primary"
                 onClick={handleClearAll}
               >
                 Clear all

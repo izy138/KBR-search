@@ -173,9 +173,9 @@ interface KpiCardProps {
 
 function KpiCard({ label, value }: KpiCardProps) {
   return (
-    <div className="kpi-card">
-      <div className="kpi-card-value">{value}</div>
-      <div className="kpi-card-label">{label}</div>
+    <div className="bg-surface border border-border rounded-lg px-4 py-[0.9rem] text-center">
+      <div className="text-accent text-[1.45rem] font-bold leading-[1.2] font-mono">{value}</div>
+      <div className="text-text-secondary text-[0.8125rem] mt-[0.375rem]">{label}</div>
     </div>
   );
 }
@@ -357,7 +357,7 @@ export default function Dashboard({ onSearchNavigate }: DashboardProps) {
 
   if (error) {
     return (
-      <div className="dashboard-error">
+      <div className="text-center py-16 text-text-muted text-sm">
         <span>Unable to load dashboard: {error}</span>
       </div>
     );
@@ -365,7 +365,7 @@ export default function Dashboard({ onSearchNavigate }: DashboardProps) {
 
   if (!data || !filterCatalog) {
     return (
-      <div className="dashboard-loading">
+      <div className="text-center py-16 text-text-muted text-sm">
         <span>Loading analytics…</span>
       </div>
     );
@@ -462,7 +462,7 @@ export default function Dashboard({ onSearchNavigate }: DashboardProps) {
       />
 
       {/* KPI cards */}
-      <div className="kpi-cards">
+      <div className="grid grid-cols-3 gap-3 my-3 max-[900px]:grid-cols-2 max-[500px]:grid-cols-1">
         <KpiCard label="Total Funding" value={formatDollarsCompact(summary.total_funding)} />
         <KpiCard label="Total Projects" value={formatCount(summary.total_documents)} />
         <KpiCard label="Avg Grant" value={formatDollarsCompact(avgGrantValue)} />

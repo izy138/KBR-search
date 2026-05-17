@@ -1,6 +1,7 @@
 import { useMemo } from "react";
 import type { SearchResultRecord } from "../../api";
 import { recurrenceGroupKey } from "../../utils/recurrenceGrouping";
+import { cn } from "../../utils/cn";
 import BarChartPanel from "../charts/BarChartPanel";
 
 type ProjectSimilarProjectsChartProps = {
@@ -90,7 +91,7 @@ export default function ProjectSimilarProjectsChart({
   neighbors,
   loading,
   error,
-}: ProjectSimilarProjectsChartProps): React.HTMLElement {
+}: ProjectSimilarProjectsChartProps): React.ReactElement {
   const barFills = getSimilarChartBarFills();
   const chartData = useMemo(() => {
     const fills = getSimilarChartBarFills();
@@ -104,27 +105,27 @@ export default function ProjectSimilarProjectsChart({
 
   if (loading) {
     return (
-      <section className="project-details-section">
+      <section className="mb-[1.25rem] w-full">
         <h2>Similar Projects — Award Comparison</h2>
-        <p className="project-details-placeholder">Loading chart…</p>
+        <p className="text-text-secondary italic w-full max-w-none">Loading chart…</p>
       </section>
     );
   }
 
   if (error) {
     return (
-      <section className="project-details-section">
+      <section className="mb-[1.25rem] w-full">
         <h2>Similar Projects — Award Comparison</h2>
-        <p className="project-details-placeholder">{error}</p>
+        <p className="text-text-secondary italic w-full max-w-none">{error}</p>
       </section>
     );
   }
 
   if (chartData.length === 0) {
     return (
-      <section className="project-details-section">
+      <section className="mb-[1.25rem] w-full">
         <h2>Similar Projects — Award Comparison</h2>
-        <p className="project-details-placeholder">No similar projects to compare.</p>
+        <p className="text-text-secondary italic w-full max-w-none">No similar projects to compare.</p>
       </section>
     );
   }
@@ -132,9 +133,9 @@ export default function ProjectSimilarProjectsChart({
   const hasFundingData = chartData.some((item) => item.total_funding > 0);
   if (!hasFundingData) {
     return (
-      <section className="project-details-section">
+      <section className="mb-[1.25rem] w-full">
         <h2>Similar Projects — Award Comparison</h2>
-        <p className="project-details-placeholder">
+        <p className="text-text-secondary italic w-full max-w-none">
           Similar projects were found, but none have award amounts available to chart.
         </p>
       </section>
@@ -144,21 +145,21 @@ export default function ProjectSimilarProjectsChart({
   const peerCount = chartData.filter((item) => !item.is_selected).length;
 
   return (
-    <section className="project-details-section project-similar-chart-section">
+    <section className="mb-[1.25rem] w-full project-similar-chart-section">
       <BarChartPanel
         title={`Selected Project vs ${peerCount} Similar Project${peerCount === 1 ? "" : "s"} (by total award)`}
         headerEnd={
-          <div className="project-similar-chart-legend" aria-label="Chart legend">
-            <span className="project-similar-chart-legend-item">
+          <div className="flex flex-wrap items-center justify-end gap-x-4 gap-y-[0.65rem] text-[0.75rem] text-text-secondary" aria-label="Chart legend">
+            <span className="inline-flex items-center gap-[0.35rem] whitespace-nowrap">
               <span
-                className="project-similar-chart-legend-swatch project-similar-chart-legend-swatch--selected"
+                className={cn("w-[0.72rem] h-[0.72rem] rounded-[2px] shrink-0", "shadow-[inset_0_0_0_1px_color-mix(in_srgb,var(--text-primary)_18%,transparent)]")}
                 style={{ backgroundColor: barFills.selected }}
               />
               Selected project
             </span>
-            <span className="project-similar-chart-legend-item">
+            <span className="inline-flex items-center gap-[0.35rem] whitespace-nowrap">
               <span
-                className="project-similar-chart-legend-swatch"
+                className="w-[0.72rem] h-[0.72rem] rounded-[2px] shrink-0"
                 style={{ backgroundColor: barFills.peer }}
               />
               Similar projects

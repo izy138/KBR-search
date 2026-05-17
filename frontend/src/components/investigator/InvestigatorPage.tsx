@@ -1,4 +1,5 @@
 import type { SearchResultRecord } from "../../api";
+import { CLS_BACK_LINK } from "../../utils/sharedStyles";
 import Pagination from "../shared/Pagination";
 import ResultsList from "../search/ResultsList";
 
@@ -35,29 +36,27 @@ export default function InvestigatorPage({
 }: InvestigatorPageProps) {
   return (
     <>
-      <button type="button" className="project-back-link" onClick={onBack}>
+      <button type="button" className={CLS_BACK_LINK} onClick={onBack}>
         Back to results
       </button>
 
-      <div className="results-header" style={{ marginTop: "0.75rem" }}>
-        <div className="results-meta">
-          <span>
-            <strong>{investigatorName}</strong>
-            {!loading && (
-              <>
-                {" — "}
-                <strong>{visibleTotal.toLocaleString()}</strong> projects
-                {total > visibleTotal ? ` out of ${total.toLocaleString()}` : ""}
-                {currentPage > 1 ? ` — page ${currentPage} of ${totalPages}` : ""}
-              </>
-            )}
-          </span>
-        </div>
+      <div className="flex items-baseline gap-3 flex-wrap mt-3 mb-2 px-1">
+        <span className="text-[0.92rem] text-text-secondary">
+          <strong>{investigatorName}</strong>
+          {!loading && (
+            <>
+              {" — "}
+              <strong>{visibleTotal.toLocaleString()}</strong> projects
+              {total > visibleTotal ? ` out of ${total.toLocaleString()}` : ""}
+              {currentPage > 1 ? ` — page ${currentPage} of ${totalPages}` : ""}
+            </>
+          )}
+        </span>
       </div>
 
       {error ? (
-        <div className="empty-state" role="status" aria-live="polite">
-          <strong style={{ color: "var(--text-secondary)", fontSize: 15 }}>{error}</strong>
+        <div className="flex flex-col items-center justify-center py-12 px-6 text-center text-text-muted text-[0.92rem]" role="status" aria-live="polite">
+          <strong className="text-text-secondary text-[15px]">{error}</strong>
         </div>
       ) : (
         <ResultsList

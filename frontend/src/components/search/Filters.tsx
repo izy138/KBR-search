@@ -1,6 +1,7 @@
 import {
   type CSSProperties,
   type FC,
+  type ReactNode,
   useCallback,
   useEffect,
   useId,
@@ -10,8 +11,7 @@ import {
   useState,
 } from "react";
 import { createPortal } from "react-dom";
-
-import ReactSlider from 'react-slider'
+import { cn } from "../../utils/cn";
 
 type FilterSelectOption = {
   value: string;
@@ -30,44 +30,9 @@ type FilterSelectProps = {
   listColumns?: number;
 };
 
-/** Row-major grid move: index 0 is placeholder; indices 1.. are data in reading order. */
-const moveHighlightInOptionGrid = (
-  index: number,
-  key: "ArrowDown" | "ArrowUp" | "ArrowLeft" | "ArrowRight",
-  length: number,
-  cols: number,
-): number => {
-  if (cols < 2 || length <= 1) return index;
-  const dataCount = length - 1;
-  if (dataCount <= 0) return index;
-
-  if (index === 0) {
-    if (key === "ArrowDown" || key === "ArrowRight") return 1;
-    return 0;
-  }
-
-  const rel = index - 1;
-  const col = rel % cols;
-
-  if (key === "ArrowRight") {
-    if (col < cols - 1 && rel + 1 < dataCount) return index + 1;
-    return index;
-  }
-  if (key === "ArrowLeft") {
-    if (col > 0) return index - 1;
-    return 0;
-  }
-  if (key === "ArrowDown") {
-    const belowRel = rel + cols;
-    if (belowRel < dataCount) return 1 + belowRel;
-    return index;
-  }
-  if (key === "ArrowUp") {
-    if (rel < cols) return 0;
-    return 1 + (rel - cols);
-  }
-  return index;
-};
+/** Shared field chrome for text inputs and custom select triggers. */
+const filterControlClass =
+  "box-border w-full min-h-[2.35rem] rounded-sm border border-border bg-bg px-[0.62rem] py-[0.42rem] font-sans text-[13px] leading-[1.35] text-text-primary outline-none transition-[border-color] duration-150 hover:border-accent/40 focus:border-accent";
 
 const FilterSelect: FC<FilterSelectProps> = ({
   value,
@@ -83,11 +48,9 @@ const FilterSelect: FC<FilterSelectProps> = ({
   const rootRef = useRef<HTMLDivElement>(null);
   const triggerRef = useRef<HTMLButtonElement>(null);
   const panelOuterRef = useRef<HTMLDivElement>(null);
-  const listRef = useRef<HTMLDivElement>(null);
 
   const [open, setOpen] = useState(false);
   const [coords, setCoords] = useState({ top: 0, left: 0, width: 0 });
-  const [highlightIndex, setHighlightIndex] = useState(0);
 
   const flatOptions = useMemo(
     (): readonly FilterSelectOption[] => [{ value: "", label: placeholder }, ...options],
@@ -112,10 +75,8 @@ const FilterSelect: FC<FilterSelectProps> = ({
 
   useLayoutEffect(() => {
     if (!open) return;
-    const idx = Math.max(0, flatOptions.findIndex((o) => o.value === value));
-    setHighlightIndex(idx);
     updatePosition();
-  }, [open, value, flatOptions, updatePosition]);
+  }, [open, updatePosition]);
 
   useLayoutEffect(() => {
     if (!open) return;
@@ -143,67 +104,10 @@ const FilterSelect: FC<FilterSelectProps> = ({
 
   const cols = listColumns != null && listColumns > 1 ? Math.floor(listColumns) : 1;
 
-  useEffect(() => {
-    if (!open) return;
-    const onKey = (e: KeyboardEvent) => {
-      if (e.key === "Escape") {
-        e.preventDefault();
-        setOpen(false);
-        triggerRef.current?.focus();
-        return;
-      }
-      const gridKeys = ["ArrowDown", "ArrowUp", "ArrowLeft", "ArrowRight"] as const;
-      if (cols >= 2 && (gridKeys as readonly string[]).includes(e.key)) {
-        e.preventDefault();
-        setHighlightIndex((i) =>
-          moveHighlightInOptionGrid(i, e.key as (typeof gridKeys)[number], flatOptions.length, cols),
-        );
-        return;
-      }
-      if (e.key === "ArrowDown") {
-        e.preventDefault();
-        setHighlightIndex((i) => Math.min(flatOptions.length - 1, i + 1));
-        return;
-      }
-      if (e.key === "ArrowUp") {
-        e.preventDefault();
-        setHighlightIndex((i) => Math.max(0, i - 1));
-        return;
-      }
-      if (e.key === "Home") {
-        e.preventDefault();
-        setHighlightIndex(0);
-        return;
-      }
-      if (e.key === "End") {
-        e.preventDefault();
-        setHighlightIndex(flatOptions.length - 1);
-        return;
-      }
-      if (e.key === "Enter") {
-        e.preventDefault();
-        const opt = flatOptions[highlightIndex];
-        if (opt) onChange(opt.value);
-        setOpen(false);
-        triggerRef.current?.focus();
-      }
-    };
-    window.addEventListener("keydown", onKey);
-    return () => window.removeEventListener("keydown", onKey);
-  }, [open, flatOptions, highlightIndex, onChange, cols]);
-
-  useLayoutEffect(() => {
-    if (!open || !listRef.current) return;
-    const row = listRef.current.querySelector<HTMLElement>(`[data-option-index="${highlightIndex}"]`);
-    row?.scrollIntoView({ block: "nearest" });
-  }, [open, highlightIndex]);
-
   const maxPanelHeight = Math.min(
     window.innerHeight * 0.5,
     Math.max(120, window.innerHeight - coords.top - 12),
   );
-
-  const panelClassName = cols >= 2 ? "filter-select-panel filter-select-panel--grid" : "filter-select-panel";
 
   const panelListStyle: CSSProperties = {
     maxHeight: maxPanelHeight,
@@ -227,31 +131,20 @@ const FilterSelect: FC<FilterSelectProps> = ({
       >
         <div
           id={listboxId}
-          ref={listRef}
-          className={panelClassName}
+          className={cn("filter-select-panel", cols >= 2 && "filter-select-panel--grid")}
           role="listbox"
           style={panelListStyle}
         >
           {flatOptions.map((opt, index) => {
             const isSelected = opt.value === value;
-            const isActive = index === highlightIndex;
             const spanFullRow = cols >= 2 && index === 0;
-            const optionClass = [
-              "filter-select-option",
-              spanFullRow ? "filter-select-option--grid-span" : "",
-              isActive ? "filter-select-option--active" : "",
-            ]
-              .filter(Boolean)
-              .join(" ");
             return (
               <button
                 key={opt.value === "" ? "__all__" : opt.value}
                 type="button"
                 role="option"
-                data-option-index={index}
                 aria-selected={isSelected}
-                className={optionClass}
-                onMouseEnter={() => setHighlightIndex(index)}
+                className={cn("filter-select-option", spanFullRow && "filter-select-option--grid-span")}
                 title={opt.label}
                 onClick={() => {
                   onChange(opt.value);
@@ -269,11 +162,11 @@ const FilterSelect: FC<FilterSelectProps> = ({
     );
 
   return (
-    <div ref={rootRef} className="filter-select-root">
+    <div ref={rootRef} className="w-full min-w-0">
       <button
         ref={triggerRef}
         type="button"
-        className="sidebar-select filter-select-trigger"
+        className={cn(filterControlClass, "relative flex cursor-pointer appearance-none pr-8 text-left")}
         aria-haspopup="listbox"
         aria-expanded={open}
         aria-controls={listboxId}
@@ -283,7 +176,16 @@ const FilterSelect: FC<FilterSelectProps> = ({
           setOpen((o) => !o);
         }}
       >
-        <span className="filter-select-trigger-label">{selectedLabel}</span>
+        <span className="min-w-0 flex-1 break-words text-left [overflow-wrap:anywhere]">
+          {selectedLabel}
+        </span>
+        <svg
+          className="pointer-events-none absolute right-3 top-1/2 h-3 w-3 -translate-y-1/2 text-text-muted"
+          viewBox="0 0 12 12"
+          aria-hidden="true"
+        >
+          <path fill="currentColor" d="M6 8L1 3h10z" />
+        </svg>
       </button>
       {panel}
     </div>
@@ -349,6 +251,23 @@ const DEFAULT_FISCAL_YEAR_OPTIONS: readonly number[] = [2020, 2021, 2022, 2023, 
 
 /** Empty FY selection: UI shows this; Apply maps to catalog min/max years. */
 const FY_RANGE_PLACEHOLDER = "-";
+
+type FilterFieldProps = {
+  label?: string;
+  children: ReactNode;
+  className?: string;
+};
+
+const FilterField: FC<FilterFieldProps> = ({ label, children, className }) => (
+  <div className={cn("flex min-w-0 flex-col", className)}>
+    {label ? (
+      <div className="mb-[0.38rem] whitespace-nowrap text-[11px] font-semibold uppercase tracking-[0.06em] text-text-muted">
+        {label}
+      </div>
+    ) : null}
+    {children}
+  </div>
+);
 
 function Filters({
   searchSlot,
@@ -432,68 +351,65 @@ function Filters({
   }, [selectedPI, selectedIC, selectedActivity, selectedState, fyMin, fyMax, fyChoices, onApply]);
 
   return (
-    <section className="app-sidebar">
+    <section className="-mt-1 flex items-end gap-[0.7rem] overflow-x-auto rounded-lg border border-border bg-surface px-3 py-2.5 max-[1100px]:flex-wrap max-[1100px]:overflow-x-visible">
       {searchSlot ? (
-        <div className="filters-search-slot">
-          <div className="filters-search-inner">{searchSlot}</div>
+        <div className="min-w-[220px] flex-[1_1_280px] max-[1100px]:min-w-0 max-[1100px]:basis-full">
+          {searchSlot}
         </div>
       ) : null}
 
-      <div className="sidebar-section">
-        <div className="sidebar-label">Principal Investigator</div>
-        <input
-          className="sidebar-text-input"
-          type="text"
-          placeholder="Type PI name"
-          value={selectedPI}
-          onChange={(e) => onPIChange(e.target.value)}
-          onKeyDown={(e) => {
-            if (e.key === "Enter") {
-              e.preventDefault();
-              handleApply();
-            }
-          }}
-        />
-      </div>
+      <div className="flex shrink-0 items-end gap-2 max-[1100px]:w-full max-[1100px]:flex-wrap">
+        <FilterField label="Principal Investigator" className="w-[118px]">
+          <input
+            className={cn(filterControlClass, "placeholder:text-text-muted")}
+            type="text"
+            placeholder="Type PI name"
+            value={selectedPI}
+            onChange={(e) => onPIChange(e.target.value)}
+            onKeyDown={(e) => {
+              if (e.key === "Enter") {
+                e.preventDefault();
+                handleApply();
+              }
+            }}
+          />
+        </FilterField>
 
-      <div className="sidebar-section sidebar-section--ic">
-        <div className="sidebar-label">NIH Institute / Center</div>
-        <FilterSelect
-          value={selectedIC}
-          onChange={onICChange}
-          options={icSelectOptions}
-          placeholder="All Institutes"
-          menuMinWidthPx={300}
-        />
-      </div>
+        <FilterField label="NIH Institute / Center" className="w-[132px]">
+          <FilterSelect
+            value={selectedIC}
+            onChange={onICChange}
+            options={icSelectOptions}
+            placeholder="All Institutes"
+            menuMinWidthPx={300}
+          />
+        </FilterField>
 
-      <div className="sidebar-section">
-        <div className="sidebar-label">Activity Code</div>
-        <FilterSelect
-          value={selectedActivity}
-          onChange={onActivityChange}
-          options={activitySelectOptions}
-          placeholder="All Codes"
-          listColumns={3}
-          menuMinWidthPx={260}
-        />
-      </div>
+        <FilterField label="Activity Code" className="w-[108px]">
+          <FilterSelect
+            value={selectedActivity}
+            onChange={onActivityChange}
+            options={activitySelectOptions}
+            placeholder="All Codes"
+            listColumns={3}
+            menuMinWidthPx={260}
+          />
+        </FilterField>
 
-      <div className="sidebar-section">
-        <div className="sidebar-label">State</div>
-        <FilterSelect
-          value={selectedState}
-          onChange={onStateChange}
-          options={stateSelectOptions}
-          placeholder="All States"
-          listColumns={3}
-          menuMinWidthPx={260}
-        />
-      </div>
+        {/* State / FY: no visible label (compact bar); placeholder + ariaLabel for screen readers. */}
+        <FilterField className="w-[100px]">
+          <FilterSelect
+            ariaLabel="State"
+            value={selectedState}
+            onChange={onStateChange}
+            options={stateSelectOptions}
+            placeholder="All States"
+            listColumns={3}
+            menuMinWidthPx={260}
+          />
+        </FilterField>
 
-      <div className="sidebar-section sidebar-section--fy">
-        <div className="sidebar-label">Fiscal Year</div>
-        <div className="sidebar-range-row sidebar-range-row--fiscal">
+        <FilterField className="w-[68px]">
           <FilterSelect
             ariaLabel="Fiscal year from"
             value={fyMin}
@@ -501,6 +417,9 @@ function Filters({
             options={fySelectOptions}
             placeholder={FY_RANGE_PLACEHOLDER}
           />
+        </FilterField>
+
+        <FilterField className="w-[68px]">
           <FilterSelect
             ariaLabel="Fiscal year to"
             value={fyMax}
@@ -508,19 +427,27 @@ function Filters({
             options={fySelectOptions}
             placeholder={FY_RANGE_PLACEHOLDER}
           />
-        </div>
-      </div>
+        </FilterField>
 
-      <div className="filters-actions">
-        <button type="button" className="btn-apply" onClick={handleApply}>
-          Apply Filters
-        </button>
-
-        {hasFilters && (
-          <button type="button" className="btn-clear" onClick={onClear}>
-            Clear All
+        <div className="flex shrink-0 items-center gap-1.5 pb-px">
+          <button
+            type="button"
+            className="min-h-[2.35rem] cursor-pointer whitespace-nowrap rounded-sm border-none bg-accent px-[0.85rem] py-[0.42rem] font-sans text-[13px] font-medium text-white transition-colors duration-150 hover:bg-accent-hover"
+            onClick={handleApply}
+          >
+            Apply Filters
           </button>
-        )}
+
+          {hasFilters ? (
+            <button
+              type="button"
+              className="min-h-[2.35rem] cursor-pointer whitespace-nowrap rounded-sm border border-border bg-transparent px-[0.65rem] py-[0.38rem] font-sans text-xs text-text-secondary transition-all duration-150 hover:border-border-strong hover:bg-surface-hover hover:text-text-primary"
+              onClick={onClear}
+            >
+              Clear All
+            </button>
+          ) : null}
+        </div>
       </div>
     </section>
   );

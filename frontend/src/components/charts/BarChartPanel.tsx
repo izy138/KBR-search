@@ -1,4 +1,5 @@
 import { useEffect, useMemo, useRef, useState, type ReactNode } from "react";
+import { cn } from "../../utils/cn";
 import {
   Bar,
   BarChart,
@@ -256,13 +257,12 @@ export default function BarChartPanel({
       ? Math.max(16, Math.min(36, Math.floor(1100 / chartData.length)))
       : undefined);
 
-  const panelClass = panelClassName
-    ? `chart-panel ${panelClassName}${fillHeight ? " chart-panel--fill-height" : ""}${onBarClick ? " chart-panel--bar-clickable" : ""}`
-    : fillHeight
-      ? `chart-panel chart-panel--fill-height${onBarClick ? " chart-panel--bar-clickable" : ""}`
-      : onBarClick
-        ? "chart-panel chart-panel--bar-clickable"
-      : "chart-panel";
+  const panelClass = cn(
+    "chart-panel",
+    panelClassName,
+    fillHeight && "chart-panel--fill-height",
+    onBarClick && "chart-panel--bar-clickable",
+  );
 
   const handleBarClick = (barEntry: { payload?: Record<string, unknown> }): void => {
     if (!onBarClick || !barEntry.payload) return;
@@ -343,7 +343,6 @@ export default function BarChartPanel({
               strokeDasharray="3 3"
               vertical={false}
               stroke="var(--border)"
-              animationDuration={useVerticalBarAnimation ? 0 : undefined}
             />
             <XAxis
               type="category"
@@ -361,7 +360,6 @@ export default function BarChartPanel({
               width={yAxisWidth}
               tickMargin={yAxisTickMargin}
               type="number"
-              animationDuration={useVerticalBarAnimation ? 0 : undefined}
               {...valueAxisProps}
             />
             <Tooltip

@@ -48,27 +48,27 @@ export default function ProjectActivityCompareChart({ projectId, activityId }: P
 
   if (loading) {
     return (
-      <section className="project-details-section">
+      <section className="mb-[1.25rem] w-full">
         <h2>Related Activity Analytics</h2>
-        <p className="project-details-placeholder">Loading chart...</p>
+        <p className="text-text-secondary italic w-full max-w-none">Loading chart...</p>
       </section>
     );
   }
 
   if (error) {
     return (
-      <section className="project-details-section">
+      <section className="mb-[1.25rem] w-full">
         <h2>Related Activity Analytics</h2>
-        <p className="project-details-placeholder">{error}</p>
+        <p className="text-text-secondary italic w-full max-w-none">{error}</p>
       </section>
     );
   }
 
   if (data.length === 0) {
     return (
-      <section className="project-details-section">
+      <section className="mb-[1.25rem] w-full">
         <h2>Related Activity Analytics</h2>
-        <p className="project-details-placeholder">
+        <p className="text-text-secondary italic w-full max-w-none">
           No comparable projects found for activity {activityId}.
         </p>
       </section>
@@ -78,9 +78,9 @@ export default function ProjectActivityCompareChart({ projectId, activityId }: P
    const hasFundingData = data.some((item) => item.total_funding > 0);
   if (!hasFundingData) {
     return (
-      <section className="project-details-section">
+      <section className="mb-[1.25rem] w-full">
         <h2>Related Activity Analytics</h2>
-        <p className="project-details-placeholder">
+        <p className="text-text-secondary italic w-full max-w-none">
           No comparable projects with available total cost for activity {activityId}.
         </p>
       </section>
@@ -95,7 +95,7 @@ export default function ProjectActivityCompareChart({ projectId, activityId }: P
   }));
 
   return (
-    <section className="project-details-section">
+    <section className="mb-[1.25rem] w-full">
       <BarChartPanel
         title={`Selected Project vs  Descending Order Activity ${activityId}`}
         data={chartData}

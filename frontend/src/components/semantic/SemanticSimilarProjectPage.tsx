@@ -2,6 +2,7 @@ import { useEffect, useState } from "react";
 import type { SearchResultRecord } from "../../api";
 import { getProjectById, searchSimilarToProjectId } from "../../api";
 import { groupSimilarNeighbors } from "../../utils/recurrenceGrouping";
+import { CLS_BACK_LINK, CLS_TAG_ACTIVITY, CLS_TAG_FY } from "../../utils/sharedStyles";
 import ResultsList from "../search/ResultsList";
 
 type SemanticSimilarProjectPageProps = {
@@ -12,6 +13,12 @@ type SemanticSimilarProjectPageProps = {
   onOpenSimilarFor?: (projectId: string) => void;
   onOpenInvestigator?: (name: string) => void;
 };
+
+const CLS_LINKISH =
+  "p-0 border-none bg-transparent text-accent font-[inherit] text-[0.8125rem] font-medium cursor-pointer underline underline-offset-2 hover:text-accent-text";
+const CLS_ERROR = "mt-2 text-[0.875rem] text-[#b91c1c] dark:text-[#fca5a5]";
+const CLS_HIT_META =
+  "flex flex-wrap gap-[0.35rem_0.5rem] items-center text-[0.78rem] text-text-secondary";
 
 /** API allows up to 50 neighbors; full page uses the same table layout as search. */
 const SIMILAR_FULL_PAGE_K = 50;
@@ -92,31 +99,36 @@ export default function SemanticSimilarProjectPage({
   const showResultsTable = !similarError && (loading || neighbors.length > 0);
 
   return (
-    <div className="semantic-similar-page">
-      <button type="button" className="project-back-link" onClick={onBackToLab}>
-        ← Vector search lab
-      </button>
+    <div className="w-full max-w-none m-0 pt-[0.35rem] pb-10">
+      <div className="mb-3">
+        <button type="button" className={CLS_BACK_LINK} onClick={onBackToLab}>
+          ← Vector search lab
+        </button>
+      </div>
 
-      <header className="semantic-similar-header">
-        <h2 className="semantic-similar-title">Similar Projects</h2>
-        
+      <header className="mt-2 mb-4">
+        <h2 className="text-[1.45rem] font-semibold m-0 mb-[0.35rem] text-text-primary">Similar Projects</h2>
       </header>
 
-      {anchorError ? <p className="semantic-lab-error">{anchorError}</p> : null}
+      {anchorError ? <p className={CLS_ERROR}>{anchorError}</p> : null}
 
       {anchor && !anchorError ? (
-        <section className="semantic-anchor-card" aria-labelledby="anchor-h">
-          
-          <h3 className="semantic-anchor-title">{anchorTitle}</h3>
-          <div className="semantic-hit-meta semantic-anchor-meta">
-            <span className="tag activity">{anchorActivity}</span>
-            <span className="tag fy">FY {anchorFy}</span>
-            <span className="semantic-hit-ic">{anchor.IC_NAME ?? ""}</span>
+        <section
+          className="bg-surface border border-border rounded-lg p-[1.1rem_1.25rem] mb-6 shadow-sm"
+          aria-labelledby="anchor-h"
+        >
+          <h3 className="text-[1.1rem] font-semibold mt-[0.35rem] mb-2 leading-[1.35] text-text-primary">
+            {anchorTitle}
+          </h3>
+          <div className={`${CLS_HIT_META} mb-[0.35rem]`}>
+            <span className={CLS_TAG_ACTIVITY}>{anchorActivity}</span>
+            <span className={CLS_TAG_FY}>FY {anchorFy}</span>
+            <span className="text-text-muted">{anchor.IC_NAME ?? ""}</span>
           </div>
-          <p className="semantic-anchor-org">{anchor.ORG_NAME ?? "—"}</p>
-          <p className="semantic-anchor-cost">{formatUsd(anchor.TOTAL_COST)}</p>
-          <div className="semantic-hit-actions">
-            <button type="button" className="semantic-linkish" onClick={() => onOpenFullProject(projectId)}>
+          <p className="m-0 mb-1 text-[0.875rem] text-text-secondary">{anchor.ORG_NAME ?? "—"}</p>
+          <p className="m-0 font-mono text-[0.875rem] text-text-primary">{formatUsd(anchor.TOTAL_COST)}</p>
+          <div className="flex flex-wrap gap-[0.75rem_1rem] mt-[0.65rem]">
+            <button type="button" className={CLS_LINKISH} onClick={() => onOpenFullProject(projectId)}>
               Open full project page
             </button>
           </div>
@@ -124,10 +136,13 @@ export default function SemanticSimilarProjectPage({
       ) : null}
 
       {similarError ? (
-        <div className="semantic-lab-panel semantic-lab-panel-warn" role="alert">
-          <p className="semantic-lab-error">{similarError}</p>
+        <div
+          className="bg-surface border border-border-strong rounded-lg p-[1.25rem_1.35rem_1.4rem] mb-5 shadow-sm"
+          role="alert"
+        >
+          <p className={CLS_ERROR}>{similarError}</p>
           {similarError.toLowerCase().includes("embedding") ? (
-            <p className="semantic-lab-desc">
+            <p className="m-0 mb-4 text-[0.875rem] leading-[1.5] text-text-secondary">
               This index row has no stored vector. Re-import NDJSON embeddings or reindex with
               embeddings so k-NN can run.
             </p>
@@ -136,8 +151,8 @@ export default function SemanticSimilarProjectPage({
       ) : null}
 
       {showResultsTable ? (
-        <section className="semantic-similar-results-block" aria-labelledby="similar-results-h">
-          <h2 id="similar-results-h" className="semantic-lab-h2 semantic-similar-results-heading">
+        <section className="mt-5 w-full min-w-0" aria-labelledby="similar-results-h">
+          <h2 id="similar-results-h" className="text-[0.95rem] font-semibold text-text-primary m-0 mb-2">
             {loading ? "Loading similar grants…" : `${neighbors.length} Similar Projects`}
           </h2>
           <ResultsList
@@ -151,7 +166,9 @@ export default function SemanticSimilarProjectPage({
       ) : null}
 
       {!loading && !similarError && anchor && neighbors.length === 0 ? (
-        <p className="semantic-lab-meta">No neighbors returned (unexpected for a valid embedded project).</p>
+        <p className="mt-3 mb-[0.35rem] text-[0.8125rem] text-text-muted">
+          No neighbors returned (unexpected for a valid embedded project).
+        </p>
       ) : null}
     </div>
   );

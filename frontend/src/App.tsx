@@ -8,7 +8,7 @@ import {
   useRef,
   useState,
 } from "react";
-import { useTheme, type LightTheme } from "./hooks/useTheme";
+import { useTheme } from "./hooks/useTheme";
 import { useProjectDetails } from "./hooks/useProjectDetails";
 import { useInvestigatorProjects, INVESTIGATOR_PER_PAGE } from "./hooks/useInvestigatorProjects";
 import { useSearch } from "./hooks/useSearch";
@@ -23,6 +23,7 @@ import TermCloud from "./components/search/TermCloud";
 import ErrorBoundary from "./components/shared/ErrorBoundary";
 import { type SearchResultRecord } from "./api";
 import { useFilterCatalog } from "./hooks/useFilterCatalog";
+import { CLS_EMPTY_STATE, CLS_BACK_LINK } from "./utils/sharedStyles";
 
 const Dashboard = lazy(() => import("./components/dashboard/Dashboard"));
 const ProjectDetailsPage = lazy(() => import("./components/project/ProjectDetailsPage"));
@@ -32,7 +33,6 @@ const SemanticSimilarProjectPage = lazy(() => import("./components/semantic/Sema
 export default function App() {
   type SortOption = "relevant" | "alphaAsc" | "alphaDesc";
 
-  // Filters
   const [selectedPI, setSelectedPI] = useState("");
   const [selectedIC, setSelectedIC] = useState("");
   const [selectedActivity, setSelectedActivity] = useState("");
@@ -40,7 +40,6 @@ export default function App() {
   const [fyMin, setFyMin] = useState("");
   const [fyMax, setFyMax] = useState("");
 
-  // Pagination
   const [resultsPerPage, setResultsPerPage] = useState(25);
   const [currentPage, setCurrentPage] = useState(1);
   const [jumpToPageInput, setJumpToPageInput] = useState("1");
@@ -49,7 +48,7 @@ export default function App() {
   const [showScrollTop, setShowScrollTop] = useState(false);
   const navigate = useNavigate();
   const location = useLocation();
-  const { theme, lightTheme, setLightTheme, handleThemeToggle } = useTheme();
+  const { theme, handleThemeToggle } = useTheme();
 
   const isDashboardRoute =
     location.pathname === "/dashboard" || location.pathname === "/dashboard/";
@@ -115,7 +114,6 @@ export default function App() {
   const totalPages = Math.max(1, Math.ceil(visibleTotal / resultsPerPage));
   const pageNumbers = getPageNumbers(currentPage, totalPages);
 
-  /** Filter option lists shared with Dashboard — fetched once via module-level cache. */
   const searchFilterCatalog = useFilterCatalog();
 
   useEffect(() => {
@@ -244,304 +242,286 @@ export default function App() {
     });
   };
 
+  const isDashboardVisible = view === "dashboard" && !isSemanticRoute;
+
   return (
-    <div className="app-shell">
-      {/* Header */}
-      <header className="app-header">
+    <div className="grid grid-rows-[auto_minmax(0,1fr)] h-full overflow-hidden font-sans">
+      <header className="flex items-center px-6 h-[72px] bg-surface border-b border-border gap-4 max-[900px]:h-[60px] max-[900px]:px-4">
         <button
           type="button"
-          className="header-logo"
+          className="flex items-center gap-[0.4rem] font-semibold text-[15px] text-text-primary bg-transparent border-none cursor-pointer tracking-[0.01em] shrink-0 hover:text-accent focus-visible:outline-2 focus-visible:outline-accent focus-visible:outline-offset-2"
           onClick={() => navigate("/")}
           aria-label="Return to search results"
         >
-          <div className="header-logo-dot" />
+          <div className="w-[9px] h-[9px] rounded-full bg-accent" />
           NIH Project Search
         </button>
-        <nav className="nav-tabs" aria-label="Main navigation">
+        <nav className="flex items-center gap-1 ml-6" aria-label="Main navigation">
           <button
             type="button"
-            className={`nav-tab${view === "search" && !isSemanticRoute ? " active" : ""}`}
+            className={
+              "px-3 py-[0.35rem] rounded-sm border-none font-sans text-[13px] font-medium cursor-pointer transition-[color,background] duration-150 hover:text-text-primary hover:bg-surface-hover" +
+              (view === "search" && !isSemanticRoute
+                ? " text-accent-text bg-accent-light"
+                : " bg-transparent text-text-muted")
+            }
             onClick={() => navigate("/")}
           >
             Search
           </button>
           <button
             type="button"
-            className={`nav-tab${view === "dashboard" && !isSemanticRoute ? " active" : ""}`}
+            className={
+              "px-3 py-[0.35rem] rounded-sm border-none font-sans text-[13px] font-medium cursor-pointer transition-[color,background] duration-150 hover:text-text-primary hover:bg-surface-hover" +
+              (view === "dashboard" && !isSemanticRoute
+                ? " text-accent-text bg-accent-light"
+                : " bg-transparent text-text-muted")
+            }
             onClick={() => navigate("/dashboard")}
           >
             Dashboard
           </button>
           <button
             type="button"
-            className={`nav-tab${isSemanticRoute ? " active" : ""}`}
+            className={
+              "px-3 py-[0.35rem] rounded-sm border-none font-sans text-[13px] font-medium cursor-pointer transition-[color,background] duration-150 hover:text-text-primary hover:bg-surface-hover" +
+              (isSemanticRoute
+                ? " text-accent-text bg-accent-light"
+                : " bg-transparent text-text-muted")
+            }
             onClick={() => navigate("/semantic")}
           >
             Vector lab
           </button>
         </nav>
 
-        {/* Header right Theme toggle*/}
-        <div className="header-right">
-          {theme === "light" && (
-            <label className="theme-palette-picker">
-              <span className="theme-palette-label">Light theme</span>
-              <select
-                className="theme-palette-select"
-                value={lightTheme}
-                onChange={(event) => setLightTheme(event.target.value as LightTheme)}
-                aria-label="Select light color theme"
-              >
-                <option value="default">Default</option>
-                <option value="blueAccent">Blue accent</option>
-                <option value="yellowBeige">Yellow beige</option>
-                <option value="mintSlate">Mint slate</option>
-                <option value="blueModified">Blue modified</option>
-              </select>
-            </label>
-          )}
-
-          {/* Theme toggle */}
+        <div className="ml-auto flex items-center gap-3 max-[900px]:gap-2">
           <button
-            className="theme-toggle"
+            className="flex items-center gap-[0.4rem] px-[0.65rem] py-[0.3rem] rounded-sm bg-surface-hover border border-border text-text-secondary font-sans text-[12px] font-medium cursor-pointer transition-[color,border-color,background] duration-150 hover:border-border-strong hover:text-text-primary hover:bg-surface max-[900px]:hidden"
             type="button"
             onClick={handleThemeToggle}
             aria-label={`Switch to ${theme === "light" ? "dark" : "light"} mode`}
           >
-
             {theme === "light" ? "Dark mode" : "Light mode"}
-            <span className="theme-toggle-icon" aria-hidden="true">
+            <span className="text-sm" aria-hidden="true">
               {theme === "light" ? "🌙" : "☀️"}
             </span>
           </button>
 
-          {/* Partner logos */}
-          <div className="header-images" aria-label="Partner logos">
-            <img src="/Images/KBR_(company)_logo.svg" alt="KBR logo" className="header-image header-image-kbr" />
+          <div className="flex items-center gap-2 max-[900px]:gap-1" aria-label="Partner logos">
+            <img
+              src="/Images/KBR_(company)_logo.svg"
+              alt="KBR logo"
+              className="object-contain h-[28px] max-[900px]:h-5"
+            />
             <img
               src="/Images/Florida_International_University_FIU_logo.svg.png"
               alt="FIU logo"
-              className="header-image header-image-fiu"
+              className="object-contain h-[32px] max-[900px]:h-6"
             />
           </div>
         </div>
       </header>
 
-      {/* Main content */}
-      <section
-        style={view === "dashboard" && !isSemanticRoute ? undefined : { display: "none" }}
-        aria-hidden={view !== "dashboard" || isSemanticRoute}
-      >
-        <ErrorBoundary>
-          <Suspense fallback={
-            <div className="empty-state" role="status">
-              <span style={{ color: "var(--text-secondary)", fontSize: 14 }}>Loading…</span>
-            </div>
-          }>
-            <Dashboard onSearchNavigate={handleDashboardSearchNavigate} />
-          </Suspense>
-        </ErrorBoundary>
-      </section>
       <main
-        className="app-main"
         ref={mainRef}
-        style={view === "dashboard" && !isSemanticRoute ? { display: "none" } : undefined}
-        aria-hidden={view === "dashboard" && !isSemanticRoute}
+        className={
+          "min-h-0 overflow-y-auto" +
+          (isDashboardVisible ? "" : " p-[1.1rem_1.5rem] max-[900px]:px-3 max-[900px]:py-3")
+        }
       >
         <ErrorBoundary>
           <Suspense fallback={
-            <div className="empty-state" role="status">
-              <span style={{ color: "var(--text-secondary)", fontSize: 14 }}>Loading…</span>
+            <div className={CLS_EMPTY_STATE} role="status">
+              <span className="text-text-secondary text-sm">Loading…</span>
             </div>
           }>
-            {semanticSimilarProjectId ? (
-          <SemanticSimilarProjectPage
-            projectId={decodeURIComponent(semanticSimilarProjectId)}
-            onBackToLab={() => navigate("/semantic")}
-            onOpenFullProject={(id) => navigate(`/projects/${encodeURIComponent(id)}`)}
-            onOpenInvestigator={handleOpenInvestigator}
-          />
-        ) : isSemanticHub ? (
-          <SemanticVectorLabPage />
-        ) : selectedProjectId ? (
-          projectLoading ? (
-            <div className="empty-state" role="status" aria-live="polite">
-              <strong style={{ color: "var(--text-secondary)", fontSize: 15 }}>Loading project…</strong>
-            </div>
-          ) : projectError ? (
-            <div className="empty-state" role="status" aria-live="polite">
-              <strong style={{ color: "var(--text-secondary)", fontSize: 15 }}>{projectError}</strong>
-              <button
-                type="button"
-                className="project-back-link"
-                onClick={() => navigate("/")}
-                style={{ marginTop: "0.85rem" }}
-              >
-                Back to results
-              </button>
-            </div>
+            {isDashboardVisible ? (
+              <Dashboard onSearchNavigate={handleDashboardSearchNavigate} />
+            ) : semanticSimilarProjectId ? (
+              <SemanticSimilarProjectPage
+                projectId={decodeURIComponent(semanticSimilarProjectId)}
+                onBackToLab={() => navigate("/semantic")}
+                onOpenFullProject={(id) => navigate(`/projects/${encodeURIComponent(id)}`)}
+                onOpenInvestigator={handleOpenInvestigator}
+              />
+            ) : isSemanticHub ? (
+              <SemanticVectorLabPage />
+            ) : selectedProjectId ? (
+              projectLoading ? (
+                <div className={CLS_EMPTY_STATE} role="status" aria-live="polite">
+                  <strong className="text-text-secondary text-[15px]">Loading project…</strong>
+                </div>
+              ) : projectError ? (
+                <div className={CLS_EMPTY_STATE} role="status" aria-live="polite">
+                  <strong className="text-text-secondary text-[15px]">{projectError}</strong>
+                  <button
+                    type="button"
+                    className={CLS_BACK_LINK}
+                    onClick={() => navigate("/")}
+                    style={{ marginTop: "0.85rem" }}
+                  >
+                    Back to results
+                  </button>
+                </div>
+              ) : selectedProject ? (
+                <ProjectDetailsPage
+                  item={selectedProject}
+                  onBack={() => navigate("/")}
+                  onOpenInvestigator={handleOpenInvestigator}
+                  onOpenDetails={handleOpenDetails}
+                  onSearchWithProjectTerms={handleSearchFromProjectTerms}
+                />
+              ) : (
+                <div className={CLS_EMPTY_STATE} role="status" aria-live="polite">
+                  <strong className="text-text-secondary text-[15px]">Project not found</strong>
+                  <button
+                    type="button"
+                    className={CLS_BACK_LINK}
+                    onClick={() => navigate("/")}
+                    style={{ marginTop: "0.85rem" }}
+                  >
+                    Back to results
+                  </button>
+                </div>
+              )
+            ) : selectedInvestigatorName ? (
+              <InvestigatorPage
+                investigatorName={selectedInvestigatorName}
+                loading={investigatorLoading}
+                error={investigatorError}
+                results={investigatorResults}
+                visibleTotal={investigatorVisibleTotal}
+                total={investigatorTotal}
+                currentPage={investigatorPage}
+                totalPages={investigatorTotalPages}
+                pageNumbers={investigatorPageNumbers}
+                onOpenDetails={handleOpenDetails}
+                onOpenInvestigator={handleOpenInvestigator}
+                onPageChange={setInvestigatorPage}
+                onBack={() => navigate("/")}
+              />
+            ) : (
+              <>
+                <Filters
+                  searchSlot={<SearchBar onSearch={handleSearch} initialQuery={query} />}
+                  icNames={searchFilterCatalog?.icNames ?? []}
+                  activityCodes={searchFilterCatalog?.activityCodes ?? []}
+                  states={searchFilterCatalog?.states ?? []}
+                  fiscalYearOptions={searchFilterCatalog?.fiscalYearOptions}
+                  selectedPI={selectedPI}
+                  selectedIC={selectedIC}
+                  selectedActivity={selectedActivity}
+                  selectedState={selectedState}
+                  fyMin={fyMin}
+                  fyMax={fyMax}
+                  onPIChange={setSelectedPI}
+                  onICChange={setSelectedIC}
+                  onActivityChange={setSelectedActivity}
+                  onStateChange={setSelectedState}
+                  onFyMinChange={setFyMin}
+                  onFyMaxChange={setFyMax}
+                  onApply={handleApplyFilters}
+                  onClear={handleClearFilters}
+                />
 
-            
-          ) : selectedProject ? (
-            <ProjectDetailsPage
-              item={selectedProject}
-              onBack={() => navigate("/")}
-              onOpenInvestigator={handleOpenInvestigator}
-              onOpenDetails={handleOpenDetails}
-              onSearchWithProjectTerms={handleSearchFromProjectTerms}
-            />
-          ) : (
-            <div className="empty-state" role="status" aria-live="polite">
-              <strong style={{ color: "var(--text-secondary)", fontSize: 15 }}>Project not found</strong>
-              <button
-                type="button"
-                className="project-back-link"
-                onClick={() => navigate("/")}
-                style={{ marginTop: "0.85rem" }}
-              >
-                Back to results
-              </button>
-            </div>
-          )
-        ) : selectedInvestigatorName ? (
-          <InvestigatorPage
-            investigatorName={selectedInvestigatorName}
-            loading={investigatorLoading}
-            error={investigatorError}
-            results={investigatorResults}
-            visibleTotal={investigatorVisibleTotal}
-            total={investigatorTotal}
-            currentPage={investigatorPage}
-            totalPages={investigatorTotalPages}
-            pageNumbers={investigatorPageNumbers}
-            onOpenDetails={handleOpenDetails}
-            onOpenInvestigator={handleOpenInvestigator}
-            onPageChange={setInvestigatorPage}
-            onBack={() => navigate("/")}
-          />
-        ) : (
-          <>
-            <Filters
-              searchSlot={<SearchBar onSearch={handleSearch} initialQuery={query} />}
-              icNames={searchFilterCatalog?.icNames ?? []}
-              activityCodes={searchFilterCatalog?.activityCodes ?? []}
-              states={searchFilterCatalog?.states ?? []}
-              fiscalYearOptions={searchFilterCatalog?.fiscalYearOptions}
-              selectedPI={selectedPI}
-              selectedIC={selectedIC}
-              selectedActivity={selectedActivity}
-              selectedState={selectedState}
-              fyMin={fyMin}
-              fyMax={fyMax}
-              onPIChange={setSelectedPI}
-              onICChange={setSelectedIC}
-              onActivityChange={setSelectedActivity}
-              onStateChange={setSelectedState}
-              onFyMinChange={setFyMin}
-              onFyMaxChange={setFyMax}
-              onApply={handleApplyFilters}
-              onClear={handleClearFilters}
-            />
+                <TermCloud onSearch={handleTermCloudSearch} />
 
-            <TermCloud onSearch={handleTermCloudSearch} />
-
-            <div className="results-header">
-              <div className="results-meta">
-                {loading ? (
-                  <span>Searching…</span>
-                ) : (
-                  <span>
-                    <strong>{visibleTotal.toLocaleString()}</strong> results
-                    {total > visibleTotal ? ` out of ${total.toLocaleString()}` : ""}
-                    {query ? ` for "${query}"` : ""}
-                    {projectTermFilters.length > 0 && (
-                      <span className="results-meta__term-filters">
-                        {" — "}
-                        {projectTermFilters.map((term) => (
-                          <span key={term} className="results-meta__term-chip">
-                            {term}
+                <div className="flex items-center justify-between pt-2 pl-1 gap-4 max-[900px]:flex-col max-[900px]:items-start max-[900px]:gap-2">
+                  <div className="text-text-secondary text-sm pt-[0.35rem]">
+                    {loading ? (
+                      <span>Searching…</span>
+                    ) : (
+                      <span>
+                        <strong className="text-text-primary font-medium">{visibleTotal.toLocaleString()}</strong> results
+                        {total > visibleTotal ? ` out of ${total.toLocaleString()}` : ""}
+                        {query ? ` for "${query}"` : ""}
+                        {projectTermFilters.length > 0 && (
+                          <span className="inline-flex flex-wrap items-center gap-[0.3rem] align-middle">
+                            {" — "}
+                            {projectTermFilters.map((term) => (
+                              <span key={term} className="inline-flex items-center gap-[0.2rem] px-[0.45rem] py-[0.15rem] rounded-[--radius-sm] bg-accent-light text-accent-text text-[0.78rem] font-medium">
+                                {term}
+                                <button
+                                  type="button"
+                                  className="bg-transparent border-none text-accent-text cursor-pointer text-[0.85rem] px-[0.15rem] py-0 leading-none opacity-70 hover:opacity-100"
+                                  onClick={() =>
+                                    setProjectTermFilters((prev) => prev.filter((t) => t !== term))
+                                  }
+                                  aria-label={`Remove ${term} filter`}
+                                >
+                                  ×
+                                </button>
+                              </span>
+                            ))}
                             <button
                               type="button"
-                              className="results-meta__term-chip-x"
-                              onClick={() =>
-                                setProjectTermFilters((prev) => prev.filter((t) => t !== term))
-                              }
-                              aria-label={`Remove ${term} filter`}
+                              className="bg-transparent border-none text-accent-text cursor-pointer text-[0.78rem] underline px-[0.25rem] py-[0.15rem]"
+                              onClick={() => setProjectTermFilters([])}
                             >
-                              ×
+                              Clear all
                             </button>
                           </span>
-                        ))}
-                        <button
-                          type="button"
-                          className="results-meta__clear-terms"
-                          onClick={() => setProjectTermFilters([])}
-                        >
-                          Clear all
-                        </button>
+                        )}
+                        {currentPage > 1 ? ` — page ${currentPage} of ${totalPages}` : ""}
                       </span>
                     )}
-                    {currentPage > 1 ? ` — page ${currentPage} of ${totalPages}` : ""}
-                  </span>
+                  </div>
+
+                  <div className="flex items-center gap-2 pb-[0.15rem] max-[900px]:w-full max-[900px]:justify-between">
+                    <select
+                      className="px-[0.56rem] py-[0.3rem] border border-border rounded-sm bg-surface font-sans text-xs text-text-secondary cursor-pointer outline-none"
+                      value={sortOption}
+                      onChange={(e) => setSortOption(e.target.value as SortOption)}
+                      aria-label="Sort results"
+                    >
+                      <option value="relevant">Most Relevant</option>
+                      <option value="alphaAsc">Title: A to Z</option>
+                      <option value="alphaDesc">Title: Z to A</option>
+                    </select>
+                    <select
+                      className="px-[0.56rem] py-[0.3rem] border border-border rounded-sm bg-surface font-sans text-xs text-text-secondary cursor-pointer outline-none"
+                      value={resultsPerPage}
+                      onChange={handlePerPageChange}
+                    >
+                      {[10, 25, 50, 100].map((n) => (
+                        <option key={n} value={n}>{n} per page</option>
+                      ))}
+                    </select>
+                  </div>
+                </div>
+
+                <ResultsList
+                  results={results}
+                  primarySort={sortOption}
+                  loading={loading}
+                  onOpenDetails={handleOpenDetails}
+                  onOpenInvestigator={handleOpenInvestigator}
+                />
+
+                {totalPages > 1 && (
+                  <Pagination
+                    currentPage={currentPage}
+                    totalPages={totalPages}
+                    pageNumbers={pageNumbers}
+                    onPageChange={setCurrentPage}
+                    jumpToPageInput={jumpToPageInput}
+                    onJumpToPageInputChange={setJumpToPageInput}
+                    onJumpToPageSubmit={handleJumpToPageSubmit}
+                  />
                 )}
-              </div>
 
-
-              <div className="results-controls">
-                <select
-                  className="per-page-select"
-                  value={sortOption}
-                  onChange={(e) => setSortOption(e.target.value as SortOption)}
-                  aria-label="Sort results"
-                >
-                  <option value="relevant">Most Relevant</option>
-                  <option value="alphaAsc">Title: A to Z</option>
-                  <option value="alphaDesc">Title: Z to A</option>
-                </select>
-                <select
-                  className="per-page-select"
-                  value={resultsPerPage}
-                  onChange={handlePerPageChange}
-                >
-                  {[10, 25, 50, 100].map((n) => (
-                    <option key={n} value={n}>{n} per page</option>
-                  ))}
-                </select>
-              </div>
-            </div>
-
-            <ResultsList
-              results={results}
-              primarySort={sortOption}
-              loading={loading}
-              onOpenDetails={handleOpenDetails}
-              onOpenInvestigator={handleOpenInvestigator}
-            />
-
-            {/* Pagination */}
-            {totalPages > 1 && (
-              <Pagination
-                currentPage={currentPage}
-                totalPages={totalPages}
-                pageNumbers={pageNumbers}
-                onPageChange={setCurrentPage}
-                jumpToPageInput={jumpToPageInput}
-                onJumpToPageInputChange={setJumpToPageInput}
-                onJumpToPageSubmit={handleJumpToPageSubmit}
-              />
-            )}
-
-            {showScrollTop && (
-              <button
-                type="button"
-                className="scroll-top-btn"
-                onClick={handleScrollToTop}
-                aria-label="Scroll back to top"
-              >
-                ↑
-              </button>
-            )}
-          </>
+                {showScrollTop && (
+                  <button
+                    type="button"
+                    className="fixed right-8 bottom-6 border border-accent bg-accent text-white rounded-sm px-[0.92rem] py-[0.575rem] font-sans text-[15px] font-medium cursor-pointer shadow-md transition-[background,transform] duration-150 hover:bg-accent-hover hover:-translate-y-0.5 max-[900px]:right-4 max-[900px]:bottom-3"
+                    onClick={handleScrollToTop}
+                    aria-label="Scroll back to top"
+                  >
+                    ↑
+                  </button>
+                )}
+              </>
             )}
           </Suspense>
         </ErrorBoundary>

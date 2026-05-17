@@ -1,3 +1,4 @@
+import type { ReactNode } from "react";
 import { useEffect, useMemo, useRef, useState } from "react";
 import { useNavigate } from "react-router-dom";
 import type { ProjectFiscalYear, ProjectYearVariant, SearchResultRecord } from "../../api";
@@ -5,6 +6,9 @@ import { getProjectOtherYears, searchSimilarToProjectId } from "../../api";
 import { getOrderedPiNames } from "../../utils/piNames";
 import { groupSimilarNeighbors } from "../../utils/recurrenceGrouping";
 import { formatDollarsFull } from "../../utils/format";
+import { cn } from "../../utils/cn";
+import { CLS_BACK_LINK, CLS_LINK_BTN, CLS_PI_LINK, CLS_TAG_ACTIVITY } from "../../utils/sharedStyles";
+import FiscalYearTag from "./FiscalYearTag";
 import ProjectActivityTermsChart from "./ProjectActivityTermsChart";
 import ProjectSimilarProjectsChart from "./ProjectSimilarProjectsChart";
 import SimilarProjectYearTags from "./SimilarProjectYearTags";
@@ -24,6 +28,48 @@ type ProjectDetailsPageProps = {
 
 const ABSTRACT_PREVIEW_LENGTH = 1500;
 const SIMILAR_PANEL_K = 10;
+
+const CLS_SECTION_H2 = "text-[0.86rem] uppercase tracking-[0.05em] text-text-muted mb-[0.35rem]";
+
+function KeywordTag({ selected, onClick, children }: {
+  selected: boolean;
+  onClick: () => void;
+  children: ReactNode;
+}) {
+  return (
+    <button
+      type="button"
+      aria-pressed={selected}
+      onClick={onClick}
+      className={cn(
+        "inline-flex items-center px-[0.55rem] py-[0.2rem] rounded-full border text-[0.82rem] leading-[1.2] cursor-pointer font-[inherit] transition-[background,border-color,color] duration-[120ms] focus-visible:outline-2 focus-visible:outline-accent focus-visible:outline-offset-2",
+        selected
+          ? "border-accent bg-accent-light text-accent-text"
+          : "border-border bg-bg text-text-secondary hover:border-text-muted hover:text-text-primary",
+      )}
+    >
+      {children}
+    </button>
+  );
+}
+
+function KeywordChip({ onRemove, label, children }: {
+  onRemove: () => void;
+  label: string;
+  children: ReactNode;
+}) {
+  return (
+    <button
+      type="button"
+      onClick={onRemove}
+      aria-label={`Remove ${label}`}
+      className="inline-flex items-center gap-1 pl-[0.55rem] pr-[0.45rem] py-[0.2rem] rounded-full border border-accent bg-accent-light text-accent-text text-[0.8rem] leading-[1.2] cursor-pointer font-[inherit] transition-[background,border-color] duration-[120ms] hover:brightness-[0.97] focus-visible:outline-2 focus-visible:outline-accent focus-visible:outline-offset-2"
+    >
+      {children}
+      <span className="text-[1rem] leading-none opacity-75" aria-hidden="true">×</span>
+    </button>
+  );
+}
 
 function parseSemicolonTerms(rawTerms: string | undefined): string[] {
   if (!rawTerms) return [];
@@ -389,52 +435,41 @@ export default function ProjectDetailsPage({
   };
 
   return (
-    <div className="project-details-layout">
-    <div className="project-details-main-stack">
-    <div className="project-details-card">
-      <div className="project-details-top-row">
-        <button type="button" className="project-back-link" onClick={onBack}>
+    <div className="grid grid-cols-[2fr_1fr] gap-[1.25rem] items-start w-full max-[960px]:grid-cols-1">
+    <div className="flex flex-col gap-[1.25rem] min-w-0 w-full">
+    <div className="bg-surface border border-border rounded-lg p-6 w-full min-w-0">
+      <div className="grid grid-cols-[auto_1fr_auto] items-center gap-x-4 gap-y-3 mb-4">
+        <button type="button" className={CLS_BACK_LINK} onClick={onBack}>
           Back to results
         </button>
         {displayProjectYears.length > 1 ? (
-          <div className="project-details-year-tags" aria-label="Fiscal years for this project">
+          <div className="flex flex-wrap justify-center items-center gap-[0.4rem] min-w-0" aria-label="Fiscal years for this project">
             {displayProjectYears.map((year) => {
               const isActive = year.project_id === projectId || year.is_current === true;
               const yearKey = `${year.fy ?? "na"}-${year.project_id}`;
-              if (isActive) {
-                return (
-                  <span
-                    key={yearKey}
-                    className="project-details-year-tag project-details-year-tag--active"
-                    aria-current="page"
-                  >
-                    {year.fy != null ? `FY ${year.fy}` : "Current year"}
-                  </span>
-                );
-              }
               return (
-                <button
+                <FiscalYearTag
                   key={yearKey}
-                  type="button"
-                  className="project-details-year-tag"
+                  active={isActive}
                   onClick={() => handleOpenProjectYear(year)}
                 >
-                  {year.fy != null ? `FY ${year.fy}` : "Other year"}
-                </button>
+                  {isActive
+                    ? (year.fy != null ? `FY ${year.fy}` : "Current year")
+                    : (year.fy != null ? `FY ${year.fy}` : "Other year")}
+                </FiscalYearTag>
               );
             })}
           </div>
         ) : (
-          <div className="project-details-year-tags" aria-hidden="true" />
+          <div aria-hidden="true" />
         )}
-        
       </div>
 
-      <h1 className="project-details-title">{item.PROJECT_TITLE ?? "Untitled Project"}</h1>
+      <h1 className="text-[1.55rem] leading-[1.35] mb-4">{item.PROJECT_TITLE ?? "Untitled Project"}</h1>
 
-      <section className="project-details-section">
-        <h2>Project Abstract</h2>
-        <p className={projectAbstract ? "project-details-abstract" : "project-details-placeholder"}>
+      <section className="mb-[1.25rem] w-full">
+        <h2 className={CLS_SECTION_H2}>Project Abstract</h2>
+        <p className={projectAbstract ? "text-text-primary whitespace-normal w-full max-w-none" : "text-text-secondary italic w-full max-w-none"}>
           {projectAbstract == null
             ? "No abstract available for this project."
             : isAbstractExpanded
@@ -444,7 +479,7 @@ export default function ProjectDetailsPage({
         {projectAbstract != null && isLongAbstract && (
           <button
             type="button"
-            className="project-details-abstract-toggle"
+            className="mt-[0.35rem] p-0 border-none bg-transparent text-accent font-sans text-[0.86rem] font-semibold cursor-pointer hover:underline"
             onClick={() => setIsAbstractExpanded((prev) => !prev)}
           >
             {isAbstractExpanded ? "Show less" : "Read more"}
@@ -452,17 +487,17 @@ export default function ProjectDetailsPage({
         )}
       </section>
 
-      <section className="project-details-grid">
+      <section className="grid grid-cols-[repeat(auto-fit,minmax(240px,1fr))] gap-x-6 gap-y-4">
         <div>
-          <h2>Principal Investigator Names</h2>
+          <h2 className={CLS_SECTION_H2}>Principal Investigator Names</h2>
           {piNames.length > 0 ? (
-            <ul className="project-details-list">
+            <ul className="list-disc pl-4">
               {piNames.map((name) => (
                 <li key={name}>
                   {onOpenInvestigator ? (
                     <button
                       type="button"
-                      className="pi-link-button"
+                      className={CLS_PI_LINK}
                       onClick={() => onOpenInvestigator(name)}
                     >
                       {name}
@@ -474,116 +509,107 @@ export default function ProjectDetailsPage({
               ))}
             </ul>
           ) : (
-            <p>—</p>
+            <p className="text-text-primary">—</p>
           )}
         </div>
 
         <div>
-          <h2>Funded Organization</h2>
-          <p>{item.ORG_NAME ?? "—"}</p>
+          <h2 className={CLS_SECTION_H2}>Funded Organization</h2>
+          <p className="text-text-primary">{item.ORG_NAME ?? "—"}</p>
         </div>
 
         <div>
-          <h2>Funded Location</h2>
-          <p>{formatLocation(item)}</p>
+          <h2 className={CLS_SECTION_H2}>Funded Location</h2>
+          <p className="text-text-primary">{formatLocation(item)}</p>
         </div>
 
         <div>
-          <h2>NIH Institute or Center</h2>
-          <p>{item.IC_NAME ?? "—"}</p>
+          <h2 className={CLS_SECTION_H2}>NIH Institute or Center</h2>
+          <p className="text-text-primary">{item.IC_NAME ?? "—"}</p>
         </div>
 
         <div>
-          <h2>Fiscal Year(s)</h2>
-          <p>{fiscalYears}</p>
+          <h2 className={CLS_SECTION_H2}>Fiscal Year(s)</h2>
+          <p className="text-text-primary">{fiscalYears}</p>
         </div>
 
         <div>
-          <h2>Project Start/End</h2>
-          <p>{projectDates}</p>
+          <h2 className={CLS_SECTION_H2}>Project Start/End</h2>
+          <p className="text-text-primary">{projectDates}</p>
         </div>
 
         <div>
-          <h2>Award Amount</h2>
-          <p>{formatDollarsFull(item.TOTAL_COST)}</p>
+          <h2 className={CLS_SECTION_H2}>Award Amount</h2>
+          <p className="text-text-primary">{formatDollarsFull(item.TOTAL_COST)}</p>
         </div>
 
         <div>
-          <h2>Activity Code</h2>
-          <p>{item.ACTIVITY ?? "—"}</p>
+          <h2 className={CLS_SECTION_H2}>Activity Code</h2>
+          <p className="text-text-primary">{item.ACTIVITY ?? "—"}</p>
         </div>
 
-        <div className="project-details-keywords">
-          <h2>Keywords or Research Terms</h2>
+        <div className="col-span-full">
+          <h2 className={CLS_SECTION_H2}>Keywords or Research Terms</h2>
           {dedupedProjectTerms.length > 0 ? (
             <>
-              <div className="project-details-tags" role="group" aria-label="Project keyword tags">
-                {dedupedProjectTerms.map((term) => {
-                  const isOn = selectedTerms.has(term);
-                  return (
-                    <button
-                      key={term}
-                      type="button"
-                      className={`project-details-tag${isOn ? " project-details-tag--selected" : ""}`}
-                      aria-pressed={isOn}
-                      onClick={() => toggleTermSelection(term)}
-                    >
-                      {term}
-                    </button>
-                  );
-                })}
+              <div className="flex flex-wrap gap-[0.4rem] w-full" role="group" aria-label="Project keyword tags">
+                {dedupedProjectTerms.map((term) => (
+                  <KeywordTag
+                    key={term}
+                    selected={selectedTerms.has(term)}
+                    onClick={() => toggleTermSelection(term)}
+                  >
+                    {term}
+                  </KeywordTag>
+                ))}
               </div>
               {onSearchWithProjectTerms ? (
-                <div className="project-details-keyword-search">
-                  <p className="project-details-keyword-search-label">
+                <div className="mt-[0.85rem] pt-[0.85rem] border-t border-border">
+                  <p className="mb-[0.45rem] text-[0.85rem] text-text-secondary">
                     Search other projects using selected tags (and optional text):
                   </p>
-                  <ul className="project-details-keyword-chips" aria-label="Selected keywords for search">
+                  <ul className="flex flex-wrap gap-[0.35rem] items-center list-none m-0 mb-[0.65rem] p-0 min-h-[1.6rem]" aria-label="Selected keywords for search">
                     {selectedTerms.size === 0 ? (
-                      <li className="project-details-keyword-chips-empty">No tags selected yet</li>
+                      <li className="m-0 p-0 text-[0.82rem] text-text-muted italic">No tags selected yet</li>
                     ) : (
                       [...selectedTerms].map((term) => (
                         <li key={term}>
-                          <button
-                            type="button"
-                            className="project-details-keyword-chip"
-                            onClick={() => toggleTermSelection(term)}
-                            aria-label={`Remove ${term}`}
-                          >
+                          <KeywordChip label={term} onRemove={() => toggleTermSelection(term)}>
                             {term}
-                            <span className="project-details-keyword-chip-x" aria-hidden="true">
-                              ×
-                            </span>
-                          </button>
+                          </KeywordChip>
                         </li>
                       ))
                     )}
                   </ul>
-                  <div className="project-details-keyword-search-row">
-                    <label className="project-details-keyword-input-label" htmlFor="project-keyword-extra">
+                  <div className="flex flex-col gap-[0.3rem] mb-[0.65rem]">
+                    <label className="text-[0.78rem] text-text-muted" htmlFor="project-keyword-extra">
                       Also include in search
                     </label>
                     <input
                       id="project-keyword-extra"
                       type="text"
-                      className="project-details-keyword-input"
+                      className="w-full max-w-[28rem] px-[0.6rem] py-[0.45rem] rounded-sm border border-border bg-surface text-text-primary font-[inherit] text-[0.88rem] focus-visible:outline-2 focus-visible:outline-accent focus-visible:outline-offset-[1px]"
                       placeholder="Optional words (title, PI, keywords…)"
                       value={keywordExtra}
                       onChange={(e) => setKeywordExtra(e.target.value)}
                       autoComplete="off"
                     />
                   </div>
-                  <div className="project-details-keyword-actions">
+                  <div className="flex flex-wrap gap-2 items-center">
                     <button
                       type="button"
-                      className="btn-project-keyword-search"
+                      className="px-4 py-[0.45rem] rounded-sm border-none bg-accent text-white font-sans text-[0.88rem] font-medium cursor-pointer transition-[background] duration-150 disabled:opacity-45 disabled:cursor-not-allowed"
                       disabled={selectedTerms.size === 0 && keywordExtra.trim() === ""}
                       onClick={handleProjectKeywordSearch}
                     >
                       Search Projects
                     </button>
                     {(selectedTerms.size > 0 || keywordExtra.trim() !== "") ? (
-                      <button type="button" className="btn-project-keyword-clear" onClick={clearKeywordPanel}>
+                      <button
+                        type="button"
+                        className="px-[0.75rem] py-[0.45rem] rounded-sm border border-border bg-surface text-text-secondary font-sans text-[0.85rem] cursor-pointer hover:border-text-muted hover:text-text-primary"
+                        onClick={clearKeywordPanel}
+                      >
                         Clear selection
                       </button>
                     ) : null}
@@ -592,7 +618,7 @@ export default function ProjectDetailsPage({
               ) : null}
             </>
           ) : (
-            <p>—</p>
+            <p className="text-text-primary">—</p>
           )}
         </div>
       </section>
@@ -611,64 +637,64 @@ export default function ProjectDetailsPage({
     ) : null}
     </div>
 
-    <aside className="project-details-similar" aria-labelledby="project-details-similar-heading">
+    <aside className="bg-surface border border-border rounded-lg p-[1.1rem_1.15rem] min-w-0" aria-labelledby="project-details-similar-heading">
       {projectId ? (
-        <div className="project-details-similar-more-wrap project-details-similar-more-wrap--top">
+        <div className="flex justify-start mb-[0.5rem]">
           <button
             type="button"
-            className="project-details-similar-more"
+            className={CLS_LINK_BTN}
             onClick={() => navigate(`/semantic/similar/${encodeURIComponent(projectId)}`)}
           >
             See more similar projects
           </button>
         </div>
       ) : null}
-      <h2 id="project-details-similar-heading" className="project-details-similar-heading">
+      <h2 id="project-details-similar-heading" className="text-[0.98rem] font-semibold text-text-primary tracking-[-0.01em] mb-[0.5rem]">
         Similar Projects
       </h2>
-      <div className="project-details-similar-heading-rule" role="presentation" aria-hidden="true" />
+      <hr className="h-0 m-0 mb-[0.75rem] border-0 border-b border-border" role="presentation" aria-hidden="true" />
       {!projectId ? (
-        <p className="project-details-similar-muted">No document id on this record; vector similarity is unavailable.</p>
+        <p className="text-[0.84rem] text-text-secondary leading-[1.45]">No document id on this record; vector similarity is unavailable.</p>
       ) : similarLoading ? (
-        <p className="project-details-similar-muted" role="status">
+        <p className="text-[0.84rem] text-text-secondary leading-[1.45]" role="status">
           Loading similar grants…
         </p>
       ) : similarError ? (
-        <div className="project-details-similar-alert" role="alert">
+        <div className="text-[0.84rem] text-text-primary px-[0.75rem] py-[0.65rem] rounded-sm bg-accent-light border border-border-strong" role="alert">
           <p>{similarError}</p>
           {similarError.toLowerCase().includes("embedding") ? (
-            <p className="project-details-similar-muted">
+            <p className="text-[0.84rem] text-text-secondary leading-[1.45]">
               Reindex with embeddings enabled so k-NN can run for this document.
             </p>
           ) : null}
         </div>
       ) : groupedSimilarNeighbors.length === 0 ? (
-        <p className="project-details-similar-muted">No similar projects returned.</p>
+        <p className="text-[0.84rem] text-text-secondary leading-[1.45]">No similar projects returned.</p>
       ) : (
-        <ol className="project-details-similar-list">
+        <ol className="list-none flex flex-col gap-[0.75rem]">
           {groupedSimilarNeighbors.map((neighbor, index) => {
             const yearVariants = dedupeYearVariants(getYearVariants(neighbor));
             const listKey = yearVariants.map((variant) => variant.project_id).join("-") || String(index);
             const primaryId = yearVariants[0]?.project_id ?? neighbor._id ?? neighbor.id ?? "";
             return (
-              <li key={listKey} className="project-details-similar-item">
-                <div className="project-details-similar-item-top">
+              <li key={listKey} className="pb-[0.75rem] border-b border-border last:pb-0 last:border-b-0">
+                <div className="flex items-start justify-between gap-2 mb-[0.45rem]">
                   <SimilarProjectYearTags
                     variants={yearVariants}
                     onSelect={handleOpenYearVariant}
                   />
-                  <div className="project-details-similar-item-trailing">
-                    {neighbor.ACTIVITY ? <span className="tag activity">{neighbor.ACTIVITY}</span> : null}
-                    <span className="project-details-similar-item-cost">
+                  <div className="flex items-center justify-end gap-[0.4rem] flex-shrink-0 ml-auto">
+                    {neighbor.ACTIVITY ? <span className={CLS_TAG_ACTIVITY}>{neighbor.ACTIVITY}</span> : null}
+                    <span className="font-mono text-[0.78rem] font-medium text-text-secondary whitespace-nowrap">
                       {formatDollarsFull(neighbor.TOTAL_COST)}
                     </span>
                   </div>
                 </div>
-                <p className="project-details-similar-item-title">{neighbor.PROJECT_TITLE ?? "Untitled"}</p>
+                <p className="text-[0.9rem] font-semibold text-text-primary leading-[1.4] mb-[0.35rem]">{neighbor.PROJECT_TITLE ?? "Untitled"}</p>
                 {onOpenDetails && primaryId ? (
                   <button
                     type="button"
-                    className="project-details-similar-open"
+                    className={CLS_LINK_BTN}
                     onClick={() => onOpenDetails(neighbor)}
                   >
                     View project
@@ -680,10 +706,10 @@ export default function ProjectDetailsPage({
         </ol>
       )}
       {projectId ? (
-        <div className="project-details-similar-more-wrap project-details-similar-more-wrap--bottom">
+        <div className="flex justify-start mt-[0.85rem]">
           <button
             type="button"
-            className="project-details-similar-more"
+            className={CLS_LINK_BTN}
             onClick={() => navigate(`/semantic/similar/${encodeURIComponent(projectId)}`)}
           >
             Show more similar projects
