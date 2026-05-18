@@ -574,7 +574,6 @@ export default function Dashboard({
     <div className={cn("w-full px-6 py-[1.1rem] flex flex-col", refreshing && "opacity-[0.72] transition-opacity duration-200")}>
       <Filters
         applied={appliedFilters}
-        applyOnSelectChange
         catalog={{
           icNames,
           activityCodes,
