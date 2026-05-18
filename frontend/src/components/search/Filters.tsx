@@ -78,6 +78,8 @@ type FiltersProps = {
   searchQuery?: string;
   onSearch?: (query: string) => void;
   searchSubmitOnClear?: boolean;
+  /** When true, dropdown changes apply immediately (PI still uses Apply / Enter). */
+  applyOnSelectChange?: boolean;
   /** Override built-in SearchBar when a custom search UI is required. */
   searchSlot?: ReactNode;
 };
@@ -90,6 +92,7 @@ function Filters({
   searchQuery,
   onSearch,
   searchSubmitOnClear = true,
+  applyOnSelectChange = false,
   searchSlot,
 }: FiltersProps) {
   const { draft, patch, resetDraft } = useFilterDraft(applied);
@@ -163,7 +166,13 @@ function Filters({
           <FilterField key={field.key} label={field.label} className={field.width}>
             <FilterSelect
               value={draft[field.key]}
-              onChange={(value) => patch({ [field.key]: value })}
+              onChange={(value) => {
+                const next = { ...draft, [field.key]: value };
+                patch({ [field.key]: value });
+                if (applyOnSelectChange) {
+                  onApply(next);
+                }
+              }}
               options={selectOptionsByKey[field.key]}
               placeholder={field.placeholder}
               ariaLabel={field.ariaLabel}
@@ -179,14 +188,26 @@ function Filters({
             <FilterSelect
               ariaLabel="Fiscal year from"
               value={draft.fyMin}
-              onChange={(fyMin) => patch({ fyMin })}
+              onChange={(fyMin) => {
+                const next = { ...draft, fyMin };
+                patch({ fyMin });
+                if (applyOnSelectChange) {
+                  onApply(next);
+                }
+              }}
               options={fySelectOptions}
               placeholder={FY_RANGE_PLACEHOLDER}
             />
             <FilterSelect
               ariaLabel="Fiscal year to"
               value={draft.fyMax}
-              onChange={(fyMax) => patch({ fyMax })}
+              onChange={(fyMax) => {
+                const next = { ...draft, fyMax };
+                patch({ fyMax });
+                if (applyOnSelectChange) {
+                  onApply(next);
+                }
+              }}
               options={fySelectOptions}
               placeholder={FY_RANGE_PLACEHOLDER}
             />

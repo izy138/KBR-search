@@ -113,7 +113,7 @@ export default function VerticalOnlyBarShape({
       rx={rx}
       ry={rx}
       onClick={onClick}
-      style={{ cursor: onClick ? "pointer" : undefined }}
+      style={{ cursor: onClick ? "pointer" : undefined, outline: "none" }}
     />
   );
 }

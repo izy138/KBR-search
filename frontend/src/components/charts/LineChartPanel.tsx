@@ -1,3 +1,4 @@
+import { useMemo } from "react";
 import {
   CartesianGrid,
   Legend,
@@ -9,9 +10,11 @@ import {
   YAxis,
 } from "recharts";
 import { cn } from "../../utils/cn";
+import { CLS_RECHARTS_FOCUS_RESET } from "../../utils/chartStyles";
 import type { TooltipContentProps } from "recharts/types/component/Tooltip";
 import type { NameType, ValueType } from "recharts/types/component/DefaultTooltipContent";
 import type { YearDataPoint } from "../../api";
+import { buildNumericAxisDomain } from "../../utils/chartAxis";
 import { formatDollarsCompact } from "../../utils/format";
 
 interface LineChartPanelProps {
@@ -35,9 +38,35 @@ export default function LineChartPanel({
   formatter,
   height = 300,
   panelClassName,
-  chartMargin = { top: 4, right: 16, bottom: 4, left: 8 },
+  chartMargin = { top: 12, right: 16, bottom: 4, left: 8 },
 }: LineChartPanelProps) {
   const fundingFmt = formatter ?? formatDollarsCompact;
+
+  const { countAxisDomain, fundingAxisDomain } = useMemo(() => {
+    let minCount = Number.POSITIVE_INFINITY;
+    let maxCount = Number.NEGATIVE_INFINITY;
+    let minFunding = Number.POSITIVE_INFINITY;
+    let maxFunding = Number.NEGATIVE_INFINITY;
+
+    for (const point of data) {
+      minCount = Math.min(minCount, point.count);
+      maxCount = Math.max(maxCount, point.count);
+      minFunding = Math.min(minFunding, point.total_funding);
+      maxFunding = Math.max(maxFunding, point.total_funding);
+    }
+
+    if (data.length === 0) {
+      return {
+        countAxisDomain: [0, 1] as [number, number],
+        fundingAxisDomain: [0, 1] as [number, number],
+      };
+    }
+
+    return {
+      countAxisDomain: buildNumericAxisDomain(minCount, maxCount),
+      fundingAxisDomain: buildNumericAxisDomain(minFunding, maxFunding),
+    };
+  }, [data]);
 
   const renderTooltip = (props: TooltipContentProps<ValueType, NameType>) => {
     if (!props.active || !props.payload?.length) return null;
@@ -63,7 +92,11 @@ export default function LineChartPanel({
     );
   };
 
-  const panelClass = cn("bg-surface border border-border rounded-[--radius-lg] w-full px-4 py-[0.9rem] min-h-[310px]", panelClassName);
+  const panelClass = cn(
+    "bg-surface border border-border rounded-[--radius-lg] w-full px-4 py-[0.9rem] min-h-[310px]",
+    CLS_RECHARTS_FOCUS_RESET,
+    panelClassName,
+  );
 
   return (
     <div className={panelClass}>
@@ -73,13 +106,15 @@ export default function LineChartPanel({
           <CartesianGrid strokeDasharray="3 3" stroke="var(--border)" />
           <XAxis
             dataKey="year"
-            tick={{ fontSize: 11, fill: "var(--text-secondary)" }}
+            tick={{ fontSize: 13, fill: "var(--text-secondary)" }}
             axisLine={false}
             tickLine={false}
           />
           <YAxis
             yAxisId="left"
-            tick={{ fontSize: 11, fill: "var(--text-secondary)" }}
+            domain={countAxisDomain}
+            allowDataOverflow
+            tick={{ fontSize: 13, fill: "var(--text-secondary)" }}
             tickFormatter={(v: number) => v.toLocaleString()}
             axisLine={false}
             tickLine={false}
@@ -87,14 +122,16 @@ export default function LineChartPanel({
           <YAxis
             yAxisId="right"
             orientation="right"
-            tick={{ fontSize: 11, fill: "var(--text-secondary)" }}
+            domain={fundingAxisDomain}
+            allowDataOverflow
+            tick={{ fontSize: 13, fill: "var(--text-secondary)" }}
             tickFormatter={fundingFmt}
             axisLine={false}
             tickLine={false}
           />
           <Tooltip content={renderTooltip} position={{ x: 16, y: 16 }} />
           <Legend
-            wrapperStyle={{ fontSize: 12, color: "var(--text-secondary)" }}
+            wrapperStyle={{ fontSize: 13, color: "var(--text-secondary)" }}
           />
           <Line
             yAxisId="left"
@@ -103,8 +140,8 @@ export default function LineChartPanel({
             name="Projects"
             stroke="#1a56db"
             strokeWidth={2}
-            dot={{ r: 3, fill: "#1a56db" }}
-            activeDot={{ r: 5 }}
+            dot={{ r: 3, fill: "#1a56db", strokeWidth: 0 }}
+            activeDot={{ r: 5, strokeWidth: 0 }}
           />
           <Line
             yAxisId="right"
@@ -113,8 +150,8 @@ export default function LineChartPanel({
             name="Total Funding"
             stroke="#0e9f6e"
             strokeWidth={2}
-            dot={{ r: 3, fill: "#0e9f6e" }}
-            activeDot={{ r: 5 }}
+            dot={{ r: 3, fill: "#0e9f6e", strokeWidth: 0 }}
+            activeDot={{ r: 5, strokeWidth: 0 }}
           />
         </LineChart>
       </ResponsiveContainer>
