@@ -1,19 +1,18 @@
-import { useMemo } from "react";
+import { useCallback, useMemo } from "react";
+import type { MouseEvent } from "react";
 import {
   Cell,
-  DefaultLegendContent,
-  Legend,
   Pie,
   PieChart,
   ResponsiveContainer,
   Sector,
   Tooltip,
 } from "recharts";
-import type { LegendPayload } from "recharts";
 import type { TooltipContentProps } from "recharts/types/component/Tooltip";
 import type { NameType, ValueType } from "recharts/types/component/DefaultTooltipContent";
 import type { ActivityFundingPieResponse, ActivityPieSlice } from "../../api";
 import { cn } from "../../utils/cn";
+import { CLS_RECHARTS_FOCUS_RESET } from "../../utils/chartStyles";
 
 const DEFAULT_CHART_HEIGHT_PX = 360;
 
@@ -41,9 +40,6 @@ const OUTER_PIE_OUTER_RADIUS_PX = 175;
 const PIE_HOVER_OUTER_EXPAND_PX = 5;
 const PIE_HOVER_STROKE_WIDTH = 2;
 const PIE_SLICE_HOVER_TRANSITION = "fill 0.15s ease, stroke 0.15s ease, opacity 0.15s ease";
-
-const PIE_FOCUS_RESET =
-  "[&_.recharts-wrapper_svg:focus]:outline-none [&_.recharts-wrapper_svg:focus-visible]:outline-none [&_.recharts-sector:focus]:outline-none [&_.recharts-sector:focus-visible]:outline-none [&_.recharts-pie-sector:focus]:outline-none [&_.recharts-pie-sector:focus-visible]:outline-none [&_.recharts-layer_path:focus]:outline-none [&_.recharts-layer_path:focus-visible]:outline-none";
 
 const PIE_COLORS = [
   "#1a56db",
@@ -77,6 +73,12 @@ interface ActivityFundingPiePanelProps {
   formatDollars: (n: number) => string;
   /** Recharts container height; should match the paired year trend chart on the dashboard. */
   chartHeight?: number;
+  /** When true, dims the chart while filtered analytics are refetching. */
+  loading?: boolean;
+  /** Currently applied activity filter (highlights matching tail list item). */
+  selectedActivity?: string;
+  /** When set, tail list codes apply that activity as a dashboard filter. */
+  onActivitySelect?: (activityCode: string) => void;
 }
 
 function rowFromSlice(s: ActivityPieSlice): PieRow {
@@ -178,6 +180,10 @@ type PieSectorShapeProps = {
   isActive?: boolean;
   isOther?: boolean;
   radialInset?: number;
+  payload?: PieRow;
+  onClick?: (event: MouseEvent<SVGPathElement>) => void;
+  sliceClickable?: boolean;
+  isSelectedSlice?: boolean;
 };
 
 function lightenHexColor(hex: string, amount = 0.16): string {
@@ -207,13 +213,16 @@ function HighlightedPieSector(props: PieSectorShapeProps) {
   const endAngle = Number(props.endAngle ?? 0);
   const fill = props.fill ?? "#8884d8";
   const isActive = Boolean(props.isActive);
-  const isOther = Boolean(props.isOther);
+  const isOther = Boolean(props.isOther ?? props.payload?.isOther);
+  const isSelectedSlice = Boolean(props.isSelectedSlice);
+  const sliceClickable = Boolean(props.sliceClickable) && !isOther;
   const inset = Number(props.radialInset ?? 0);
   const drawInner = innerRadius + inset * 0.35;
   const drawOuter = outerRadius - inset;
   const hoverExpand = isOther ? PIE_HOVER_OUTER_EXPAND_PX * 0.6 : PIE_HOVER_OUTER_EXPAND_PX;
   const activeOuter = isActive ? drawOuter + hoverExpand : drawOuter;
   const sectorFill = isActive ? lightenHexColor(fill, isOther ? 0.12 : 0.18) : fill;
+  const showStroke = isActive || isSelectedSlice;
   return (
     <Sector
       cx={cx}
@@ -223,19 +232,17 @@ function HighlightedPieSector(props: PieSectorShapeProps) {
       startAngle={startAngle}
       endAngle={endAngle}
       fill={sectorFill}
-      stroke={isActive ? fill : "none"}
-      strokeWidth={isActive ? PIE_HOVER_STROKE_WIDTH : 0}
+      stroke={showStroke ? fill : "none"}
+      strokeWidth={showStroke ? PIE_HOVER_STROKE_WIDTH : 0}
+      onClick={props.onClick}
       style={{
         transition: PIE_SLICE_HOVER_TRANSITION,
         opacity: isOther && !isActive ? 0.88 : 1,
         outline: "none",
+        cursor: sliceClickable ? "pointer" : undefined,
       }}
     />
   );
-}
-
-function renderPieSector(props: PieSectorShapeProps) {
-  return <HighlightedPieSector {...props} />;
 }
 
 type SliceLabelProps = {
@@ -310,6 +317,17 @@ function sliceColor(index: number): string {
   return PIE_COLORS[index % PIE_COLORS.length];
 }
 
+function isPieRow(entry: PieRow | { payload?: PieRow }): entry is PieRow {
+  return "name" in entry && typeof entry.name === "string";
+}
+
+function pieRowFromClickEntry(entry: PieRow | { payload?: PieRow }): PieRow | undefined {
+  if (isPieRow(entry)) {
+    return entry;
+  }
+  return entry.payload;
+}
+
 /**
  * Two-layer pie: inner ring = top 5 activity codes; outer ring = ranks 6–20.
  * Recharts stacks two `<Pie>` components in one `<PieChart>`.
@@ -319,6 +337,9 @@ export default function ActivityFundingPiePanel({
   pie,
   formatDollars,
   chartHeight = DEFAULT_CHART_HEIGHT_PX,
+  loading = false,
+  selectedActivity = "",
+  onActivitySelect,
 }: ActivityFundingPiePanelProps) {
   const { innerChartData, outerChartData, tailDetailRows } = useMemo(() => {
     const split = splitPieRows(pie);
@@ -336,22 +357,31 @@ export default function ActivityFundingPiePanel({
 
   const showTailPanel = tailDetailRows.length > 0;
 
-  const slicesSum = useMemo(
-    () => chartData.reduce((acc, r) => acc + r.value, 0),
-    [chartData],
+  const handlePieSliceClick = useCallback(
+    (entry: PieRow | { payload?: PieRow }) => {
+      const row = pieRowFromClickEntry(entry);
+      if (row == null || row.isOther || onActivitySelect == null || !row.name) {
+        return;
+      }
+      onActivitySelect(row.name);
+    },
+    [onActivitySelect],
   );
-  const pctOfAllIndexed =
-    pie.total_funding_indexed > 0 ? slicesSum / pie.total_funding_indexed : 0;
 
-  const legendPayload = useMemo(
-    () =>
-      chartData.map((row, index) => ({
-        value: row.name,
-        type: "square" as const,
-        color: sliceColor(index),
-        payload: row,
-      })),
-    [chartData],
+  const renderPieSector = useCallback(
+    (props: PieSectorShapeProps) => {
+      const row = props.payload;
+      const isSelectedSlice = row != null && row.name === selectedActivity;
+      const sliceClickable = onActivitySelect != null && row != null && !row.isOther;
+      return (
+        <HighlightedPieSector
+          {...props}
+          isSelectedSlice={isSelectedSlice}
+          sliceClickable={sliceClickable}
+        />
+      );
+    },
+    [onActivitySelect, selectedActivity],
   );
 
   const renderTooltip = (props: TooltipContentProps<ValueType, NameType>) => {
@@ -377,33 +407,14 @@ export default function ActivityFundingPiePanel({
     );
   };
 
-  const legendFormatter = (value: string, entry: LegendPayload) => {
-    const row = entry.payload as PieRow | undefined;
-    if (!row) {
-      return value;
-    }
-    const pct = (row.pct * 100).toFixed(1);
-    const ring =
-      innerChartData.some((r) => r.name === row.name) ? "inner" : "outer";
-    return (
-      <span className="inline-flex flex-col items-start gap-[0.15rem] leading-[1.25] max-w-[14rem] text-left">
-        <span className="font-semibold">{value}</span>
-        <span className="text-text-muted font-normal">
-          {formatDollars(row.value)} · {ring} ring
-        </span>
-        <span className="flex flex-col items-start gap-[0.08rem] mt-[0.1rem]">
-          <span className="font-bold tracking-[0.02em]">
-            {value}
-          </span>
-          <span className="text-text-muted font-medium">{pct}% of all indexed</span>
-        </span>
-      </span>
-    );
-  };
-
   if (chartData.length === 0) {
     return (
-      <div className="bg-surface border border-border rounded-[--radius-lg] w-full px-4 py-[0.9rem] text-[14px] min-h-0">
+      <div
+      className={cn(
+        "bg-surface border border-border rounded-[--radius-lg] w-full px-4 py-[0.9rem] text-[14px] min-h-0 transition-opacity duration-200",
+        loading && "opacity-50 pointer-events-none",
+      )}
+    >
         <div className="grid grid-cols-[auto_minmax(0,1fr)_auto] items-center gap-3 mb-[0.65rem]">
           <div className="text-text-primary text-[0.9rem] font-semibold mb-0">{title}</div>
         </div>
@@ -413,7 +424,12 @@ export default function ActivityFundingPiePanel({
   }
 
   return (
-    <div className="bg-surface border border-border rounded-[--radius-lg] w-full px-4 py-[0.9rem] text-[14px] min-h-0">
+    <div
+      className={cn(
+        "bg-surface border border-border rounded-[--radius-lg] w-full px-4 py-[0.9rem] text-[14px] min-h-0 transition-opacity duration-200",
+        loading && "opacity-50 pointer-events-none",
+      )}
+    >
       <div className="grid grid-cols-[auto_minmax(0,1fr)_auto] items-center gap-3 mb-[0.65rem]">
         <div className="text-text-primary text-[0.9rem] font-semibold mb-0">{title}</div>
       </div>
@@ -428,13 +444,8 @@ export default function ActivityFundingPiePanel({
       ) : null}
       <div className={showTailPanel ? "grid grid-cols-[minmax(0,1fr)_minmax(11rem,14rem)] gap-3 items-stretch min-h-[360px] px-1 pb-1" : "min-h-[360px] min-w-0 px-1 pb-1"}>
         <div
-          className={cn("w-full min-w-0 [&_svg]:text-[inherit]", PIE_FOCUS_RESET)}
+          className={cn("w-full min-w-0 [&_svg]:text-[inherit]", CLS_RECHARTS_FOCUS_RESET)}
           style={{ height: chartHeight, minHeight: chartHeight }}
-          onMouseDown={(event) => {
-            if (event.target instanceof SVGElement) {
-              event.preventDefault();
-            }
-          }}
         >
           <ResponsiveContainer width="100%" height="100%">
             <PieChart margin={{ top: 8, right: 4, bottom: 8, left: 4 }}>
@@ -456,6 +467,7 @@ export default function ActivityFundingPiePanel({
                   legendType="none"
                   labelLine={false}
                   label={(props) => renderSliceLabel({ ...props, minPct: 0.8, compact: true })}
+                  onClick={onActivitySelect ? handlePieSliceClick : undefined}
                 >
                   {innerChartData.map((_, index) => (
                     <Cell key={`inner-cell-${index}`} fill={sliceColor(index)} />
@@ -485,6 +497,7 @@ export default function ActivityFundingPiePanel({
                       minPct: props.payload?.isOther ? 0 : 1.2,
                     })
                   }
+                  onClick={onActivitySelect ? handlePieSliceClick : undefined}
                 >
                   {outerChartData.map((row, index) => (
                     <Cell
@@ -500,46 +513,63 @@ export default function ActivityFundingPiePanel({
                 animationDuration={0}
                 wrapperStyle={{ transition: "none", outline: "none" }}
               />
-              <Legend
-                layout="vertical"
-                align="right"
-                verticalAlign="middle"
-                formatter={legendFormatter}
-                content={(props) => (
-                  <DefaultLegendContent {...props} payload={legendPayload} />
-                )}
-                wrapperStyle={{
-                  paddingLeft: 4,
-                  maxHeight: chartHeight - 40,
-                  overflowY: "auto",
-                }}
-              />
             </PieChart>
           </ResponsiveContainer>
         </div>
         {showTailPanel ? (
-          <aside className="flex flex-col min-h-0 max-h-[360px] px-[0.9rem] py-[0.85rem] border border-border-strong rounded-lg bg-bg" aria-label="Other Activity Codes">
+          <aside className="flex flex-col min-h-0 max-h-[360px] pl-[0.9rem] pr-1 py-[0.85rem] border border-border-strong rounded-lg bg-bg" aria-label="Other Activity Codes">
             <div className="flex items-start justify-between gap-2 mb-1">
               <h4 className="m-0 font-bold leading-[1.25]">
                 Other Activity Codes
               </h4>
             </div>
-            <p className="m-0 mb-[0.35rem] leading-[1.2] text-text-muted">
+            <p className="m-0 mb-[0.35rem] leading-[1] text-text-muted ">
               {tailDetailRows.length} codes ·{" "}
               {formatDollars(tailDetailRows.reduce((acc, r) => acc + r.value, 0))}
             </p>
-            <ul className="flex-1 min-h-0 m-0 p-0 list-none overflow-y-auto">
-              {tailDetailRows.map((row) => (
-                <li key={row.name} className="flex flex-col gap-[0.05rem] py-[0.28rem] border-b border-border leading-[1.2] last:border-b-0">
-                  <div className="flex items-baseline justify-between gap-[0.35rem] min-w-0">
-                    <span className="font-bold tracking-[0.02em] shrink-0">{row.name}</span>
-                    <span className="text-text-secondary text-right whitespace-nowrap">{formatDollars(row.value)}</span>
-                  </div>
-                  <span className="text-text-muted">
-                    {row.count.toLocaleString()} projects
-                  </span>
-                </li>
-              ))}
+            <ul className="flex-1 min-h-0 m-0 p-0 pr-6 -mr-1 list-none overflow-y-auto [scrollbar-width:thin]">
+              {tailDetailRows.map((row) => {
+                const isSelected = selectedActivity === row.name;
+                const rowBody = (
+                  <>
+                    <div className="flex items-baseline justify-between gap-[0.35rem] min-w-0">
+                      <span className="font-bold tracking-[0.02em] shrink-0">{row.name}</span>
+                      <span className="text-text-secondary text-right whitespace-nowrap">{formatDollars(row.value)}</span>
+                    </div>
+                    <span className="text-text-muted">
+                      {row.count.toLocaleString()} projects
+                    </span>
+                  </>
+                );
+
+                if (onActivitySelect == null) {
+                  return (
+                    <li
+                      key={row.name}
+                      className="flex flex-col gap-[0.05rem] py-[0.28rem] pl-1 pr-1 border-b-2 m-[-3px] border-border-strong leading-[1.1] last:border-b-0"
+                    >
+                      {rowBody}
+                    </li>
+                  );
+                }
+
+                return (
+                  <li key={row.name} className="border-b-2 m-[-3px] border-border-strong last:border-b-0">
+                    <button
+                      type="button"
+                      className={cn(
+                        "flex w-full cursor-pointer flex-col gap-[0.05rem] rounded-sm border-none bg-transparent py-[0.28rem] pl-1 pr-1 text-left font-[inherit] leading-[1.1] transition-[background,color] duration-150 hover:bg-surface-hover focus-visible:outline-2 focus-visible:outline-accent focus-visible:outline-offset-1",
+                        isSelected && "bg-accent-light text-accent-text hover:bg-accent-light",
+                      )}
+                      aria-pressed={isSelected}
+                      aria-label={`Filter dashboard by activity code ${row.name}`}
+                      onClick={() => onActivitySelect(row.name)}
+                    >
+                      {rowBody}
+                    </button>
+                  </li>
+                );
+              })}
             </ul>
           </aside>
         ) : null}

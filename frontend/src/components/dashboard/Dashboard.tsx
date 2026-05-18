@@ -26,6 +26,7 @@ import ActivityFundingPiePanel from "../charts/ActivityFundingPiePanel";
 import BarChartPanel from "../charts/BarChartPanel";
 import Filters from "../search/Filters";
 import type { FilterValues } from "../../types/filters";
+import { emptyFilterValues } from "../../types/filters";
 import LineChartPanel from "../charts/LineChartPanel";
 import ProjectTermsThemeCloud from "./ProjectTermsThemeCloud";
 import TermCloud from "./TermCloud";
@@ -111,6 +112,30 @@ const YEAR_LINE_CHART_HEIGHT = 320;
 /** Recharts box height for the activity funding pie (larger to fit scaled ring radii). */
 const ACTIVITY_PIE_CHART_HEIGHT = 360;
 
+/** Shared layout for the map-adjacent main chart slot (IC projects + top orgs when IC filtered). */
+const MAIN_CHART_SLOT_PANEL_CLASS =
+  "min-h-0 w-full max-w-full px-4 pt-[0.9rem] pb-[0.05rem] [&_.recharts-responsive-container]:-ml-3 [&_.recharts-responsive-container]:-mb-[0.35rem] [&_.recharts-responsive-container]:!w-[calc(100%+12px)]";
+
+const MAIN_CHART_SLOT_BAR_PROPS = {
+  layout: "horizontal" as const,
+  fillHeight: true,
+  xAxisHeight: 58,
+  xAxisAngle: -45,
+  xAxisFontSize: 12,
+  yAxisFontSize: 12,
+  yAxisWidth: 60,
+  yAxisTickMargin: 4,
+  chartMargin: { top: 4, right: 4, bottom: 4, left: 0 },
+  barCategoryGap: "10%",
+  maxBarSize: 30,
+};
+
+/** Pie/year-trend row — same chart styling as main slot, sized to match LineChartPanel. */
+const SECONDARY_CHART_ROW_PANEL_CLASS = cn(
+  MAIN_CHART_SLOT_PANEL_CLASS,
+  "flex-1 min-h-[330px]",
+);
+
 /**
  * Shortens long institute or organization names for chart axes; pair with
  * `full_label` on the same row for tooltips.
@@ -188,18 +213,14 @@ export default function Dashboard({ onSearchNavigate, onTermSearchNavigate }: Da
   const filterCatalog = useFilterCatalog();
   const [error, setError] = useState<string | null>(null);
   const [refreshing, setRefreshing] = useState(false);
-  const [selectedPI, setSelectedPI] = useState("");
-  const [selectedIC, setSelectedIC] = useState("");
-  const [selectedActivity, setSelectedActivity] = useState("");
-  const [selectedState, setSelectedState] = useState("");
-  const [fyMin, setFyMin] = useState("");
-  const [fyMax, setFyMax] = useState("");
+  const [appliedFilters, setAppliedFilters] = useState<FilterValues>(() => emptyFilterValues());
   /** Log scale for Projects by Institute (IC) — only when no filters are applied. */
   const [icProjectsLogScale, setIcProjectsLogScale] = useState(true);
   const mapMeasureRef = useRef<HTMLDivElement>(null);
   const [mapMeasureHeight, setMapMeasureHeight] = useState<number | undefined>();
 
-  const hasIcFilter = Boolean(selectedIC);
+  const hasIcFilter = Boolean(appliedFilters.ic);
+  const hasActivityFilter = Boolean(appliedFilters.activity);
 
   useEffect(() => {
     const measureEl = mapMeasureRef.current;
@@ -229,8 +250,16 @@ export default function Dashboard({ onSearchNavigate, onTermSearchNavigate }: Da
   const mainChartSlotStyle = measuredSlotStyle;
 
   const hasActiveFilters = useMemo(
-    () => Boolean(selectedPI || selectedIC || selectedActivity || selectedState || fyMin || fyMax),
-    [selectedPI, selectedIC, selectedActivity, selectedState, fyMin, fyMax],
+    () =>
+      Boolean(
+        appliedFilters.pi
+        || appliedFilters.ic
+        || appliedFilters.activity
+        || appliedFilters.state
+        || appliedFilters.fyMin
+        || appliedFilters.fyMax,
+      ),
+    [appliedFilters],
   );
 
   useEffect(() => {
@@ -246,28 +275,24 @@ export default function Dashboard({ onSearchNavigate, onTermSearchNavigate }: Da
   const icChartLinearMax = IC_HYBRID_LINEAR_MAX_ALL;
   const icChartTickValues = [...IC_HYBRID_TICK_VALUES_ALL];
 
-  const dashboardFilters = useMemo<DashboardSearchFilters>(
-    () => ({
-      pi: selectedPI,
-      ic: selectedIC,
-      activity: selectedActivity,
-      state: selectedState,
-      fyMin,
-      fyMax,
-    }),
-    [selectedPI, selectedIC, selectedActivity, selectedState, fyMin, fyMax],
-  );
+  const handleApplyFilters = useCallback((filters: FilterValues) => {
+    setAppliedFilters(filters);
+  }, []);
+
+  const handleClearFilters = useCallback(() => {
+    setAppliedFilters(emptyFilterValues());
+  }, []);
 
   const handleDashboardSearch = useCallback((nextQuery: string) => {
-    onSearchNavigate(nextQuery, dashboardFilters);
-  }, [dashboardFilters, onSearchNavigate]);
+    onSearchNavigate(nextQuery, appliedFilters);
+  }, [appliedFilters, onSearchNavigate]);
 
   const handleTermBrowseSearch = useCallback((terms: string[]) => {
-    onTermSearchNavigate(terms, dashboardFilters);
-  }, [dashboardFilters, onTermSearchNavigate]);
+    onTermSearchNavigate(terms, appliedFilters);
+  }, [appliedFilters, onTermSearchNavigate]);
 
   const handleMapStateSelect = (stateAbbrev: string) => {
-    setSelectedState(stateAbbrev.toUpperCase());
+    setAppliedFilters((current) => ({ ...current, state: stateAbbrev.toUpperCase() }));
   };
 
   const handleIcBarClick = (row: Record<string, unknown>) => {
@@ -276,9 +301,13 @@ export default function Dashboard({ onSearchNavigate, onTermSearchNavigate }: Da
       || (typeof row.label === "string" && row.label.trim())
       || "";
     if (institute) {
-      setSelectedIC(institute);
+      setAppliedFilters((current) => ({ ...current, ic: institute }));
     }
   };
+
+  const handleActivitySelect = useCallback((activityCode: string) => {
+    setAppliedFilters((current) => ({ ...current, activity: activityCode }));
+  }, []);
 
   const icChartRows = useMemo((): Array<Record<string, unknown>> => {
     const icData = data?.icData ?? [];
@@ -293,6 +322,7 @@ export default function Dashboard({ onSearchNavigate, onTermSearchNavigate }: Da
 
   useEffect(() => {
     let cancelled = false;
+    const filters = appliedFilters;
 
     const load = async () => {
       if (hasLoadedOnceRef.current) {
@@ -310,15 +340,15 @@ export default function Dashboard({ onSearchNavigate, onTermSearchNavigate }: Da
           topOrgs,
           avgGrant,
         ] = await Promise.all([
-          getDashboardSummary(dashboardFilters),
-          getStateData(dashboardFilters),
-          getIcData(undefined, dashboardFilters),
-          getActivityData(80, dashboardFilters),
-          getActivityFundingPie({ limit: 500, pieSlices: 20 }, dashboardFilters),
+          getDashboardSummary(filters),
+          getStateData(filters),
+          getIcData(undefined, filters),
+          getActivityData(80, filters),
+          getActivityFundingPie({ limit: 500, pieSlices: 20 }, filters),
           getProjectTermThemeCloud(),
-          getYearData(dashboardFilters),
-          getTopOrgs(dashboardFilters),
-          getAvgGrantByIc(dashboardFilters),
+          getYearData(filters),
+          getTopOrgs(filters),
+          getAvgGrantByIc(filters),
         ]);
 
         if (!cancelled) {
@@ -352,7 +382,14 @@ export default function Dashboard({ onSearchNavigate, onTermSearchNavigate }: Da
     return () => {
       cancelled = true;
     };
-  }, [dashboardFilters]);
+  }, [
+    appliedFilters.pi,
+    appliedFilters.ic,
+    appliedFilters.activity,
+    appliedFilters.state,
+    appliedFilters.fyMin,
+    appliedFilters.fyMax,
+  ]);
 
   if (error) {
     return (
@@ -390,24 +427,49 @@ export default function Dashboard({ onSearchNavigate, onTermSearchNavigate }: Da
     full_label: point.label,
   }));
 
-  const topOrgsPanel = (
+  const topOrgsTitle = appliedFilters.activity
+    ? `Top Organizations by Funding — ${appliedFilters.activity}`
+    : "Top Organizations by Funding";
+
+  const topOrgsBarChartBase = {
+    data: topOrgsChartData,
+    dataKey: "total_funding",
+    labelKey: "short_label",
+    tooltipLabelKey: "full_label",
+    formatter: formatDollarsCompact,
+  };
+
+  const topOrgsPanelMainSlot = (
     <BarChartPanel
-      title="Top Organizations by Funding"
+      title={topOrgsTitle}
+      panelClassName={MAIN_CHART_SLOT_PANEL_CLASS}
+      {...topOrgsBarChartBase}
+      {...MAIN_CHART_SLOT_BAR_PROPS}
+    />
+  );
+
+  const topOrgsPanelSecondary = (
+    <BarChartPanel
+      title={topOrgsTitle}
+      panelClassName={SECONDARY_CHART_ROW_PANEL_CLASS}
+      {...topOrgsBarChartBase}
+      {...MAIN_CHART_SLOT_BAR_PROPS}
+    />
+  );
+
+  const topOrgsPanelFooter = (
+    <BarChartPanel
+      title={topOrgsTitle}
       panelClassName="min-h-[310px]"
-      data={topOrgsChartData}
-      dataKey="total_funding"
-      labelKey="short_label"
-      tooltipLabelKey="full_label"
+      {...topOrgsBarChartBase}
       layout="horizontal"
-      formatter={formatDollarsCompact}
-      fillHeight={hasIcFilter}
     />
   );
 
   const icProjectsPanel = (
     <BarChartPanel
       title="Projects by Institute (IC)"
-      panelClassName="min-h-0 w-full max-w-full px-4 pt-[0.9rem] pb-[0.05rem] [&_.recharts-responsive-container]:-ml-3 [&_.recharts-responsive-container]:-mb-[0.35rem] [&_.recharts-responsive-container]:!w-[calc(100%+12px)]"
+      panelClassName={MAIN_CHART_SLOT_PANEL_CLASS}
       headerEnd={
         <div className="inline-flex border border-border rounded-[--radius-sm] shrink-0 overflow-hidden" role="group" aria-label="Count axis scale">
           <button
@@ -432,17 +494,7 @@ export default function Dashboard({ onSearchNavigate, onTermSearchNavigate }: Da
       dataKey="value"
       labelKey="short_label"
       tooltipLabelKey="full_label"
-      layout="horizontal"
-      fillHeight
-      xAxisHeight={58}
-      xAxisAngle={-45}
-      xAxisFontSize={12}
-      yAxisFontSize={12}
-      yAxisWidth={60}
-      yAxisTickMargin={4}
-      chartMargin={{ top: 4, right: 4, bottom: 4, left: 0 }}
-      barCategoryGap="10%"
-      maxBarSize={30}
+      {...MAIN_CHART_SLOT_BAR_PROPS}
       barAnimation="vertical"
       barAnimationSnapKey={icProjectsUseLogScale ? "hybrid-log" : "linear"}
       onBarClick={handleIcBarClick}
@@ -464,19 +516,52 @@ export default function Dashboard({ onSearchNavigate, onTermSearchNavigate }: Da
     />
   );
 
+  const activityPieFilterKey = [
+    appliedFilters.pi,
+    appliedFilters.ic,
+    appliedFilters.activity,
+    appliedFilters.state,
+    appliedFilters.fyMin,
+    appliedFilters.fyMax,
+  ].join("\0");
+
+  const activityPieTitle = (() => {
+    if (appliedFilters.activity) {
+      return `Funding by Activity Code — ${appliedFilters.activity}`;
+    }
+    if (!hasActiveFilters) {
+      return "Funding by Activity Code";
+    }
+    const parts: string[] = [];
+    if (appliedFilters.ic) parts.push(appliedFilters.ic);
+    if (appliedFilters.state) parts.push(appliedFilters.state);
+    if (appliedFilters.pi) parts.push(`PI: ${appliedFilters.pi}`);
+    if (appliedFilters.fyMin || appliedFilters.fyMax) {
+      parts.push(`FY ${appliedFilters.fyMin || "…"}–${appliedFilters.fyMax || "…"}`);
+    }
+    return `Funding by Activity Code (${parts.join(" · ")})`;
+  })();
+
   const activityPiePanel = (
     <ActivityFundingPiePanel
-      title="Funding by Activity Code"
+      key={activityPieFilterKey}
+      title={activityPieTitle}
       pie={activityPie}
       formatDollars={formatDollarsCompact}
       chartHeight={ACTIVITY_PIE_CHART_HEIGHT}
+      loading={refreshing}
+      selectedActivity={appliedFilters.activity}
+      onActivitySelect={handleActivitySelect}
     />
   );
+
+  const fundingByYearOrOrgsPanel = hasActivityFilter ? topOrgsPanelSecondary : activityPiePanel;
 
   return (
     <div className={cn("w-full px-6 py-[1.1rem] flex flex-col", refreshing && "opacity-[0.72] transition-opacity duration-200")}>
       <Filters
-        applied={dashboardFilters}
+        applied={appliedFilters}
+        applyOnSelectChange
         catalog={{
           icNames,
           activityCodes,
@@ -485,22 +570,8 @@ export default function Dashboard({ onSearchNavigate, onTermSearchNavigate }: Da
         }}
         onSearch={handleDashboardSearch}
         searchSubmitOnClear={false}
-        onApply={(filters) => {
-          setSelectedPI(filters.pi);
-          setSelectedIC(filters.ic);
-          setSelectedActivity(filters.activity);
-          setSelectedState(filters.state);
-          setFyMin(filters.fyMin);
-          setFyMax(filters.fyMax);
-        }}
-        onClear={() => {
-          setSelectedPI("");
-          setSelectedIC("");
-          setSelectedActivity("");
-          setSelectedState("");
-          setFyMin("");
-          setFyMax("");
-        }}
+        onApply={handleApplyFilters}
+        onClear={handleClearFilters}
       />
 
       {/* KPI cards */}
@@ -515,12 +586,12 @@ export default function Dashboard({ onSearchNavigate, onTermSearchNavigate }: Da
         <div ref={mapMeasureRef} className="col-start-1 row-start-1 self-start min-w-0 max-[768px]:col-auto max-[768px]:row-auto">
           <StateMap
             data={stateData}
-            selectedStateAbbrev={selectedState}
+            selectedStateAbbrev={appliedFilters.state}
             onStateSelect={handleMapStateSelect}
           />
         </div>
         <div className="col-start-2 col-end-[-1] row-start-1 self-start min-w-0 overflow-hidden w-full max-w-full max-[768px]:col-auto max-[768px]:row-auto" style={mainChartSlotStyle}>
-          {hasIcFilter ? topOrgsPanel : icProjectsPanel}
+          {hasIcFilter ? topOrgsPanelMainSlot : icProjectsPanel}
         </div>
         <div className="col-span-full row-start-2 grid grid-cols-2 gap-3 items-stretch min-w-0 max-[768px]:grid-cols-1 max-[768px]:col-auto max-[768px]:row-auto">
           <div className="flex flex-col min-w-0">
@@ -532,7 +603,7 @@ export default function Dashboard({ onSearchNavigate, onTermSearchNavigate }: Da
               formatter={formatDollarsCompact}
             />
           </div>
-          <div className="flex flex-col min-w-0">{activityPiePanel}</div>
+          <div className="flex flex-col min-w-0">{fundingByYearOrOrgsPanel}</div>
         </div>
       </div>
 
@@ -542,7 +613,7 @@ export default function Dashboard({ onSearchNavigate, onTermSearchNavigate }: Da
       </div>
 
       <div className="grid grid-cols-2 gap-[0.85rem] [&>*:last-child]:col-span-full max-[768px]:grid-cols-1">
-        {!hasIcFilter && topOrgsPanel}
+        {!hasIcFilter && !hasActivityFilter && topOrgsPanelFooter}
         <BarChartPanel
           title="Average Grant by Institute (IC)"
           panelClassName="min-h-[310px]"

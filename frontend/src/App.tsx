@@ -50,7 +50,11 @@ export default function App() {
   const { theme, handleThemeToggle } = useTheme();
 
   const isDashboardRoute =
-    location.pathname === "/dashboard" || location.pathname === "/dashboard/";
+    location.pathname === "/"
+    || location.pathname === "/dashboard"
+    || location.pathname === "/dashboard/";
+  const isSearchRoute =
+    location.pathname === "/search" || location.pathname === "/search/";
   const view = isDashboardRoute ? "dashboard" : "search";
 
   const mainRef = useRef<HTMLElement | null>(null);
@@ -66,7 +70,7 @@ export default function App() {
     ? decodeURIComponent(investigatorRouteMatch.params.investigatorName)
     : null;
   const searchEnabled =
-    view !== "dashboard"
+    isSearchRoute
     && !selectedProjectId
     && !selectedInvestigatorName
     && !semanticSimilarProjectId
@@ -198,7 +202,7 @@ export default function App() {
       setQuery(searchQuery);
       setProjectTermFilters([]);
       setCurrentPage(1);
-      navigate("/");
+      navigate("/search");
     },
     [navigate, setQuery, setProjectTermFilters],
   );
@@ -213,7 +217,7 @@ export default function App() {
       setFyMax(filters.fyMax);
       setProjectTermFilters(terms);
       setCurrentPage(1);
-      navigate("/");
+      navigate("/search");
     },
     [navigate, setProjectTermFilters],
   );
@@ -223,7 +227,7 @@ export default function App() {
       setProjectTermFilters(payload.terms);
       setQuery(payload.additionalQuery.trim());
       setCurrentPage(1);
-      navigate("/");
+      navigate("/search");
     },
     [navigate],
   );
@@ -270,29 +274,17 @@ export default function App() {
 
   return (
     <div className="grid grid-rows-[auto_minmax(0,1fr)] h-full overflow-hidden font-sans">
-      <header className="flex items-center px-6 h-[72px] bg-surface border-b border-border gap-4 max-[900px]:h-[60px] max-[900px]:px-4">
+      <header className="grid grid-cols-[1fr_auto_1fr] items-center px-6 h-[50px] bg-surface border-b border-border gap-4 max-[900px]:h-[60px] max-[900px]:px-4">
         <button
           type="button"
-          className="flex items-center gap-[0.4rem] font-semibold text-[15px] text-text-primary bg-transparent border-none cursor-pointer tracking-[0.01em] shrink-0 hover:text-accent focus-visible:outline-2 focus-visible:outline-accent focus-visible:outline-offset-2"
+          className="flex items-center gap-[0.4rem] font-semibold text-[15px] text-text-primary bg-transparent border-none cursor-pointer tracking-[0.01em] shrink-0 justify-self-start hover:text-accent focus-visible:outline-2 focus-visible:outline-accent focus-visible:outline-offset-2"
           onClick={() => navigate("/")}
-          aria-label="Return to search results"
+          aria-label="Return to dashboard"
         >
           <div className="w-[9px] h-[9px] rounded-full bg-accent" />
           NIH Project Search
         </button>
-        <nav className="flex items-center gap-1 ml-6" aria-label="Main navigation">
-          <button
-            type="button"
-            className={
-              "px-3 py-[0.35rem] rounded-sm border-none font-sans text-[13px] font-medium cursor-pointer transition-[color,background] duration-150 hover:text-text-primary hover:bg-surface-hover" +
-              (view === "search" && !isSemanticRoute
-                ? " text-accent-text bg-accent-light"
-                : " bg-transparent text-text-muted")
-            }
-            onClick={() => navigate("/")}
-          >
-            Search
-          </button>
+        <nav className="flex items-center justify-center gap-1" aria-label="Main navigation">
           <button
             type="button"
             className={
@@ -301,9 +293,21 @@ export default function App() {
                 ? " text-accent-text bg-accent-light"
                 : " bg-transparent text-text-muted")
             }
-            onClick={() => navigate("/dashboard")}
+            onClick={() => navigate("/")}
           >
             Dashboard
+          </button>
+          <button
+            type="button"
+            className={
+              "px-3 py-[0.35rem] rounded-sm border-none font-sans text-[13px] font-medium cursor-pointer transition-[color,background] duration-150 hover:text-text-primary hover:bg-surface-hover" +
+              ((isSearchRoute || selectedProjectId || selectedInvestigatorName) && !isSemanticRoute
+                ? " text-accent-text bg-accent-light"
+                : " bg-transparent text-text-muted")
+            }
+            onClick={() => navigate("/search")}
+          >
+            Search
           </button>
           <button
             type="button"
@@ -319,7 +323,7 @@ export default function App() {
           </button>
         </nav>
 
-        <div className="ml-auto flex items-center gap-3 max-[900px]:gap-2">
+        <div className="flex items-center justify-end gap-3 max-[900px]:gap-2">
           <button
             className="flex items-center gap-[0.4rem] px-[0.65rem] py-[0.3rem] rounded-sm bg-surface-hover border border-border text-text-secondary font-sans text-[12px] font-medium cursor-pointer transition-[color,border-color,background] duration-150 hover:border-border-strong hover:text-text-primary hover:bg-surface max-[900px]:hidden"
             type="button"
@@ -385,7 +389,7 @@ export default function App() {
                   <button
                     type="button"
                     className="inline-block p-0 border-none bg-transparent text-accent font-sans text-[15.5px] cursor-pointer hover:underline"
-                    onClick={() => navigate("/")}
+                    onClick={() => navigate("/search")}
                     style={{ marginTop: "0.85rem" }}
                   >
                     Back to results
@@ -394,7 +398,7 @@ export default function App() {
               ) : selectedProject ? (
                 <ProjectDetailsPage
                   item={selectedProject}
-                  onBack={() => navigate("/")}
+                  onBack={() => navigate("/search")}
                   onOpenInvestigator={handleOpenInvestigator}
                   onOpenDetails={handleOpenDetails}
                   onSearchWithProjectTerms={handleSearchFromProjectTerms}
@@ -405,7 +409,7 @@ export default function App() {
                   <button
                     type="button"
                     className="inline-block p-0 border-none bg-transparent text-accent font-sans text-[15.5px] cursor-pointer hover:underline"
-                    onClick={() => navigate("/")}
+                    onClick={() => navigate("/search")}
                     style={{ marginTop: "0.85rem" }}
                   >
                     Back to results
@@ -426,9 +430,9 @@ export default function App() {
                 onOpenDetails={handleOpenDetails}
                 onOpenInvestigator={handleOpenInvestigator}
                 onPageChange={setInvestigatorPage}
-                onBack={() => navigate("/")}
+                onBack={() => navigate("/search")}
               />
-            ) : (
+            ) : isSearchRoute ? (
               <>
                 <Filters
                   applied={appliedFilters}
@@ -534,7 +538,7 @@ export default function App() {
                   </button>
                 )}
               </>
-            )}
+            ) : null}
           </Suspense>
         </ErrorBoundary>
       </main>

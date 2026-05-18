@@ -1,5 +1,6 @@
 import { useEffect, useMemo, useRef, useState, type ReactNode } from "react";
 import { cn } from "../../utils/cn";
+import { CLS_RECHARTS_FOCUS_RESET } from "../../utils/chartStyles";
 import {
   Bar,
   BarChart,
@@ -261,6 +262,7 @@ export default function BarChartPanel({
     "bg-surface border border-border rounded-[--radius-lg] w-full px-4 py-[0.9rem] min-h-[310px]",
     panelClassName,
     fillHeight && "flex flex-col min-h-0 h-full",
+    CLS_RECHARTS_FOCUS_RESET,
     onBarClick && "[&_.recharts-bar-rectangle]:cursor-pointer",
   );
 
