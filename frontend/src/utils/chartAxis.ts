@@ -63,3 +63,84 @@ export function buildNumericAxisDomain(
 
   return [0, axisMax];
 }
+
+const IC_HYBRID_LOG_SECTION_TICKS = [100, 500, 1000, 5000, 10_000] as const;
+const IC_HYBRID_LOG_SPAN_TICKS = [10, 50, 100, 500, 1000, 5000, 10_000, 15_000, 20_000] as const;
+
+function buildLogSpanTicks(min: number, max: number): number[] {
+  const ticks: number[] = IC_HYBRID_LOG_SPAN_TICKS.filter((t) => t >= min && t <= max);
+  if (ticks.length === 0 || ticks[ticks.length - 1] !== max) {
+    ticks.push(max);
+  }
+  return ticks;
+}
+
+function buildIcHybridTickValues(linearMax: number, hybridLinearMin: number): number[] {
+  if (linearMax <= hybridLinearMin) {
+    return buildLogSpanTicks(10, linearMax);
+  }
+
+  const ticks = new Set<number>();
+  for (const t of IC_HYBRID_LOG_SECTION_TICKS) {
+    if (t < hybridLinearMin) ticks.add(t);
+  }
+  ticks.add(hybridLinearMin);
+
+  const linearSpan = linearMax - hybridLinearMin;
+  const step = niceStepForMagnitude(linearSpan / 3);
+  let v = Math.ceil(hybridLinearMin / step) * step;
+  if (v <= hybridLinearMin) v += step;
+  while (v < linearMax) {
+    ticks.add(v);
+    v += step;
+  }
+  ticks.add(linearMax);
+  return [...ticks].sort((a, b) => a - b);
+}
+
+export type IcProjectsHybridAxisScale = {
+  linearMax: number;
+  tickValues: number[];
+};
+
+/**
+ * Derives hybrid log/linear axis max and tick positions from the current IC bar values.
+ * Uses fallback max/ticks when the dataset matches the unfiltered full-range scale.
+ */
+export function buildIcProjectsHybridAxisScale(
+  values: number[],
+  options?: {
+    hybridLinearMin?: number;
+    fallbackLinearMax?: number;
+    fallbackTickValues?: readonly number[];
+    matchFallbackTolerance?: number;
+  },
+): IcProjectsHybridAxisScale {
+  const hybridLinearMin = options?.hybridLinearMin ?? 20_000;
+  const fallbackLinearMax = options?.fallbackLinearMax ?? 80_000;
+  const fallbackTickValues = options?.fallbackTickValues ?? [];
+  const matchTolerance = options?.matchFallbackTolerance ?? 0.1;
+
+  const positives = values.filter((v) => Number.isFinite(v) && v > 0);
+  if (positives.length === 0) {
+    return {
+      linearMax: fallbackLinearMax,
+      tickValues: fallbackTickValues.length > 0 ? [...fallbackTickValues] : [fallbackLinearMax],
+    };
+  }
+
+  const dataMax = Math.max(...positives);
+  const linearMax = niceAxisCeil(dataMax, 0.05);
+
+  if (
+    fallbackTickValues.length > 0
+    && Math.abs(linearMax - fallbackLinearMax) / fallbackLinearMax <= matchTolerance
+  ) {
+    return { linearMax: fallbackLinearMax, tickValues: [...fallbackTickValues] };
+  }
+
+  return {
+    linearMax,
+    tickValues: buildIcHybridTickValues(linearMax, hybridLinearMin),
+  };
+}

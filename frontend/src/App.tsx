@@ -338,14 +338,14 @@ export default function App() {
 
           <div className="flex items-center gap-2 max-[900px]:gap-1" aria-label="Partner logos">
             <img
-              src="/Images/KBR_(company)_logo.svg"
+              src="/Images/KBR_logo.svg"
               alt="KBR logo"
               className="object-contain h-[28px] max-[900px]:h-5"
             />
             <img
-              src="/Images/Florida_International_University_FIU_logo.svg.png"
+              src="/Images/FIU_logo.svg.png"
               alt="FIU logo"
-              className="object-contain h-[32px] max-[900px]:h-6"
+              className="object-contain h-[20px] max-[900px]:h-6 mt-2"
             />
           </div>
         </div>

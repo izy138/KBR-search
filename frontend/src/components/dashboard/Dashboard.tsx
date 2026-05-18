@@ -31,6 +31,7 @@ import LineChartPanel from "../charts/LineChartPanel";
 import ProjectTermsThemeCloud from "./ProjectTermsThemeCloud";
 import TermCloud from "./TermCloud";
 import StateMap from "./StateMap";
+import { buildIcProjectsHybridAxisScale } from "../../utils/chartAxis";
 import { formatDollarsCompact } from "../../utils/format";
 import { cn } from "../../utils/cn";
 
@@ -55,7 +56,7 @@ function formatHybridCountTick(n: number): string {
 
 /** Log below 20k; linear from 20k to axis max on the IC projects chart. */
 const IC_HYBRID_LINEAR_MIN = 20_000;
-const IC_HYBRID_LINEAR_MAX_ALL = 77_000;
+const IC_HYBRID_LINEAR_MAX_ALL = 80_000;
 const IC_HYBRID_LOG_MIN = 10;
 const IC_HYBRID_LOG_RATIO = 0.38;
 
@@ -104,7 +105,7 @@ function icProjectsPlotToValue(plot: number, linearMax: number): number {
 }
 
 const IC_HYBRID_TICK_VALUES_ALL = [
-  100, 500, 1000, 5000, 10000, 20000, 30000, 40000, 50000, 77000,
+  100, 500, 1000, 5000, 10000, 20000, 30000, 40000, 50000, 80000,
 ] as const;
 
 /** Recharts box height for the year trend line chart. */
@@ -214,7 +215,7 @@ export default function Dashboard({ onSearchNavigate, onTermSearchNavigate }: Da
   const [error, setError] = useState<string | null>(null);
   const [refreshing, setRefreshing] = useState(false);
   const [appliedFilters, setAppliedFilters] = useState<FilterValues>(() => emptyFilterValues());
-  /** Log scale for Projects by Institute (IC) — only when no filters are applied. */
+  /** Log (hybrid) vs linear scale for Projects by Institute (IC); defaults log, linear when state/activity filtered. */
   const [icProjectsLogScale, setIcProjectsLogScale] = useState(true);
   const mapMeasureRef = useRef<HTMLDivElement>(null);
   const [mapMeasureHeight, setMapMeasureHeight] = useState<number | undefined>();
@@ -262,18 +263,19 @@ export default function Dashboard({ onSearchNavigate, onTermSearchNavigate }: Da
     [appliedFilters],
   );
 
+  const icProjectsDefaultLinear = Boolean(
+    appliedFilters.state || appliedFilters.activity,
+  );
+
   useEffect(() => {
-    if (hasActiveFilters) {
+    if (icProjectsDefaultLinear) {
       setIcProjectsLogScale(false);
-    } else {
+    } else if (!hasActiveFilters) {
       setIcProjectsLogScale(true);
     }
-  }, [hasActiveFilters]);
+  }, [icProjectsDefaultLinear, hasActiveFilters]);
 
-  const icProjectsUseLogScale = !hasActiveFilters && icProjectsLogScale;
-
-  const icChartLinearMax = IC_HYBRID_LINEAR_MAX_ALL;
-  const icChartTickValues = [...IC_HYBRID_TICK_VALUES_ALL];
+  const icProjectsUseLogScale = icProjectsLogScale;
 
   const handleApplyFilters = useCallback((filters: FilterValues) => {
     setAppliedFilters(filters);
@@ -319,6 +321,19 @@ export default function Dashboard({ onSearchNavigate, onTermSearchNavigate }: Da
       }))
       .sort((a, b) => a.full_label.localeCompare(b.full_label));
   }, [data?.icData]);
+
+  const icChartHybridScale = useMemo(() => {
+    if (!hasActiveFilters) {
+      return {
+        linearMax: IC_HYBRID_LINEAR_MAX_ALL,
+        tickValues: [...IC_HYBRID_TICK_VALUES_ALL],
+      };
+    }
+    const values = icChartRows.map((row) => Number(row.value));
+    return buildIcProjectsHybridAxisScale(values, {
+      hybridLinearMin: IC_HYBRID_LINEAR_MIN,
+    });
+  }, [icChartRows, hasActiveFilters]);
 
   useEffect(() => {
     let cancelled = false;
@@ -483,8 +498,6 @@ export default function Dashboard({ onSearchNavigate, onTermSearchNavigate }: Da
             type="button"
             className={cn("bg-surface border-none text-text-secondary cursor-pointer font-[inherit] text-[0.8125rem] font-medium px-[0.65rem] py-[0.35rem] transition-[background,color] duration-150 hover:bg-surface-hover hover:text-text-primary border-l border-border", icProjectsUseLogScale && "!bg-accent !text-white")}
             onClick={() => setIcProjectsLogScale(true)}
-            disabled={hasActiveFilters}
-            title={hasActiveFilters ? "Log scale is only available with no filters applied" : undefined}
           >
             Log
           </button>
@@ -496,15 +509,17 @@ export default function Dashboard({ onSearchNavigate, onTermSearchNavigate }: Da
       tooltipLabelKey="full_label"
       {...MAIN_CHART_SLOT_BAR_PROPS}
       barAnimation="vertical"
-      barAnimationSnapKey={icProjectsUseLogScale ? "hybrid-log" : "linear"}
+      barAnimationSnapKey={
+        icProjectsUseLogScale ? `hybrid-log-${icChartHybridScale.linearMax}` : "linear"
+      }
       onBarClick={handleIcBarClick}
       {...(icProjectsUseLogScale
         ? {
             valueTransform: (value: number) =>
-              icProjectsValueToPlot(value, icChartLinearMax),
+              icProjectsValueToPlot(value, icChartHybridScale.linearMax),
             plotToValue: (plot: number) =>
-              icProjectsPlotToValue(plot, icChartLinearMax),
-            valueTickValues: icChartTickValues,
+              icProjectsPlotToValue(plot, icChartHybridScale.linearMax),
+            valueTickValues: icChartHybridScale.tickValues,
             formatter: formatHybridCountTick,
             tooltipFormatter: formatCount,
           }
