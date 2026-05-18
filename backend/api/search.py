@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 from concurrent.futures import ThreadPoolExecutor
+import json
 import logging
 from typing import Any
 
@@ -10,6 +11,7 @@ from fastapi import APIRouter, HTTPException, Path, Query
 
 from .embeddings import EMBEDDING_FIELD, embed_query, get_dimension, get_model_name
 from .opensearch_client import get_client, get_index_name
+from .query_filters import build_advanced_keyword_must, build_keyword_must
 
 router = APIRouter()
 
@@ -34,51 +36,6 @@ HYBRID_MAX_K = 50
 RRF_K_CONST = 60  # Standard smoothing constant from the original RRF paper.
 HYBRID_FETCH_MULTIPLIER = 4  # Pull this many * k from each side before fusing.
 HYBRID_MAX_FETCH = 100
-
-# Whitelist of fields the search results table is allowed to sort by, mapped to
-# the actual OpenSearch field used for sorting. String fields point at their
-# `.keyword` subfield (lexical sort); numeric fields sort on the raw field.
-SORTABLE_FIELDS: dict[str, str] = {
-    "PI_NAMEs":      "PI_NAMEs.keyword",
-    "ORG_NAME":      "ORG_NAME.keyword",
-    "IC_NAME":       "IC_NAME.keyword",
-    "ORG_STATE":     "ORG_STATE.keyword",
-    "ACTIVITY":      "ACTIVITY.keyword",
-    "PROJECT_TITLE": "PROJECT_TITLE.keyword",
-    "FY":            "FY",
-    "TOTAL_COST":    "TOTAL_COST",
-}
-NUMERIC_SORTABLE_FIELDS: set[str] = {"FY", "TOTAL_COST"}
-
-
-def _build_sort_clause(sort_by: str, sort_order: str) -> list[dict[str, object]] | None:
-    """Return an OpenSearch sort clause for a whitelisted column, or None."""
-    if not sort_by:
-        return None
-    target = SORTABLE_FIELDS.get(sort_by)
-    if target is None:
-        raise HTTPException(
-            status_code=400,
-            detail=(
-                f"Unsupported sort_by '{sort_by}'. Allowed: "
-                f"{', '.join(sorted(SORTABLE_FIELDS))}."
-            ),
-        )
-    if sort_order not in {"asc", "desc"}:
-        raise HTTPException(
-            status_code=400,
-            detail="sort_order must be 'asc' or 'desc'.",
-        )
-    unmapped = "long" if sort_by in NUMERIC_SORTABLE_FIELDS else "keyword"
-    return [
-        {
-            target: {
-                "order": sort_order,
-                "unmapped_type": unmapped,
-                "missing": "_last",
-            },
-        },
-    ]
 
 _index_embedding_dimension: int | None = None
 logger = logging.getLogger(__name__)
@@ -137,9 +94,47 @@ def _normalize_project_terms(raw: list[str]) -> list[str]:
     return out
 
 
+def _parse_advanced_q(raw: str) -> tuple[list[dict[str, object]], list[str]] | None:
+    stripped = raw.strip()
+    if not stripped:
+        return None
+    try:
+        payload = json.loads(stripped)
+    except json.JSONDecodeError as exc:
+        raise HTTPException(status_code=400, detail="advanced_q must be valid JSON") from exc
+    if not isinstance(payload, dict):
+        raise HTTPException(status_code=400, detail="advanced_q must be a JSON object")
+    clauses = payload.get("clauses")
+    operators = payload.get("operators")
+    if not isinstance(clauses, list):
+        raise HTTPException(status_code=400, detail="advanced_q.clauses must be an array")
+    if not isinstance(operators, list):
+        raise HTTPException(status_code=400, detail="advanced_q.operators must be an array")
+    normalized_clauses: list[dict[str, object]] = []
+    for item in clauses:
+        if not isinstance(item, dict):
+            continue
+        text = item.get("text", "")
+        negated = item.get("negated", False)
+        normalized_clauses.append(
+            {
+                "text": str(text) if text is not None else "",
+                "negated": bool(negated),
+            },
+        )
+    normalized_operators = [
+        op if str(op).strip().lower() == "or" else "and" for op in operators
+    ]
+    return normalized_clauses, normalized_operators
+
+
 @router.get("/")
 def search(
     q: str = Query(default="", description="Search query"),
+    advanced_q: str = Query(
+        default="",
+        description="JSON advanced query: { clauses: [{text, negated}], operators: [and|or] }",
+    ),
     limit: int = Query(default=10, ge=1, le=100),
     page: int = Query(default=1, ge=1, description="1-based page index"),
     category: str = Query(default="", description="Filter by category (category.keyword)"),
@@ -153,43 +148,25 @@ def search(
         default_factory=list,
         description="Each phrase must match PROJECT_TERMS (AND across phrases); repeat param",
     ),
-    sort_by: str = Query(
-        default="",
-        description=(
-            "Field to sort results by across the whole result set (not just the "
-            "current page). Allowed values: PI_NAMEs, ORG_NAME, IC_NAME, ORG_STATE, "
-            "ACTIVITY, PROJECT_TITLE, FY, TOTAL_COST. Empty = relevance / index order."
-        ),
-    ),
-    sort_order: str = Query(
-        default="asc",
-        description="Sort direction when sort_by is set: 'asc' or 'desc'.",
-    ),
 ) -> dict[str, object]:
 
     client = get_client()
-    sort_clause = _build_sort_clause(sort_by, sort_order)
     normalized_terms = _normalize_project_terms(project_terms)
+    parsed_advanced = _parse_advanced_q(advanced_q) if advanced_q.strip() else None
     must: list[dict[str, object]] = []
     filters: list[dict[str, object]] = []
-    if q:
-        must.append(
-            {
-                "multi_match": {
-                    "query": q,
-                    "fields": SEARCH_FIELDS,
-                    "type": "best_fields",
-                    "operator": "and",
-                }
-            }
-        )
+    if parsed_advanced is not None:
+        adv_clauses, adv_operators = parsed_advanced
+        must.extend(build_advanced_keyword_must(adv_clauses, adv_operators))
+    elif q:
+        must.extend(build_keyword_must(q))
     for term in normalized_terms:
         # `match` tokenizes `term` and, with operator="and", requires all tokens
         # to appear anywhere in PROJECT_TERMS (order-independent, not exact phrase).
         must.append(
             {"match": {"PROJECT_TERMS": {"query": term, "operator": "and"}}},
         )
-    if not q and not normalized_terms:
+    if not must and not normalized_terms:
         must.append({"match_all": {}})
     if category:
         must.append({"term": {"category.keyword": category}})
@@ -235,15 +212,10 @@ def search(
             detail=f"Requested page exceeds max result window ({MAX_RESULT_WINDOW}).",
         )
     size = min(limit, MAX_RESULT_WINDOW - from_)
-    body: dict[str, object] = {
-        "from": from_,
-        "size": size,
-        "query": os_query,
-        "track_total_hits": True,
-    }
-    if sort_clause is not None:
-        body["sort"] = sort_clause
-    response = client.search(index=INDEX_NAME, body=body)
+    response = client.search(
+        index=INDEX_NAME,
+        body={"from": from_, "size": size, "query": os_query, "track_total_hits": True},
+    )
 
     hits = response.get("hits", {}).get("hits", [])
     results = []
@@ -258,6 +230,8 @@ def search(
 
     return {
         "query": q,
+        "advanced_q": parsed_advanced[0] if parsed_advanced else None,
+        "advanced_operators": parsed_advanced[1] if parsed_advanced else None,
         "project_terms": normalized_terms,
         "limit": limit,
         "total": total_value,
@@ -532,47 +506,10 @@ def _merge_similar_groups_by_core(
     return groups, merged_order
 
 
-def _enrich_similar_year_variants(
-    client: object,
-    grouped: dict[str, object],
-) -> None:
-    """Attach all fiscal-year siblings for a recurring award, not only k-NN hits."""
-    project_id = grouped.get("_id")
-    if project_id is None:
-        return
-    if not _recurrence_core_num(grouped) and not _recurrence_title(grouped):
-        return
-    try:
-        years = _collect_recurrence_years(
-            client,
-            grouped,
-            project_id=str(project_id),
-        )
-    except HTTPException:
-        return
-    variants: list[dict[str, object]] = []
-    for year in years:
-        if not isinstance(year, dict):
-            continue
-        pid = year.get("project_id")
-        if pid is None:
-            continue
-        variants.append(
-            {
-                "project_id": pid,
-                "application_id": year.get("application_id"),
-                "fy": year.get("fy"),
-            }
-        )
-    if variants:
-        grouped["year_variants"] = variants
-
-
 def _group_similar_results(
     results: list[dict[str, object]],
     *,
     limit: int,
-    client: object | None = None,
 ) -> list[dict[str, object]]:
     """Collapse recurring fiscal-year rows into one hit with year_variants."""
     groups: dict[str, dict[str, object]] = {}
@@ -628,8 +565,6 @@ def _group_similar_results(
                     item.get("fy") if isinstance(item, dict) else 0,
                 ),
             )
-        if client is not None:
-            _enrich_similar_year_variants(client, grouped)
         grouped_results.append(grouped)
     return grouped_results
 
@@ -759,7 +694,7 @@ def search_similar_to_project(
     return {
         "project_id": project_id,
         "k": k,
-        "results": _group_similar_results(formatted, limit=k, client=client),
+        "results": _group_similar_results(formatted, limit=k),
     }
 
 

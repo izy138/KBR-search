@@ -583,6 +583,7 @@ export default function Dashboard({
         }}
         searchQuery={searchQuery}
         onSearch={onSearchNavigate}
+        showAdvancedToggle={false}
         onUpdateDashboard={onUpdateDashboard}
         searchSubmitOnClear
         onApply={onApplyFilters}
