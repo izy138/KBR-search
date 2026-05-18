@@ -1,35 +1,4640 @@
 {
-  "generated_at": "2026-05-13T17:43:45.759599+00:00",
-  "method": "embedding_nearest_anchor_v1",
-  "low_confidence_cosine": 0.15,
+  "generated_at": "2026-05-18T16:04:08.225501+00:00",
+  "method": "embedding_nearest_subcategory",
+  "low_confidence_cosine": 0.18,
+  "max_leaves_per_subcategory": 30,
   "buckets": [
     {
-      "label": "Low_confidence",
-      "weight": 26614980
+      "label": "Low confidence",
+      "weight": 15678169
+    },
+    {
+      "label": "Education & Social Sciences",
+      "weight": 9004987
+    },
+    {
+      "label": "Life Sciences",
+      "weight": 7114394
     },
     {
       "label": "Health",
-      "weight": 7075556
+      "weight": 5949890
     },
     {
-      "label": "Life_sci_basic",
-      "weight": 4731310
-    },
-    {
-      "label": "Social_Education",
-      "weight": 3097492
-    },
-    {
-      "label": "Computing_AI",
-      "weight": 1587878
-    },
-    {
-      "label": "Environment_Earth",
-      "weight": 966845
+      "label": "Computing & AI",
+      "weight": 3262953
     },
     {
       "label": "Engineering",
-      "weight": 959205
+      "weight": 2432272
+    },
+    {
+      "label": "Environmental",
+      "weight": 1590601
+    }
+  ],
+  "tree": [
+    {
+      "id": "health",
+      "label": "Health",
+      "weight": 5949890,
+      "children": [
+        {
+          "id": "health.mental-health",
+          "label": "Mental Health",
+          "weight": 1626226,
+          "children": [
+            {
+              "id": "health.mental-health.therapeutic",
+              "label": "Therapeutic",
+              "weight": 109145
+            },
+            {
+              "id": "health.mental-health.chronic",
+              "label": "Chronic",
+              "weight": 60247
+            },
+            {
+              "id": "health.mental-health.functional-disorder",
+              "label": "Functional disorder",
+              "weight": 59537
+            },
+            {
+              "id": "health.mental-health.dose",
+              "label": "Dose",
+              "weight": 42304
+            },
+            {
+              "id": "health.mental-health.symptoms",
+              "label": "Symptoms",
+              "weight": 38161
+            },
+            {
+              "id": "health.mental-health.stress",
+              "label": "Stress",
+              "weight": 36693
+            },
+            {
+              "id": "health.mental-health.effective-therapy",
+              "label": "effective therapy",
+              "weight": 30836
+            },
+            {
+              "id": "health.mental-health.toxic-effect",
+              "label": "Toxic effect",
+              "weight": 28896
+            },
+            {
+              "id": "health.mental-health.novel-therapeutic-intervention",
+              "label": "novel therapeutic intervention",
+              "weight": 27387
+            },
+            {
+              "id": "health.mental-health.comorbidity",
+              "label": "comorbidity",
+              "weight": 23789
+            },
+            {
+              "id": "health.mental-health.therapeutic-intervention",
+              "label": "Therapeutic Intervention",
+              "weight": 22433
+            },
+            {
+              "id": "health.mental-health.recovery",
+              "label": "Recovery",
+              "weight": 21385
+            },
+            {
+              "id": "health.mental-health.disability",
+              "label": "disability",
+              "weight": 20382
+            },
+            {
+              "id": "health.mental-health.mental-depression",
+              "label": "Mental Depression",
+              "weight": 20257
+            },
+            {
+              "id": "health.mental-health.mental-health",
+              "label": "Mental Health",
+              "weight": 19027
+            },
+            {
+              "id": "health.mental-health.treatment-response",
+              "label": "treatment response",
+              "weight": 18837
+            },
+            {
+              "id": "health.mental-health.treatment-efficacy",
+              "label": "Treatment Efficacy",
+              "weight": 17610
+            },
+            {
+              "id": "health.mental-health.therapy-development",
+              "label": "therapy development",
+              "weight": 16878
+            },
+            {
+              "id": "health.mental-health.liquid-substance",
+              "label": "Liquid substance",
+              "weight": 15586
+            },
+            {
+              "id": "health.mental-health.mental-disorders",
+              "label": "Mental disorders",
+              "weight": 15301
+            },
+            {
+              "id": "health.mental-health.anxiety",
+              "label": "Anxiety",
+              "weight": 14043
+            },
+            {
+              "id": "health.mental-health.relapse",
+              "label": "Relapse",
+              "weight": 13236
+            },
+            {
+              "id": "health.mental-health.pharmacotherapy",
+              "label": "Pharmacotherapy",
+              "weight": 13119
+            },
+            {
+              "id": "health.mental-health.patient-self-report",
+              "label": "Patient Self-Report",
+              "weight": 12680
+            },
+            {
+              "id": "health.mental-health.therapeutic-development",
+              "label": "therapeutic development",
+              "weight": 11691
+            },
+            {
+              "id": "health.mental-health.addiction",
+              "label": "addiction",
+              "weight": 11493
+            },
+            {
+              "id": "health.mental-health.disorder-risk",
+              "label": "disorder risk",
+              "weight": 11025
+            },
+            {
+              "id": "health.mental-health.alcohols",
+              "label": "Alcohols",
+              "weight": 10744
+            },
+            {
+              "id": "health.mental-health.autism-spectrum-disorder",
+              "label": "autism spectrum disorder",
+              "weight": 10078
+            },
+            {
+              "id": "health.mental-health.treatment-outcome",
+              "label": "Treatment outcome",
+              "weight": 9721
+            }
+          ]
+        },
+        {
+          "id": "health.oncology",
+          "label": "Oncology",
+          "weight": 1278005,
+          "children": [
+            {
+              "id": "health.oncology.malignant-neoplasms",
+              "label": "Malignant Neoplasms",
+              "weight": 95157
+            },
+            {
+              "id": "health.oncology.tumor",
+              "label": "tumor",
+              "weight": 50772
+            },
+            {
+              "id": "health.oncology.pathology",
+              "label": "Pathology",
+              "weight": 43911
+            },
+            {
+              "id": "health.oncology.cancer-cell",
+              "label": "cancer cell",
+              "weight": 22914
+            },
+            {
+              "id": "health.oncology.cancer-therapy",
+              "label": "cancer therapy",
+              "weight": 21464
+            },
+            {
+              "id": "health.oncology.lesion",
+              "label": "Lesion",
+              "weight": 19047
+            },
+            {
+              "id": "health.oncology.neoplastic-cell",
+              "label": "neoplastic cell",
+              "weight": 18372
+            },
+            {
+              "id": "health.oncology.cancer-patient",
+              "label": "Cancer Patient",
+              "weight": 17801
+            },
+            {
+              "id": "health.oncology.apoptosis",
+              "label": "Apoptosis",
+              "weight": 15748
+            },
+            {
+              "id": "health.oncology.neoplasm-metastasis",
+              "label": "Neoplasm Metastasis",
+              "weight": 15075
+            },
+            {
+              "id": "health.oncology.chemotherapy",
+              "label": "chemotherapy",
+              "weight": 14956
+            },
+            {
+              "id": "health.oncology.prognosis",
+              "label": "Prognosis",
+              "weight": 13828
+            },
+            {
+              "id": "health.oncology.tumor-microenvironment",
+              "label": "tumor microenvironment",
+              "weight": 13107
+            },
+            {
+              "id": "health.oncology.cancer-center",
+              "label": "Cancer Center",
+              "weight": 12872
+            },
+            {
+              "id": "health.oncology.cell-proliferation",
+              "label": "Cell Proliferation",
+              "weight": 12741
+            },
+            {
+              "id": "health.oncology.tumor-progression",
+              "label": "tumor progression",
+              "weight": 12666
+            },
+            {
+              "id": "health.oncology.tumor-growth",
+              "label": "tumor growth",
+              "weight": 11726
+            },
+            {
+              "id": "health.oncology.tumorigenesis",
+              "label": "tumorigenesis",
+              "weight": 11486
+            },
+            {
+              "id": "health.oncology.fibroblasts",
+              "label": "Fibroblasts",
+              "weight": 11301
+            },
+            {
+              "id": "health.oncology.cancer-etiology",
+              "label": "Cancer Etiology",
+              "weight": 11162
+            },
+            {
+              "id": "health.oncology.cancer-type",
+              "label": "cancer type",
+              "weight": 9946
+            },
+            {
+              "id": "health.oncology.histology",
+              "label": "Histology",
+              "weight": 9918
+            },
+            {
+              "id": "health.oncology.malignant-breast-neoplasm",
+              "label": "malignant breast neoplasm",
+              "weight": 9785
+            },
+            {
+              "id": "health.oncology.anticancer-research",
+              "label": "anticancer research",
+              "weight": 9253
+            },
+            {
+              "id": "health.oncology.oncology",
+              "label": "Oncology",
+              "weight": 9146
+            },
+            {
+              "id": "health.oncology.malignant-neoplasm-of-lung",
+              "label": "Malignant neoplasm of lung",
+              "weight": 9073
+            },
+            {
+              "id": "health.oncology.cancer-biology",
+              "label": "Cancer Biology",
+              "weight": 8483
+            },
+            {
+              "id": "health.oncology.malignant-descriptor",
+              "label": "Malignant - descriptor",
+              "weight": 8269
+            },
+            {
+              "id": "health.oncology.radiation",
+              "label": "Radiation",
+              "weight": 7675
+            },
+            {
+              "id": "health.oncology.chemokine",
+              "label": "chemokine",
+              "weight": 7559
+            }
+          ]
+        },
+        {
+          "id": "health.infectious-disease",
+          "label": "Infectious Disease",
+          "weight": 929971,
+          "children": [
+            {
+              "id": "health.infectious-disease.disease",
+              "label": "Disease",
+              "weight": 209257
+            },
+            {
+              "id": "health.infectious-disease.resistance",
+              "label": "Resistance",
+              "weight": 42314
+            },
+            {
+              "id": "health.infectious-disease.viral",
+              "label": "Viral",
+              "weight": 31848
+            },
+            {
+              "id": "health.infectious-disease.disease-progression",
+              "label": "Disease Progression",
+              "weight": 27754
+            },
+            {
+              "id": "health.infectious-disease.human-disease",
+              "label": "human disease",
+              "weight": 26335
+            },
+            {
+              "id": "health.infectious-disease.hiv",
+              "label": "HIV",
+              "weight": 26062
+            },
+            {
+              "id": "health.infectious-disease.vaccines",
+              "label": "Vaccines",
+              "weight": 18044
+            },
+            {
+              "id": "health.infectious-disease.communicable-diseases",
+              "label": "Communicable Diseases",
+              "weight": 15411
+            },
+            {
+              "id": "health.infectious-disease.epidemic",
+              "label": "Epidemic",
+              "weight": 14697
+            },
+            {
+              "id": "health.infectious-disease.virus-diseases",
+              "label": "Virus Diseases",
+              "weight": 14267
+            },
+            {
+              "id": "health.infectious-disease.covid-19",
+              "label": "COVID-19",
+              "weight": 10970
+            },
+            {
+              "id": "health.infectious-disease.drug-resistance",
+              "label": "Drug resistance",
+              "weight": 10707
+            },
+            {
+              "id": "health.infectious-disease.hiv-infections",
+              "label": "HIV Infections",
+              "weight": 10541
+            },
+            {
+              "id": "health.infectious-disease.vaccination",
+              "label": "Vaccination",
+              "weight": 9586
+            },
+            {
+              "id": "health.infectious-disease.covid-19-pandemic",
+              "label": "COVID-19 pandemic",
+              "weight": 9488
+            },
+            {
+              "id": "health.infectious-disease.antiretroviral-therapy",
+              "label": "antiretroviral therapy",
+              "weight": 9011
+            },
+            {
+              "id": "health.infectious-disease.pandemic-disease",
+              "label": "pandemic disease",
+              "weight": 8459
+            },
+            {
+              "id": "health.infectious-disease.disease-model",
+              "label": "Disease model",
+              "weight": 8129
+            },
+            {
+              "id": "health.infectious-disease.disease-outcome",
+              "label": "Disease Outcome",
+              "weight": 6367
+            },
+            {
+              "id": "health.infectious-disease.resistance-mechanism",
+              "label": "resistance mechanism",
+              "weight": 6014
+            },
+            {
+              "id": "health.infectious-disease.hiv-1",
+              "label": "HIV-1",
+              "weight": 5910
+            },
+            {
+              "id": "health.infectious-disease.vaccine-development",
+              "label": "vaccine development",
+              "weight": 5742
+            },
+            {
+              "id": "health.infectious-disease.disease-remission",
+              "label": "Disease remission",
+              "weight": 5553
+            },
+            {
+              "id": "health.infectious-disease.lung-diseases",
+              "label": "Lung diseases",
+              "weight": 5425
+            },
+            {
+              "id": "health.infectious-disease.tuberculosis",
+              "label": "Tuberculosis",
+              "weight": 5163
+            },
+            {
+              "id": "health.infectious-disease.aids-prevention",
+              "label": "AIDS prevention",
+              "weight": 5061
+            },
+            {
+              "id": "health.infectious-disease.viral-load-result",
+              "label": "Viral Load result",
+              "weight": 4695
+            },
+            {
+              "id": "health.infectious-disease.disease-outbreaks",
+              "label": "Disease Outbreaks",
+              "weight": 4564
+            },
+            {
+              "id": "health.infectious-disease.voltage",
+              "label": "voltage",
+              "weight": 4462
+            },
+            {
+              "id": "health.infectious-disease.malaria",
+              "label": "Malaria",
+              "weight": 4424
+            }
+          ]
+        },
+        {
+          "id": "health.public-health",
+          "label": "Public Health",
+          "weight": 709164,
+          "children": [
+            {
+              "id": "health.public-health.prevent",
+              "label": "prevent",
+              "weight": 104881
+            },
+            {
+              "id": "health.public-health.public-health",
+              "label": "Public Health",
+              "weight": 74489
+            },
+            {
+              "id": "health.public-health.cohort",
+              "label": "cohort",
+              "weight": 65798
+            },
+            {
+              "id": "health.public-health.impairment",
+              "label": "Impairment",
+              "weight": 59993
+            },
+            {
+              "id": "health.public-health.prevention",
+              "label": "Prevention",
+              "weight": 43028
+            },
+            {
+              "id": "health.public-health.screening",
+              "label": "screening",
+              "weight": 35064
+            },
+            {
+              "id": "health.public-health.obesity",
+              "label": "Obesity",
+              "weight": 25810
+            },
+            {
+              "id": "health.public-health.adherence",
+              "label": "Adherence",
+              "weight": 15262
+            },
+            {
+              "id": "health.public-health.primary-outcome",
+              "label": "primary outcome",
+              "weight": 15103
+            },
+            {
+              "id": "health.public-health.writing",
+              "label": "Writing",
+              "weight": 14647
+            },
+            {
+              "id": "health.public-health.awareness",
+              "label": "Awareness",
+              "weight": 13471
+            },
+            {
+              "id": "health.public-health.general-population",
+              "label": "General Population",
+              "weight": 12751
+            },
+            {
+              "id": "health.public-health.exercise",
+              "label": "Exercise",
+              "weight": 10289
+            },
+            {
+              "id": "health.public-health.randomized-controlled-trials",
+              "label": "Randomized, Controlled Trials",
+              "weight": 8625
+            },
+            {
+              "id": "health.public-health.randomized-controlled-trials",
+              "label": "Randomized Controlled Trials",
+              "weight": 7407
+            },
+            {
+              "id": "health.public-health.s-disease-risk",
+              "label": "s disease risk",
+              "weight": 7185
+            },
+            {
+              "id": "health.public-health.health-services-accessibility",
+              "label": "Health Services Accessibility",
+              "weight": 6905
+            },
+            {
+              "id": "health.public-health.high-risk-population",
+              "label": "high risk population",
+              "weight": 6838
+            },
+            {
+              "id": "health.public-health.fitness",
+              "label": "fitness",
+              "weight": 6566
+            },
+            {
+              "id": "health.public-health.disease-phenotype",
+              "label": "disease phenotype",
+              "weight": 5428
+            },
+            {
+              "id": "health.public-health.preventive-intervention",
+              "label": "preventive intervention",
+              "weight": 5397
+            },
+            {
+              "id": "health.public-health.double-blind-method",
+              "label": "Double-Blind Method",
+              "weight": 4148
+            },
+            {
+              "id": "health.public-health.population-study",
+              "label": "Population Study",
+              "weight": 3849
+            },
+            {
+              "id": "health.public-health.prospective-cohort",
+              "label": "Prospective cohort",
+              "weight": 3691
+            },
+            {
+              "id": "health.public-health.reading",
+              "label": "Reading",
+              "weight": 3499
+            },
+            {
+              "id": "health.public-health.randomized-clinical-trials",
+              "label": "randomized, clinical trials",
+              "weight": 3429
+            },
+            {
+              "id": "health.public-health.united-states-food-and-drug-administration",
+              "label": "United States Food and Drug Administration",
+              "weight": 3391
+            },
+            {
+              "id": "health.public-health.reader",
+              "label": "Reader",
+              "weight": 3350
+            },
+            {
+              "id": "health.public-health.randomized-clinical-trials",
+              "label": "Randomized Clinical Trials",
+              "weight": 3272
+            },
+            {
+              "id": "health.public-health.public-health-schools",
+              "label": "Public Health Schools",
+              "weight": 3185
+            }
+          ]
+        },
+        {
+          "id": "health.cardiovascular",
+          "label": "Cardiovascular",
+          "weight": 708108,
+          "children": [
+            {
+              "id": "health.cardiovascular.etiology",
+              "label": "Etiology",
+              "weight": 31066
+            },
+            {
+              "id": "health.cardiovascular.blood-vessels",
+              "label": "Blood Vessels",
+              "weight": 25212
+            },
+            {
+              "id": "health.cardiovascular.cardiovascular-diseases",
+              "label": "Cardiovascular Diseases",
+              "weight": 23370
+            },
+            {
+              "id": "health.cardiovascular.cardiovascular-system",
+              "label": "Cardiovascular system",
+              "weight": 17789
+            },
+            {
+              "id": "health.cardiovascular.heart",
+              "label": "Heart",
+              "weight": 17308
+            },
+            {
+              "id": "health.cardiovascular.stroke",
+              "label": "Stroke",
+              "weight": 14346
+            },
+            {
+              "id": "health.cardiovascular.cardiac",
+              "label": "Cardiac",
+              "weight": 14344
+            },
+            {
+              "id": "health.cardiovascular.chronic-disease",
+              "label": "Chronic Disease",
+              "weight": 14098
+            },
+            {
+              "id": "health.cardiovascular.hypertension",
+              "label": "Hypertension",
+              "weight": 12647
+            },
+            {
+              "id": "health.cardiovascular.endothelium",
+              "label": "Endothelium",
+              "weight": 11197
+            },
+            {
+              "id": "health.cardiovascular.heart-failure",
+              "label": "Heart failure",
+              "weight": 10453
+            },
+            {
+              "id": "health.cardiovascular.heart-diseases",
+              "label": "Heart Diseases",
+              "weight": 9567
+            },
+            {
+              "id": "health.cardiovascular.blood-pressure",
+              "label": "Blood Pressure",
+              "weight": 8592
+            },
+            {
+              "id": "health.cardiovascular.physiologic-pulse",
+              "label": "Physiologic pulse",
+              "weight": 7067
+            },
+            {
+              "id": "health.cardiovascular.national-heart-lung-and-blood-institute",
+              "label": "National Heart, Lung, and Blood Institute",
+              "weight": 7005
+            },
+            {
+              "id": "health.cardiovascular.myocardial-infarction",
+              "label": "Myocardial Infarction",
+              "weight": 6719
+            },
+            {
+              "id": "health.cardiovascular.blood-flow",
+              "label": "Blood flow",
+              "weight": 6623
+            },
+            {
+              "id": "health.cardiovascular.kidney-diseases",
+              "label": "Kidney Diseases",
+              "weight": 6606
+            },
+            {
+              "id": "health.cardiovascular.blood-circulation",
+              "label": "Blood Circulation",
+              "weight": 6603
+            },
+            {
+              "id": "health.cardiovascular.atherosclerosis",
+              "label": "Atherosclerosis",
+              "weight": 6504
+            },
+            {
+              "id": "health.cardiovascular.cardiac-myocytes",
+              "label": "Cardiac Myocytes",
+              "weight": 6340
+            },
+            {
+              "id": "health.cardiovascular.vascular-diseases",
+              "label": "Vascular Diseases",
+              "weight": 6050
+            },
+            {
+              "id": "health.cardiovascular.cardiovascular-disorder-risk",
+              "label": "cardiovascular disorder risk",
+              "weight": 5981
+            },
+            {
+              "id": "health.cardiovascular.cardiovascular-risk-factor",
+              "label": "cardiovascular risk factor",
+              "weight": 5954
+            },
+            {
+              "id": "health.cardiovascular.ischemia",
+              "label": "Ischemia",
+              "weight": 5905
+            },
+            {
+              "id": "health.cardiovascular.liver-diseases",
+              "label": "Liver diseases",
+              "weight": 5784
+            },
+            {
+              "id": "health.cardiovascular.cholesterol",
+              "label": "Cholesterol",
+              "weight": 5709
+            },
+            {
+              "id": "health.cardiovascular.heart-function",
+              "label": "heart function",
+              "weight": 5132
+            },
+            {
+              "id": "health.cardiovascular.arteries",
+              "label": "Arteries",
+              "weight": 4478
+            },
+            {
+              "id": "health.cardiovascular.circulation",
+              "label": "Circulation",
+              "weight": 4454
+            }
+          ]
+        },
+        {
+          "id": "health.nutrition-metabolism",
+          "label": "Nutrition & Metabolism",
+          "weight": 698416,
+          "children": [
+            {
+              "id": "health.nutrition-metabolism.metabolic",
+              "label": "Metabolic",
+              "weight": 43321
+            },
+            {
+              "id": "health.nutrition-metabolism.metabolism",
+              "label": "Metabolism",
+              "weight": 34045
+            },
+            {
+              "id": "health.nutrition-metabolism.diabetes-mellitus",
+              "label": "Diabetes Mellitus",
+              "weight": 28326
+            },
+            {
+              "id": "health.nutrition-metabolism.lipids",
+              "label": "Lipids",
+              "weight": 21940
+            },
+            {
+              "id": "health.nutrition-metabolism.diet",
+              "label": "Diet",
+              "weight": 15962
+            },
+            {
+              "id": "health.nutrition-metabolism.syndrome",
+              "label": "Syndrome",
+              "weight": 14351
+            },
+            {
+              "id": "health.nutrition-metabolism.non-insulin-dependent-diabetes-mellitus",
+              "label": "Non-Insulin-Dependent Diabetes Mellitus",
+              "weight": 12122
+            },
+            {
+              "id": "health.nutrition-metabolism.glucose",
+              "label": "Glucose",
+              "weight": 11872
+            },
+            {
+              "id": "health.nutrition-metabolism.nutrient",
+              "label": "Nutrient",
+              "weight": 11110
+            },
+            {
+              "id": "health.nutrition-metabolism.food",
+              "label": "Food",
+              "weight": 10086
+            },
+            {
+              "id": "health.nutrition-metabolism.hormones",
+              "label": "Hormones",
+              "weight": 9817
+            },
+            {
+              "id": "health.nutrition-metabolism.metabolic-diseases",
+              "label": "Metabolic Diseases",
+              "weight": 9570
+            },
+            {
+              "id": "health.nutrition-metabolism.fatty-acid-glycerol-esters",
+              "label": "Fatty acid glycerol esters",
+              "weight": 9156
+            },
+            {
+              "id": "health.nutrition-metabolism.insulin",
+              "label": "Insulin",
+              "weight": 8138
+            },
+            {
+              "id": "health.nutrition-metabolism.metabolic-pathway",
+              "label": "Metabolic Pathway",
+              "weight": 7925
+            },
+            {
+              "id": "health.nutrition-metabolism.feeding",
+              "label": "feeding",
+              "weight": 7387
+            },
+            {
+              "id": "health.nutrition-metabolism.insulin-resistance",
+              "label": "Insulin Resistance",
+              "weight": 6913
+            },
+            {
+              "id": "health.nutrition-metabolism.dietary",
+              "label": "dietary",
+              "weight": 6617
+            },
+            {
+              "id": "health.nutrition-metabolism.adipose-tissue",
+              "label": "Adipose tissue",
+              "weight": 6555
+            },
+            {
+              "id": "health.nutrition-metabolism.body-mass-index",
+              "label": "Body mass index",
+              "weight": 6164
+            },
+            {
+              "id": "health.nutrition-metabolism.intake",
+              "label": "Intake",
+              "weight": 6089
+            },
+            {
+              "id": "health.nutrition-metabolism.eating",
+              "label": "Eating",
+              "weight": 5967
+            },
+            {
+              "id": "health.nutrition-metabolism.pancreas",
+              "label": "Pancreas",
+              "weight": 5951
+            },
+            {
+              "id": "health.nutrition-metabolism.nutrition",
+              "label": "nutrition",
+              "weight": 5626
+            },
+            {
+              "id": "health.nutrition-metabolism.energy-metabolism",
+              "label": "Energy Metabolism",
+              "weight": 5593
+            },
+            {
+              "id": "health.nutrition-metabolism.lipid-metabolism",
+              "label": "lipid metabolism",
+              "weight": 5339
+            },
+            {
+              "id": "health.nutrition-metabolism.national-institute-of-diabetes-and-digestive-and-kidney-diseases",
+              "label": "National Institute of Diabetes and Digestive and Kidney Diseases",
+              "weight": 5266
+            },
+            {
+              "id": "health.nutrition-metabolism.chronic-kidney-failure",
+              "label": "Chronic Kidney Failure",
+              "weight": 5140
+            },
+            {
+              "id": "health.nutrition-metabolism.fatty-acids",
+              "label": "Fatty Acids",
+              "weight": 4945
+            },
+            {
+              "id": "health.nutrition-metabolism.body-weight-decreased",
+              "label": "Body Weight decreased",
+              "weight": 4939
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "id": "life-sciences",
+      "label": "Life Sciences",
+      "weight": 7114394,
+      "children": [
+        {
+          "id": "life-sciences.cell-molecular-biology",
+          "label": "Cell & Molecular Biology",
+          "weight": 2017276,
+          "children": [
+            {
+              "id": "life-sciences.cell-molecular-biology.cells",
+              "label": "Cells",
+              "weight": 190302
+            },
+            {
+              "id": "life-sciences.cell-molecular-biology.base",
+              "label": "base",
+              "weight": 143583
+            },
+            {
+              "id": "life-sciences.cell-molecular-biology.pathway-interactions",
+              "label": "Pathway interactions",
+              "weight": 137967
+            },
+            {
+              "id": "life-sciences.cell-molecular-biology.signal-transduction",
+              "label": "Signal Transduction",
+              "weight": 121337
+            },
+            {
+              "id": "life-sciences.cell-molecular-biology.cell-type",
+              "label": "cell type",
+              "weight": 50270
+            },
+            {
+              "id": "life-sciences.cell-molecular-biology.enzymes",
+              "label": "Enzymes",
+              "weight": 35152
+            },
+            {
+              "id": "life-sciences.cell-molecular-biology.signal-pathway",
+              "label": "Signal Pathway",
+              "weight": 34685
+            },
+            {
+              "id": "life-sciences.cell-molecular-biology.rna",
+              "label": "RNA",
+              "weight": 28602
+            },
+            {
+              "id": "life-sciences.cell-molecular-biology.cell-line",
+              "label": "Cell Line",
+              "weight": 27004
+            },
+            {
+              "id": "life-sciences.cell-molecular-biology.cell-physiology",
+              "label": "Cell physiology",
+              "weight": 24985
+            },
+            {
+              "id": "life-sciences.cell-molecular-biology.transcriptome",
+              "label": "transcriptome",
+              "weight": 22538
+            },
+            {
+              "id": "life-sciences.cell-molecular-biology.single-cell-rna-sequencing",
+              "label": "single-cell RNA sequencing",
+              "weight": 21806
+            },
+            {
+              "id": "life-sciences.cell-molecular-biology.messenger-rna",
+              "label": "Messenger RNA",
+              "weight": 20333
+            },
+            {
+              "id": "life-sciences.cell-molecular-biology.mitochondria",
+              "label": "Mitochondria",
+              "weight": 20222
+            },
+            {
+              "id": "life-sciences.cell-molecular-biology.stem-cells",
+              "label": "stem cells",
+              "weight": 19397
+            },
+            {
+              "id": "life-sciences.cell-molecular-biology.cell-nucleus",
+              "label": "Cell Nucleus",
+              "weight": 17554
+            },
+            {
+              "id": "life-sciences.cell-molecular-biology.extracellular",
+              "label": "extracellular",
+              "weight": 16407
+            },
+            {
+              "id": "life-sciences.cell-molecular-biology.phosphorylation",
+              "label": "Phosphorylation",
+              "weight": 15973
+            },
+            {
+              "id": "life-sciences.cell-molecular-biology.cell-death",
+              "label": "Cell Death",
+              "weight": 15763
+            },
+            {
+              "id": "life-sciences.cell-molecular-biology.cellular-biology",
+              "label": "Cellular biology",
+              "weight": 15756
+            },
+            {
+              "id": "life-sciences.cell-molecular-biology.epithelial-cells",
+              "label": "Epithelial Cells",
+              "weight": 15659
+            },
+            {
+              "id": "life-sciences.cell-molecular-biology.phosphotransferases",
+              "label": "Phosphotransferases",
+              "weight": 14628
+            },
+            {
+              "id": "life-sciences.cell-molecular-biology.transgenic-mice",
+              "label": "Transgenic Mice",
+              "weight": 14228
+            },
+            {
+              "id": "life-sciences.cell-molecular-biology.mediator-of-activation-protein",
+              "label": "Mediator of activation protein",
+              "weight": 13601
+            },
+            {
+              "id": "life-sciences.cell-molecular-biology.transcript",
+              "label": "Transcript",
+              "weight": 13515
+            },
+            {
+              "id": "life-sciences.cell-molecular-biology.cell-survival",
+              "label": "Cell Survival",
+              "weight": 13295
+            },
+            {
+              "id": "life-sciences.cell-molecular-biology.cell-culture-techniques",
+              "label": "Cell Culture Techniques",
+              "weight": 13237
+            },
+            {
+              "id": "life-sciences.cell-molecular-biology.stem",
+              "label": "stem",
+              "weight": 12310
+            },
+            {
+              "id": "life-sciences.cell-molecular-biology.protein-expression",
+              "label": "protein expression",
+              "weight": 11889
+            },
+            {
+              "id": "life-sciences.cell-molecular-biology.cell-physiology",
+              "label": "Cell Physiology",
+              "weight": 11832
+            }
+          ]
+        },
+        {
+          "id": "life-sciences.genomics-genetics",
+          "label": "Genomics & Genetics",
+          "weight": 1492196,
+          "children": [
+            {
+              "id": "life-sciences.genomics-genetics.genes",
+              "label": "Genes",
+              "weight": 108620
+            },
+            {
+              "id": "life-sciences.genomics-genetics.genetic",
+              "label": "Genetic",
+              "weight": 99923
+            },
+            {
+              "id": "life-sciences.genomics-genetics.phenotype",
+              "label": "Phenotype",
+              "weight": 95693
+            },
+            {
+              "id": "life-sciences.genomics-genetics.mutation",
+              "label": "Mutation",
+              "weight": 60404
+            },
+            {
+              "id": "life-sciences.genomics-genetics.gene-expression",
+              "label": "Gene Expression",
+              "weight": 56153
+            },
+            {
+              "id": "life-sciences.genomics-genetics.genetic-transcription",
+              "label": "Genetic Transcription",
+              "weight": 53102
+            },
+            {
+              "id": "life-sciences.genomics-genetics.generations",
+              "label": "Generations",
+              "weight": 50271
+            },
+            {
+              "id": "life-sciences.genomics-genetics.dna",
+              "label": "DNA",
+              "weight": 34718
+            },
+            {
+              "id": "life-sciences.genomics-genetics.epigenetic-process",
+              "label": "Epigenetic Process",
+              "weight": 29784
+            },
+            {
+              "id": "life-sciences.genomics-genetics.transcription-factor",
+              "label": "transcription factor",
+              "weight": 29246
+            },
+            {
+              "id": "life-sciences.genomics-genetics.genotype",
+              "label": "Genotype",
+              "weight": 20933
+            },
+            {
+              "id": "life-sciences.genomics-genetics.chromatin",
+              "label": "Chromatin",
+              "weight": 20456
+            },
+            {
+              "id": "life-sciences.genomics-genetics.promoter",
+              "label": "promoter",
+              "weight": 16227
+            },
+            {
+              "id": "life-sciences.genomics-genetics.alleles",
+              "label": "Alleles",
+              "weight": 16171
+            },
+            {
+              "id": "life-sciences.genomics-genetics.genetic-variant",
+              "label": "genetic variant",
+              "weight": 13885
+            },
+            {
+              "id": "life-sciences.genomics-genetics.gene-expression-profile",
+              "label": "Gene Expression Profile",
+              "weight": 12903
+            },
+            {
+              "id": "life-sciences.genomics-genetics.trait",
+              "label": "trait",
+              "weight": 12175
+            },
+            {
+              "id": "life-sciences.genomics-genetics.gene-expression-regulation",
+              "label": "Gene Expression Regulation",
+              "weight": 12147
+            },
+            {
+              "id": "life-sciences.genomics-genetics.genome-wide-association-study",
+              "label": "genome wide association study",
+              "weight": 11623
+            },
+            {
+              "id": "life-sciences.genomics-genetics.genetic-approach",
+              "label": "genetic approach",
+              "weight": 10698
+            },
+            {
+              "id": "life-sciences.genomics-genetics.inherited",
+              "label": "Inherited",
+              "weight": 10357
+            },
+            {
+              "id": "life-sciences.genomics-genetics.dna-damage",
+              "label": "DNA Damage",
+              "weight": 10185
+            },
+            {
+              "id": "life-sciences.genomics-genetics.genetic-variation",
+              "label": "Genetic Variation",
+              "weight": 10123
+            },
+            {
+              "id": "life-sciences.genomics-genetics.recombinants",
+              "label": "Recombinants",
+              "weight": 9890
+            },
+            {
+              "id": "life-sciences.genomics-genetics.methylation",
+              "label": "Methylation",
+              "weight": 9387
+            },
+            {
+              "id": "life-sciences.genomics-genetics.genetic-study",
+              "label": "Genetic study",
+              "weight": 8771
+            },
+            {
+              "id": "life-sciences.genomics-genetics.dna-methylation",
+              "label": "DNA Methylation",
+              "weight": 8289
+            },
+            {
+              "id": "life-sciences.genomics-genetics.epigenomics",
+              "label": "epigenomics",
+              "weight": 8258
+            },
+            {
+              "id": "life-sciences.genomics-genetics.tnf-gene",
+              "label": "TNF gene",
+              "weight": 7771
+            },
+            {
+              "id": "life-sciences.genomics-genetics.dna-repair",
+              "label": "DNA Repair",
+              "weight": 7725
+            }
+          ]
+        },
+        {
+          "id": "life-sciences.neuroscience",
+          "label": "Neuroscience",
+          "weight": 1374479,
+          "children": [
+            {
+              "id": "life-sciences.neuroscience.brain",
+              "label": "Brain",
+              "weight": 82261
+            },
+            {
+              "id": "life-sciences.neuroscience.alzheimer-apos",
+              "label": "Alzheimer&apos",
+              "weight": 72927
+            },
+            {
+              "id": "life-sciences.neuroscience.neurons",
+              "label": "Neurons",
+              "weight": 57527
+            },
+            {
+              "id": "life-sciences.neuroscience.aging",
+              "label": "Aging",
+              "weight": 39261
+            },
+            {
+              "id": "life-sciences.neuroscience.knockout-mice",
+              "label": "Knockout Mice",
+              "weight": 23592
+            },
+            {
+              "id": "life-sciences.neuroscience.impaired-cognition",
+              "label": "Impaired cognition",
+              "weight": 22918
+            },
+            {
+              "id": "life-sciences.neuroscience.magnetic-resonance-imaging",
+              "label": "Magnetic Resonance Imaging",
+              "weight": 22765
+            },
+            {
+              "id": "life-sciences.neuroscience.transmission-process",
+              "label": "transmission process",
+              "weight": 22524
+            },
+            {
+              "id": "life-sciences.neuroscience.memory",
+              "label": "Memory",
+              "weight": 22059
+            },
+            {
+              "id": "life-sciences.neuroscience.synapses",
+              "label": "Synapses",
+              "weight": 20284
+            },
+            {
+              "id": "life-sciences.neuroscience.electrophysiology-science",
+              "label": "Electrophysiology (science)",
+              "weight": 20065
+            },
+            {
+              "id": "life-sciences.neuroscience.neurodegenerative-disorders",
+              "label": "Neurodegenerative Disorders",
+              "weight": 19140
+            },
+            {
+              "id": "life-sciences.neuroscience.nerve-degeneration",
+              "label": "Nerve Degeneration",
+              "weight": 18781
+            },
+            {
+              "id": "life-sciences.neuroscience.dementia",
+              "label": "Dementia",
+              "weight": 18338
+            },
+            {
+              "id": "life-sciences.neuroscience.brain-region",
+              "label": "Brain region",
+              "weight": 17991
+            },
+            {
+              "id": "life-sciences.neuroscience.synergism",
+              "label": "synergism",
+              "weight": 17554
+            },
+            {
+              "id": "life-sciences.neuroscience.neuroimaging",
+              "label": "neuroimaging",
+              "weight": 16128
+            },
+            {
+              "id": "life-sciences.neuroscience.neurosciences",
+              "label": "Neurosciences",
+              "weight": 15781
+            },
+            {
+              "id": "life-sciences.neuroscience.relating-to-nervous-system",
+              "label": "relating to nervous system",
+              "weight": 15126
+            },
+            {
+              "id": "life-sciences.neuroscience.neural-circuit",
+              "label": "neural circuit",
+              "weight": 15071
+            },
+            {
+              "id": "life-sciences.neuroscience.neural",
+              "label": "neural",
+              "weight": 14932
+            },
+            {
+              "id": "life-sciences.neuroscience.neurologic",
+              "label": "Neurologic",
+              "weight": 12685
+            },
+            {
+              "id": "life-sciences.neuroscience.neurobiology",
+              "label": "Neurobiology",
+              "weight": 11614
+            },
+            {
+              "id": "life-sciences.neuroscience.s-disease-related-dementia",
+              "label": "s disease related dementia",
+              "weight": 11034
+            },
+            {
+              "id": "life-sciences.neuroscience.functional-magnetic-resonance-imaging",
+              "label": "Functional Magnetic Resonance Imaging",
+              "weight": 10775
+            },
+            {
+              "id": "life-sciences.neuroscience.nervous-system-disorder",
+              "label": "nervous system disorder",
+              "weight": 10744
+            },
+            {
+              "id": "life-sciences.neuroscience.microglia",
+              "label": "Microglia",
+              "weight": 9272
+            },
+            {
+              "id": "life-sciences.neuroscience.parkinson-disease",
+              "label": "Parkinson Disease",
+              "weight": 8854
+            },
+            {
+              "id": "life-sciences.neuroscience.neuroinflammation",
+              "label": "neuroinflammation",
+              "weight": 8753
+            },
+            {
+              "id": "life-sciences.neuroscience.neuropathology",
+              "label": "neuropathology",
+              "weight": 8641
+            }
+          ]
+        },
+        {
+          "id": "life-sciences.immunology",
+          "label": "Immunology",
+          "weight": 1318523,
+          "children": [
+            {
+              "id": "life-sciences.immunology.immune",
+              "label": "Immune",
+              "weight": 58892
+            },
+            {
+              "id": "life-sciences.immunology.inflammation",
+              "label": "Inflammation",
+              "weight": 53941
+            },
+            {
+              "id": "life-sciences.immunology.inflammatory",
+              "label": "Inflammatory",
+              "weight": 47865
+            },
+            {
+              "id": "life-sciences.immunology.immune-response",
+              "label": "Immune response",
+              "weight": 39063
+            },
+            {
+              "id": "life-sciences.immunology.cytokine",
+              "label": "cytokine",
+              "weight": 35624
+            },
+            {
+              "id": "life-sciences.immunology.homeostasis",
+              "label": "Homeostasis",
+              "weight": 32237
+            },
+            {
+              "id": "life-sciences.immunology.s-disease",
+              "label": "s Disease",
+              "weight": 31796
+            },
+            {
+              "id": "life-sciences.immunology.t-lymphocyte",
+              "label": "T-Lymphocyte",
+              "weight": 29061
+            },
+            {
+              "id": "life-sciences.immunology.antibodies",
+              "label": "Antibodies",
+              "weight": 28826
+            },
+            {
+              "id": "life-sciences.immunology.immune-system",
+              "label": "Immune system",
+              "weight": 22405
+            },
+            {
+              "id": "life-sciences.immunology.immunity",
+              "label": "Immunity",
+              "weight": 20935
+            },
+            {
+              "id": "life-sciences.immunology.antigens",
+              "label": "Antigens",
+              "weight": 19706
+            },
+            {
+              "id": "life-sciences.immunology.immunotherapy",
+              "label": "Immunotherapy",
+              "weight": 17860
+            },
+            {
+              "id": "life-sciences.immunology.immunologics",
+              "label": "Immunologics",
+              "weight": 15498
+            },
+            {
+              "id": "life-sciences.immunology.immunology",
+              "label": "Immunology",
+              "weight": 14366
+            },
+            {
+              "id": "life-sciences.immunology.inflammatory-response",
+              "label": "Inflammatory Response",
+              "weight": 14067
+            },
+            {
+              "id": "life-sciences.immunology.b-lymphocytes",
+              "label": "B-Lymphocytes",
+              "weight": 12882
+            },
+            {
+              "id": "life-sciences.immunology.immunoregulation",
+              "label": "immunoregulation",
+              "weight": 11714
+            },
+            {
+              "id": "life-sciences.immunology.macrophage",
+              "label": "Macrophage",
+              "weight": 11462
+            },
+            {
+              "id": "life-sciences.immunology.macrophage",
+              "label": "macrophage",
+              "weight": 11181
+            },
+            {
+              "id": "life-sciences.immunology.anti-inflammatory-agents",
+              "label": "Anti-Inflammatory Agents",
+              "weight": 11008
+            },
+            {
+              "id": "life-sciences.immunology.immunohistochemistry",
+              "label": "Immunohistochemistry",
+              "weight": 10294
+            },
+            {
+              "id": "life-sciences.immunology.immunosuppression",
+              "label": "Immunosuppression",
+              "weight": 9357
+            },
+            {
+              "id": "life-sciences.immunology.cd8-positive-t-lymphocytes",
+              "label": "CD8-Positive T-Lymphocytes",
+              "weight": 9275
+            },
+            {
+              "id": "life-sciences.immunology.autoimmune-diseases",
+              "label": "Autoimmune Diseases",
+              "weight": 9199
+            },
+            {
+              "id": "life-sciences.immunology.cd4-positive-t-lymphocytes",
+              "label": "CD4 Positive T Lymphocytes",
+              "weight": 9092
+            },
+            {
+              "id": "life-sciences.immunology.t-cell-response",
+              "label": "T cell response",
+              "weight": 8966
+            },
+            {
+              "id": "life-sciences.immunology.biological-adaptation-to-stress",
+              "label": "biological adaptation to stress",
+              "weight": 8318
+            },
+            {
+              "id": "life-sciences.immunology.acquired-immunodeficiency-syndrome",
+              "label": "Acquired Immunodeficiency Syndrome",
+              "weight": 8093
+            },
+            {
+              "id": "life-sciences.immunology.epitopes",
+              "label": "Epitopes",
+              "weight": 8053
+            }
+          ]
+        },
+        {
+          "id": "life-sciences.microbiology-virology",
+          "label": "Microbiology & Virology",
+          "weight": 911920,
+          "children": [
+            {
+              "id": "life-sciences.microbiology-virology.biological",
+              "label": "Biological",
+              "weight": 79705
+            },
+            {
+              "id": "life-sciences.microbiology-virology.infection",
+              "label": "Infection",
+              "weight": 54676
+            },
+            {
+              "id": "life-sciences.microbiology-virology.pathogenesis",
+              "label": "Pathogenesis",
+              "weight": 51095
+            },
+            {
+              "id": "life-sciences.microbiology-virology.inhibitor",
+              "label": "inhibitor",
+              "weight": 30549
+            },
+            {
+              "id": "life-sciences.microbiology-virology.pathogen",
+              "label": "pathogen",
+              "weight": 28277
+            },
+            {
+              "id": "life-sciences.microbiology-virology.pathogenicity",
+              "label": "Pathogenicity",
+              "weight": 25938
+            },
+            {
+              "id": "life-sciences.microbiology-virology.virus",
+              "label": "Virus",
+              "weight": 25015
+            },
+            {
+              "id": "life-sciences.microbiology-virology.bacteria",
+              "label": "Bacteria",
+              "weight": 19904
+            },
+            {
+              "id": "life-sciences.microbiology-virology.organism",
+              "label": "Organism",
+              "weight": 19146
+            },
+            {
+              "id": "life-sciences.microbiology-virology.inhibitor-antagonist",
+              "label": "inhibitor/antagonist",
+              "weight": 15835
+            },
+            {
+              "id": "life-sciences.microbiology-virology.microbial",
+              "label": "microbial",
+              "weight": 13707
+            },
+            {
+              "id": "life-sciences.microbiology-virology.antibiotics",
+              "label": "Antibiotics",
+              "weight": 11746
+            },
+            {
+              "id": "life-sciences.microbiology-virology.microbiome",
+              "label": "microbiome",
+              "weight": 9935
+            },
+            {
+              "id": "life-sciences.microbiology-virology.glutamates",
+              "label": "Glutamates",
+              "weight": 8301
+            },
+            {
+              "id": "life-sciences.microbiology-virology.microbe",
+              "label": "Microbe",
+              "weight": 7577
+            },
+            {
+              "id": "life-sciences.microbiology-virology.yeasts",
+              "label": "Yeasts",
+              "weight": 6991
+            },
+            {
+              "id": "life-sciences.microbiology-virology.virus-replication",
+              "label": "Virus Replication",
+              "weight": 6794
+            },
+            {
+              "id": "life-sciences.microbiology-virology.microbiota",
+              "label": "microbiota",
+              "weight": 6439
+            },
+            {
+              "id": "life-sciences.microbiology-virology.bacterial-infections",
+              "label": "Bacterial Infections",
+              "weight": 6356
+            },
+            {
+              "id": "life-sciences.microbiology-virology.antimicrobial",
+              "label": "antimicrobial",
+              "weight": 6296
+            },
+            {
+              "id": "life-sciences.microbiology-virology.virulence",
+              "label": "Virulence",
+              "weight": 6220
+            },
+            {
+              "id": "life-sciences.microbiology-virology.pathogenic-bacteria",
+              "label": "pathogenic bacteria",
+              "weight": 6011
+            },
+            {
+              "id": "life-sciences.microbiology-virology.gut-microbiota",
+              "label": "gut microbiota",
+              "weight": 5960
+            },
+            {
+              "id": "life-sciences.microbiology-virology.gut-microbiome",
+              "label": "gut microbiome",
+              "weight": 5856
+            },
+            {
+              "id": "life-sciences.microbiology-virology.sepsis",
+              "label": "Sepsis",
+              "weight": 5640
+            },
+            {
+              "id": "life-sciences.microbiology-virology.escherichia-coli",
+              "label": "Escherichia coli",
+              "weight": 5120
+            },
+            {
+              "id": "life-sciences.microbiology-virology.antibiotic-resistance",
+              "label": "Antibiotic Resistance",
+              "weight": 4916
+            },
+            {
+              "id": "life-sciences.microbiology-virology.antiviral-agents",
+              "label": "Antiviral Agents",
+              "weight": 4833
+            },
+            {
+              "id": "life-sciences.microbiology-virology.gastrointestinal",
+              "label": "gastrointestinal",
+              "weight": 4823
+            },
+            {
+              "id": "life-sciences.microbiology-virology.polysaccharides",
+              "label": "Polysaccharides",
+              "weight": 4546
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "id": "computing-ai",
+      "label": "Computing & AI",
+      "weight": 3262953,
+      "children": [
+        {
+          "id": "computing-ai.bioinformatics",
+          "label": "Bioinformatics",
+          "weight": 1448609,
+          "children": [
+            {
+              "id": "computing-ai.bioinformatics.molecular",
+              "label": "Molecular",
+              "weight": 145368
+            },
+            {
+              "id": "computing-ai.bioinformatics.proteins",
+              "label": "Proteins",
+              "weight": 117533
+            },
+            {
+              "id": "computing-ai.bioinformatics.structure",
+              "label": "Structure",
+              "weight": 113259
+            },
+            {
+              "id": "computing-ai.bioinformatics.genomics",
+              "label": "Genomics",
+              "weight": 47691
+            },
+            {
+              "id": "computing-ai.bioinformatics.transcriptome-sequencing",
+              "label": "transcriptome sequencing",
+              "weight": 36523
+            },
+            {
+              "id": "computing-ai.bioinformatics.genome",
+              "label": "Genome",
+              "weight": 29882
+            },
+            {
+              "id": "computing-ai.bioinformatics.proteomics",
+              "label": "Proteomics",
+              "weight": 28219
+            },
+            {
+              "id": "computing-ai.bioinformatics.transcriptomics",
+              "label": "transcriptomics",
+              "weight": 28118
+            },
+            {
+              "id": "computing-ai.bioinformatics.bioinformatics",
+              "label": "Bioinformatics",
+              "weight": 27478
+            },
+            {
+              "id": "computing-ai.bioinformatics.biological-models",
+              "label": "Biological Models",
+              "weight": 24316
+            },
+            {
+              "id": "computing-ai.bioinformatics.peptides",
+              "label": "Peptides",
+              "weight": 19451
+            },
+            {
+              "id": "computing-ai.bioinformatics.genome-wide",
+              "label": "genome-wide",
+              "weight": 17541
+            },
+            {
+              "id": "computing-ai.bioinformatics.metabolomics",
+              "label": "metabolomics",
+              "weight": 14807
+            },
+            {
+              "id": "computing-ai.bioinformatics.clustered-regularly-interspaced-short-palindromic-repeats",
+              "label": "Clustered Regularly Interspaced Short Palindromic Repeats",
+              "weight": 13454
+            },
+            {
+              "id": "computing-ai.bioinformatics.biobank",
+              "label": "biobank",
+              "weight": 13006
+            },
+            {
+              "id": "computing-ai.bioinformatics.molecular-conformation",
+              "label": "Molecular Conformation",
+              "weight": 12516
+            },
+            {
+              "id": "computing-ai.bioinformatics.whole-genome",
+              "label": "whole genome",
+              "weight": 11740
+            },
+            {
+              "id": "computing-ai.bioinformatics.protein-isoforms",
+              "label": "Protein Isoforms",
+              "weight": 11064
+            },
+            {
+              "id": "computing-ai.bioinformatics.binding-proteins",
+              "label": "Binding Proteins",
+              "weight": 10944
+            },
+            {
+              "id": "computing-ai.bioinformatics.post-translational-protein-processing",
+              "label": "Post-Translational Protein Processing",
+              "weight": 10187
+            },
+            {
+              "id": "computing-ai.bioinformatics.molecular-target",
+              "label": "Molecular Target",
+              "weight": 9766
+            },
+            {
+              "id": "computing-ai.bioinformatics.molecular-biology",
+              "label": "Molecular Biology",
+              "weight": 9450
+            },
+            {
+              "id": "computing-ai.bioinformatics.tau-proteins",
+              "label": "tau Proteins",
+              "weight": 9136
+            },
+            {
+              "id": "computing-ai.bioinformatics.genome-sequencing",
+              "label": "genome sequencing",
+              "weight": 9031
+            },
+            {
+              "id": "computing-ai.bioinformatics.proteome",
+              "label": "Proteome",
+              "weight": 8957
+            },
+            {
+              "id": "computing-ai.bioinformatics.molecular-profiling",
+              "label": "Molecular Profiling",
+              "weight": 8371
+            },
+            {
+              "id": "computing-ai.bioinformatics.next-generation-sequencing",
+              "label": "next generation sequencing",
+              "weight": 8248
+            },
+            {
+              "id": "computing-ai.bioinformatics.genomic-data",
+              "label": "genomic data",
+              "weight": 8159
+            },
+            {
+              "id": "computing-ai.bioinformatics.protein-complex",
+              "label": "protein complex",
+              "weight": 7678
+            },
+            {
+              "id": "computing-ai.bioinformatics.protein-function",
+              "label": "protein function",
+              "weight": 7359
+            }
+          ]
+        },
+        {
+          "id": "computing-ai.data-science",
+          "label": "Data Science",
+          "weight": 990836,
+          "children": [
+            {
+              "id": "computing-ai.data-science.data",
+              "label": "Data",
+              "weight": 291613
+            },
+            {
+              "id": "computing-ai.data-science.measures",
+              "label": "Measures",
+              "weight": 141694
+            },
+            {
+              "id": "computing-ai.data-science.growth",
+              "label": "Growth",
+              "weight": 50485
+            },
+            {
+              "id": "computing-ai.data-science.data-set",
+              "label": "Data Set",
+              "weight": 42416
+            },
+            {
+              "id": "computing-ai.data-science.data-analyses",
+              "label": "Data Analyses",
+              "weight": 31634
+            },
+            {
+              "id": "computing-ai.data-science.databases",
+              "label": "Databases",
+              "weight": 25361
+            },
+            {
+              "id": "computing-ai.data-science.algorithms",
+              "label": "Algorithms",
+              "weight": 20307
+            },
+            {
+              "id": "computing-ai.data-science.data-collection",
+              "label": "Data Collection",
+              "weight": 19632
+            },
+            {
+              "id": "computing-ai.data-science.indexing",
+              "label": "indexing",
+              "weight": 19236
+            },
+            {
+              "id": "computing-ai.data-science.clinical-data",
+              "label": "Clinical Data",
+              "weight": 17116
+            },
+            {
+              "id": "computing-ai.data-science.classification",
+              "label": "Classification",
+              "weight": 14057
+            },
+            {
+              "id": "computing-ai.data-science.data-management",
+              "label": "data management",
+              "weight": 13739
+            },
+            {
+              "id": "computing-ai.data-science.statistics",
+              "label": "statistics",
+              "weight": 11444
+            },
+            {
+              "id": "computing-ai.data-science.geography",
+              "label": "Geography",
+              "weight": 10913
+            },
+            {
+              "id": "computing-ai.data-science.k-series-research-career-programs",
+              "label": "K-Series Research Career Programs",
+              "weight": 8812
+            },
+            {
+              "id": "computing-ai.data-science.informatics",
+              "label": "Informatics",
+              "weight": 8637
+            },
+            {
+              "id": "computing-ai.data-science.statistical-methods",
+              "label": "Statistical Methods",
+              "weight": 7827
+            },
+            {
+              "id": "computing-ai.data-science.data-science",
+              "label": "Data Science",
+              "weight": 7637
+            },
+            {
+              "id": "computing-ai.data-science.computing-methodologies",
+              "label": "Computing Methodologies",
+              "weight": 7535
+            },
+            {
+              "id": "computing-ai.data-science.high-throughput-screening",
+              "label": "high throughput screening",
+              "weight": 6771
+            },
+            {
+              "id": "computing-ai.data-science.growth-factor",
+              "label": "Growth Factor",
+              "weight": 6021
+            },
+            {
+              "id": "computing-ai.data-science.data-sources",
+              "label": "Data Sources",
+              "weight": 5441
+            },
+            {
+              "id": "computing-ai.data-science.statistical-models",
+              "label": "Statistical Models",
+              "weight": 5330
+            },
+            {
+              "id": "computing-ai.data-science.high-dimensionality",
+              "label": "high dimensionality",
+              "weight": 5278
+            },
+            {
+              "id": "computing-ai.data-science.progress-reports",
+              "label": "Progress Reports",
+              "weight": 5249
+            },
+            {
+              "id": "computing-ai.data-science.data-resource",
+              "label": "data resource",
+              "weight": 4679
+            },
+            {
+              "id": "computing-ai.data-science.computer-analysis",
+              "label": "Computer Analysis",
+              "weight": 4669
+            },
+            {
+              "id": "computing-ai.data-science.transforming-growth-factor-beta",
+              "label": "Transforming Growth Factor beta",
+              "weight": 4534
+            },
+            {
+              "id": "computing-ai.data-science.big-data",
+              "label": "Big Data",
+              "weight": 4432
+            },
+            {
+              "id": "computing-ai.data-science.mathematics",
+              "label": "Mathematics",
+              "weight": 4233
+            }
+          ]
+        },
+        {
+          "id": "computing-ai.machine-learning-ai",
+          "label": "Machine Learning & AI",
+          "weight": 658671,
+          "children": [
+            {
+              "id": "computing-ai.machine-learning-ai.knowledge",
+              "label": "Knowledge",
+              "weight": 138691
+            },
+            {
+              "id": "computing-ai.machine-learning-ai.future",
+              "label": "Future",
+              "weight": 118797
+            },
+            {
+              "id": "computing-ai.machine-learning-ai.skills",
+              "label": "skills",
+              "weight": 49614
+            },
+            {
+              "id": "computing-ai.machine-learning-ai.learning",
+              "label": "Learning",
+              "weight": 45941
+            },
+            {
+              "id": "computing-ai.machine-learning-ai.randomized",
+              "label": "Randomized",
+              "weight": 30493
+            },
+            {
+              "id": "computing-ai.machine-learning-ai.machine-learning",
+              "label": "Machine Learning",
+              "weight": 18951
+            },
+            {
+              "id": "computing-ai.machine-learning-ai.predictive-modeling",
+              "label": "predictive modeling",
+              "weight": 14117
+            },
+            {
+              "id": "computing-ai.machine-learning-ai.quality-control",
+              "label": "Quality Control",
+              "weight": 12502
+            },
+            {
+              "id": "computing-ai.machine-learning-ai.combat",
+              "label": "combat",
+              "weight": 11620
+            },
+            {
+              "id": "computing-ai.machine-learning-ai.computer-models",
+              "label": "Computer Models",
+              "weight": 11268
+            },
+            {
+              "id": "computing-ai.machine-learning-ai.rewards",
+              "label": "Rewards",
+              "weight": 11268
+            },
+            {
+              "id": "computing-ai.machine-learning-ai.simulation",
+              "label": "simulation",
+              "weight": 9135
+            },
+            {
+              "id": "computing-ai.machine-learning-ai.instruction",
+              "label": "Instruction",
+              "weight": 7754
+            },
+            {
+              "id": "computing-ai.machine-learning-ai.competence",
+              "label": "Competence",
+              "weight": 6813
+            },
+            {
+              "id": "computing-ai.machine-learning-ai.deep-learning",
+              "label": "deep learning",
+              "weight": 6286
+            },
+            {
+              "id": "computing-ai.machine-learning-ai.gold",
+              "label": "Gold",
+              "weight": 6166
+            },
+            {
+              "id": "computing-ai.machine-learning-ai.artificial-intelligence",
+              "label": "Artificial Intelligence",
+              "weight": 6011
+            },
+            {
+              "id": "computing-ai.machine-learning-ai.internet",
+              "label": "Internet",
+              "weight": 5973
+            },
+            {
+              "id": "computing-ai.machine-learning-ai.training-activity",
+              "label": "Training Activity",
+              "weight": 5845
+            },
+            {
+              "id": "computing-ai.machine-learning-ai.policy-maker",
+              "label": "Policy Maker",
+              "weight": 5357
+            },
+            {
+              "id": "computing-ai.machine-learning-ai.mathematical-model",
+              "label": "mathematical model",
+              "weight": 5013
+            },
+            {
+              "id": "computing-ai.machine-learning-ai.neural-network",
+              "label": "neural network",
+              "weight": 4905
+            },
+            {
+              "id": "computing-ai.machine-learning-ai.skill-acquisition",
+              "label": "skill acquisition",
+              "weight": 4892
+            },
+            {
+              "id": "computing-ai.machine-learning-ai.xenograft-model",
+              "label": "Xenograft Model",
+              "weight": 4789
+            },
+            {
+              "id": "computing-ai.machine-learning-ai.risk-prediction",
+              "label": "risk prediction",
+              "weight": 4434
+            },
+            {
+              "id": "computing-ai.machine-learning-ai.predicting-response",
+              "label": "predicting response",
+              "weight": 4325
+            },
+            {
+              "id": "computing-ai.machine-learning-ai.machine-learning-method",
+              "label": "machine learning method",
+              "weight": 4259
+            },
+            {
+              "id": "computing-ai.machine-learning-ai.machine-learning-algorithm",
+              "label": "machine learning algorithm",
+              "weight": 3980
+            },
+            {
+              "id": "computing-ai.machine-learning-ai.short-term-memory",
+              "label": "Short-Term Memory",
+              "weight": 3929
+            },
+            {
+              "id": "computing-ai.machine-learning-ai.predictive-value",
+              "label": "Predictive Value",
+              "weight": 3490
+            }
+          ]
+        },
+        {
+          "id": "computing-ai.software-systems",
+          "label": "Software & Systems",
+          "weight": 164837,
+          "children": [
+            {
+              "id": "computing-ai.software-systems.computer-software",
+              "label": "Computer software",
+              "weight": 18909
+            },
+            {
+              "id": "computing-ai.software-systems.visualization",
+              "label": "Visualization",
+              "weight": 14060
+            },
+            {
+              "id": "computing-ai.software-systems.visual",
+              "label": "Visual",
+              "weight": 11262
+            },
+            {
+              "id": "computing-ai.software-systems.data-sharing",
+              "label": "data sharing",
+              "weight": 10579
+            },
+            {
+              "id": "computing-ai.software-systems.statistical-data-interpretation",
+              "label": "Statistical Data Interpretation",
+              "weight": 8411
+            },
+            {
+              "id": "computing-ai.software-systems.data-integration",
+              "label": "data integration",
+              "weight": 7566
+            },
+            {
+              "id": "computing-ai.software-systems.online-systems",
+              "label": "Online Systems",
+              "weight": 6534
+            },
+            {
+              "id": "computing-ai.software-systems.computerized-tools",
+              "label": "computerized tools",
+              "weight": 5620
+            },
+            {
+              "id": "computing-ai.software-systems.analytical-tool",
+              "label": "analytical tool",
+              "weight": 3643
+            },
+            {
+              "id": "computing-ai.software-systems.data-coordinating-center",
+              "label": "Data Coordinating Center",
+              "weight": 2950
+            },
+            {
+              "id": "computing-ai.software-systems.information-systems",
+              "label": "Information Systems",
+              "weight": 2810
+            },
+            {
+              "id": "computing-ai.software-systems.data-exchange",
+              "label": "data exchange",
+              "weight": 2618
+            },
+            {
+              "id": "computing-ai.software-systems.security",
+              "label": "Security",
+              "weight": 2425
+            },
+            {
+              "id": "computing-ai.software-systems.analysis-pipeline",
+              "label": "analysis pipeline",
+              "weight": 2354
+            },
+            {
+              "id": "computing-ai.software-systems.data-access",
+              "label": "data access",
+              "weight": 2226
+            },
+            {
+              "id": "computing-ai.software-systems.cloud-based",
+              "label": "cloud based",
+              "weight": 2144
+            },
+            {
+              "id": "computing-ai.software-systems.data-visualization",
+              "label": "data visualization",
+              "weight": 2015
+            },
+            {
+              "id": "computing-ai.software-systems.computerized",
+              "label": "computerized",
+              "weight": 1946
+            },
+            {
+              "id": "computing-ai.software-systems.graph",
+              "label": "Graph",
+              "weight": 1865
+            },
+            {
+              "id": "computing-ai.software-systems.computer-framework",
+              "label": "computer framework",
+              "weight": 1679
+            },
+            {
+              "id": "computing-ai.software-systems.dashboard",
+              "label": "dashboard",
+              "weight": 1678
+            },
+            {
+              "id": "computing-ai.software-systems.data-infrastructure",
+              "label": "data infrastructure",
+              "weight": 1599
+            },
+            {
+              "id": "computing-ai.software-systems.electronic-data",
+              "label": "electronic data",
+              "weight": 1479
+            },
+            {
+              "id": "computing-ai.software-systems.visual-processing",
+              "label": "visual processing",
+              "weight": 1452
+            },
+            {
+              "id": "computing-ai.software-systems.visualization-software",
+              "label": "Visualization software",
+              "weight": 1429
+            },
+            {
+              "id": "computing-ai.software-systems.systems-development",
+              "label": "Systems Development",
+              "weight": 1390
+            },
+            {
+              "id": "computing-ai.software-systems.testis",
+              "label": "Testis",
+              "weight": 1365
+            },
+            {
+              "id": "computing-ai.software-systems.high-performance-computing",
+              "label": "High Performance Computing",
+              "weight": 1351
+            },
+            {
+              "id": "computing-ai.software-systems.data-element",
+              "label": "Data Element",
+              "weight": 1266
+            },
+            {
+              "id": "computing-ai.software-systems.visual-information",
+              "label": "visual information",
+              "weight": 1255
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "id": "environmental",
+      "label": "Environmental",
+      "weight": 1590601,
+      "children": [
+        {
+          "id": "environmental.water-earth",
+          "label": "Water & Earth",
+          "weight": 672336,
+          "children": [
+            {
+              "id": "environmental.water-earth.biological-assay",
+              "label": "Biological Assay",
+              "weight": 78616
+            },
+            {
+              "id": "environmental.water-earth.scientist",
+              "label": "Scientist",
+              "weight": 57812
+            },
+            {
+              "id": "environmental.water-earth.biology",
+              "label": "Biology",
+              "weight": 55878
+            },
+            {
+              "id": "environmental.water-earth.science",
+              "label": "Science",
+              "weight": 45990
+            },
+            {
+              "id": "environmental.water-earth.biochemical",
+              "label": "Biochemical",
+              "weight": 39974
+            },
+            {
+              "id": "environmental.water-earth.chemicals",
+              "label": "Chemicals",
+              "weight": 34790
+            },
+            {
+              "id": "environmental.water-earth.physiology",
+              "label": "Physiology",
+              "weight": 25412
+            },
+            {
+              "id": "environmental.water-earth.basic-science",
+              "label": "Basic Science",
+              "weight": 24996
+            },
+            {
+              "id": "environmental.water-earth.postdoctoral-fellow",
+              "label": "Postdoctoral Fellow",
+              "weight": 16129
+            },
+            {
+              "id": "environmental.water-earth.flow-cytometry",
+              "label": "Flow Cytometry",
+              "weight": 13814
+            },
+            {
+              "id": "environmental.water-earth.preclinical-study",
+              "label": "preclinical study",
+              "weight": 13293
+            },
+            {
+              "id": "environmental.water-earth.chemistry",
+              "label": "Chemistry",
+              "weight": 11129
+            },
+            {
+              "id": "environmental.water-earth.biophysics",
+              "label": "Biophysics",
+              "weight": 10869
+            },
+            {
+              "id": "environmental.water-earth.biochemistry",
+              "label": "Biochemistry",
+              "weight": 10461
+            },
+            {
+              "id": "environmental.water-earth.infiltration",
+              "label": "Infiltration",
+              "weight": 9517
+            },
+            {
+              "id": "environmental.water-earth.water",
+              "label": "Water",
+              "weight": 9313
+            },
+            {
+              "id": "environmental.water-earth.urine",
+              "label": "Urine",
+              "weight": 8525
+            },
+            {
+              "id": "environmental.water-earth.clinically-significant",
+              "label": "clinically significant",
+              "weight": 8367
+            },
+            {
+              "id": "environmental.water-earth.clinical-sciences",
+              "label": "Clinical Sciences",
+              "weight": 8304
+            },
+            {
+              "id": "environmental.water-earth.permeability",
+              "label": "Permeability",
+              "weight": 7427
+            },
+            {
+              "id": "environmental.water-earth.toxicology",
+              "label": "Toxicology",
+              "weight": 7206
+            },
+            {
+              "id": "environmental.water-earth.health-sciences",
+              "label": "Health Sciences",
+              "weight": 6805
+            },
+            {
+              "id": "environmental.water-earth.catchment-area",
+              "label": "Catchment Area",
+              "weight": 5546
+            },
+            {
+              "id": "environmental.water-earth.toxin",
+              "label": "Toxin",
+              "weight": 5082
+            },
+            {
+              "id": "environmental.water-earth.translational-scientist",
+              "label": "translational scientist",
+              "weight": 4601
+            },
+            {
+              "id": "environmental.water-earth.quality-assurance",
+              "label": "quality assurance",
+              "weight": 4437
+            },
+            {
+              "id": "environmental.water-earth.biological-sciences",
+              "label": "Biological Sciences",
+              "weight": 4308
+            },
+            {
+              "id": "environmental.water-earth.biodistribution",
+              "label": "Biodistribution",
+              "weight": 3526
+            },
+            {
+              "id": "environmental.water-earth.national-institute-of-environmental-health-sciences",
+              "label": "National Institute of Environmental Health Sciences",
+              "weight": 3225
+            },
+            {
+              "id": "environmental.water-earth.pathologist",
+              "label": "Pathologist",
+              "weight": 3116
+            }
+          ]
+        },
+        {
+          "id": "environmental.ecology-conservation",
+          "label": "Ecology & Conservation",
+          "weight": 515778,
+          "children": [
+            {
+              "id": "environmental.ecology-conservation.environment",
+              "label": "Environment",
+              "weight": 80290
+            },
+            {
+              "id": "environmental.ecology-conservation.regulation",
+              "label": "Regulation",
+              "weight": 77372
+            },
+            {
+              "id": "environmental.ecology-conservation.animals",
+              "label": "Animals",
+              "weight": 57441
+            },
+            {
+              "id": "environmental.ecology-conservation.animal-model",
+              "label": "Animal Model",
+              "weight": 52531
+            },
+            {
+              "id": "environmental.ecology-conservation.nature",
+              "label": "Nature",
+              "weight": 40736
+            },
+            {
+              "id": "environmental.ecology-conservation.preservation",
+              "label": "preservation",
+              "weight": 19939
+            },
+            {
+              "id": "environmental.ecology-conservation.natural-regeneration",
+              "label": "Natural regeneration",
+              "weight": 11337
+            },
+            {
+              "id": "environmental.ecology-conservation.resilience",
+              "label": "resilience",
+              "weight": 10266
+            },
+            {
+              "id": "environmental.ecology-conservation.mammals",
+              "label": "Mammals",
+              "weight": 9974
+            },
+            {
+              "id": "environmental.ecology-conservation.restoration",
+              "label": "restoration",
+              "weight": 8054
+            },
+            {
+              "id": "environmental.ecology-conservation.refractory",
+              "label": "Refractory",
+              "weight": 7507
+            },
+            {
+              "id": "environmental.ecology-conservation.risk-reduction",
+              "label": "Risk Reduction",
+              "weight": 7081
+            },
+            {
+              "id": "environmental.ecology-conservation.reconstruction",
+              "label": "reconstruction",
+              "weight": 6706
+            },
+            {
+              "id": "environmental.ecology-conservation.zebrafish",
+              "label": "Zebrafish",
+              "weight": 6110
+            },
+            {
+              "id": "environmental.ecology-conservation.primates",
+              "label": "Primates",
+              "weight": 5892
+            },
+            {
+              "id": "environmental.ecology-conservation.natural-history",
+              "label": "Natural History",
+              "weight": 5333
+            },
+            {
+              "id": "environmental.ecology-conservation.protective-effect",
+              "label": "protective effect",
+              "weight": 5090
+            },
+            {
+              "id": "environmental.ecology-conservation.biological-availability",
+              "label": "Biological Availability",
+              "weight": 4956
+            },
+            {
+              "id": "environmental.ecology-conservation.home-environment",
+              "label": "Home environment",
+              "weight": 4367
+            },
+            {
+              "id": "environmental.ecology-conservation.ecosystem",
+              "label": "Ecosystem",
+              "weight": 4211
+            },
+            {
+              "id": "environmental.ecology-conservation.atrophic",
+              "label": "Atrophic",
+              "weight": 4041
+            },
+            {
+              "id": "environmental.ecology-conservation.vertebrates",
+              "label": "Vertebrates",
+              "weight": 3710
+            },
+            {
+              "id": "environmental.ecology-conservation.natural-products",
+              "label": "Natural Products",
+              "weight": 3506
+            },
+            {
+              "id": "environmental.ecology-conservation.recycling",
+              "label": "Recycling",
+              "weight": 3056
+            },
+            {
+              "id": "environmental.ecology-conservation.savings",
+              "label": "Savings",
+              "weight": 2880
+            },
+            {
+              "id": "environmental.ecology-conservation.remediation",
+              "label": "remediation",
+              "weight": 2579
+            },
+            {
+              "id": "environmental.ecology-conservation.biobehavior",
+              "label": "biobehavior",
+              "weight": 2569
+            },
+            {
+              "id": "environmental.ecology-conservation.ecology",
+              "label": "Ecology",
+              "weight": 2402
+            },
+            {
+              "id": "environmental.ecology-conservation.fishes",
+              "label": "Fishes",
+              "weight": 2334
+            },
+            {
+              "id": "environmental.ecology-conservation.culicidae",
+              "label": "Culicidae",
+              "weight": 2284
+            }
+          ]
+        },
+        {
+          "id": "environmental.climate-atmosphere",
+          "label": "Climate & Atmosphere",
+          "weight": 252723,
+          "children": [
+            {
+              "id": "environmental.climate-atmosphere.publications",
+              "label": "Publications",
+              "weight": 33490
+            },
+            {
+              "id": "environmental.climate-atmosphere.environmental-risk-factor",
+              "label": "Environmental Risk Factor",
+              "weight": 13065
+            },
+            {
+              "id": "environmental.climate-atmosphere.respiratory",
+              "label": "respiratory",
+              "weight": 9540
+            },
+            {
+              "id": "environmental.climate-atmosphere.oxygen",
+              "label": "Oxygen",
+              "weight": 9071
+            },
+            {
+              "id": "environmental.climate-atmosphere.reactive-oxygen-species",
+              "label": "Reactive Oxygen Species",
+              "weight": 8359
+            },
+            {
+              "id": "environmental.climate-atmosphere.environmental-exposure",
+              "label": "Environmental Exposure",
+              "weight": 7551
+            },
+            {
+              "id": "environmental.climate-atmosphere.temperature",
+              "label": "Temperature",
+              "weight": 6853
+            },
+            {
+              "id": "environmental.climate-atmosphere.air",
+              "label": "Air",
+              "weight": 5350
+            },
+            {
+              "id": "environmental.climate-atmosphere.scientific-advances-and-accomplishments",
+              "label": "Scientific Advances and Accomplishments",
+              "weight": 4751
+            },
+            {
+              "id": "environmental.climate-atmosphere.environmental-health",
+              "label": "Environmental Health",
+              "weight": 4735
+            },
+            {
+              "id": "environmental.climate-atmosphere.respiration",
+              "label": "Respiration",
+              "weight": 4431
+            },
+            {
+              "id": "environmental.climate-atmosphere.carbon",
+              "label": "Carbon",
+              "weight": 4321
+            },
+            {
+              "id": "environmental.climate-atmosphere.inhalation",
+              "label": "Inhalation",
+              "weight": 4194
+            },
+            {
+              "id": "environmental.climate-atmosphere.breathing",
+              "label": "Breathing",
+              "weight": 3846
+            },
+            {
+              "id": "environmental.climate-atmosphere.gases",
+              "label": "Gases",
+              "weight": 3349
+            },
+            {
+              "id": "environmental.climate-atmosphere.smoker",
+              "label": "Smoker",
+              "weight": 3310
+            },
+            {
+              "id": "environmental.climate-atmosphere.summer-research",
+              "label": "summer research",
+              "weight": 2624
+            },
+            {
+              "id": "environmental.climate-atmosphere.air-pollution",
+              "label": "Air Pollution",
+              "weight": 2423
+            },
+            {
+              "id": "environmental.climate-atmosphere.smoke",
+              "label": "Smoke",
+              "weight": 2407
+            },
+            {
+              "id": "environmental.climate-atmosphere.cigarette-smoking",
+              "label": "cigarette smoking",
+              "weight": 2321
+            },
+            {
+              "id": "environmental.climate-atmosphere.exposed-human-population",
+              "label": "exposed human population",
+              "weight": 2315
+            },
+            {
+              "id": "environmental.climate-atmosphere.exhaust",
+              "label": "exhaust",
+              "weight": 2141
+            },
+            {
+              "id": "environmental.climate-atmosphere.climate",
+              "label": "Climate",
+              "weight": 2105
+            },
+            {
+              "id": "environmental.climate-atmosphere.asia",
+              "label": "Asia",
+              "weight": 1971
+            },
+            {
+              "id": "environmental.climate-atmosphere.nitrogen",
+              "label": "Nitrogen",
+              "weight": 1934
+            },
+            {
+              "id": "environmental.climate-atmosphere.north-america",
+              "label": "North America",
+              "weight": 1915
+            },
+            {
+              "id": "environmental.climate-atmosphere.phosphoproteomics",
+              "label": "phosphoproteomics",
+              "weight": 1900
+            },
+            {
+              "id": "environmental.climate-atmosphere.pollutant",
+              "label": "pollutant",
+              "weight": 1837
+            },
+            {
+              "id": "environmental.climate-atmosphere.tropism",
+              "label": "Tropism",
+              "weight": 1823
+            },
+            {
+              "id": "environmental.climate-atmosphere.thermodynamics",
+              "label": "Thermodynamics",
+              "weight": 1800
+            }
+          ]
+        },
+        {
+          "id": "environmental.agriculture-food-systems",
+          "label": "Agriculture & Food Systems",
+          "weight": 149764,
+          "children": [
+            {
+              "id": "environmental.agriculture-food-systems.adoption",
+              "label": "Adoption",
+              "weight": 14254
+            },
+            {
+              "id": "environmental.agriculture-food-systems.reproductive",
+              "label": "reproductive",
+              "weight": 5796
+            },
+            {
+              "id": "environmental.agriculture-food-systems.offspring",
+              "label": "offspring",
+              "weight": 5766
+            },
+            {
+              "id": "environmental.agriculture-food-systems.preventive",
+              "label": "Preventive",
+              "weight": 5531
+            },
+            {
+              "id": "environmental.agriculture-food-systems.parasites",
+              "label": "Parasites",
+              "weight": 5273
+            },
+            {
+              "id": "environmental.agriculture-food-systems.biotechnology",
+              "label": "Biotechnology",
+              "weight": 4596
+            },
+            {
+              "id": "environmental.agriculture-food-systems.plants",
+              "label": "Plants",
+              "weight": 3968
+            },
+            {
+              "id": "environmental.agriculture-food-systems.infertility",
+              "label": "Infertility",
+              "weight": 3853
+            },
+            {
+              "id": "environmental.agriculture-food-systems.harvest",
+              "label": "Harvest",
+              "weight": 3743
+            },
+            {
+              "id": "environmental.agriculture-food-systems.breeding",
+              "label": "Breeding",
+              "weight": 3405
+            },
+            {
+              "id": "environmental.agriculture-food-systems.fertility",
+              "label": "Fertility",
+              "weight": 3393
+            },
+            {
+              "id": "environmental.agriculture-food-systems.plant-roots",
+              "label": "Plant Roots",
+              "weight": 3161
+            },
+            {
+              "id": "environmental.agriculture-food-systems.plasmids",
+              "label": "Plasmids",
+              "weight": 3023
+            },
+            {
+              "id": "environmental.agriculture-food-systems.sterility",
+              "label": "Sterility",
+              "weight": 2978
+            },
+            {
+              "id": "environmental.agriculture-food-systems.reproduction",
+              "label": "Reproduction",
+              "weight": 2684
+            },
+            {
+              "id": "environmental.agriculture-food-systems.assay-development",
+              "label": "assay development",
+              "weight": 2527
+            },
+            {
+              "id": "environmental.agriculture-food-systems.seeds",
+              "label": "Seeds",
+              "weight": 2486
+            },
+            {
+              "id": "environmental.agriculture-food-systems.egg",
+              "label": "egg",
+              "weight": 2135
+            },
+            {
+              "id": "environmental.agriculture-food-systems.site-directed-mutagenesis",
+              "label": "Site-Directed Mutagenesis",
+              "weight": 2053
+            },
+            {
+              "id": "environmental.agriculture-food-systems.fertilization",
+              "label": "Fertilization",
+              "weight": 2024
+            },
+            {
+              "id": "environmental.agriculture-food-systems.grain",
+              "label": "Grain",
+              "weight": 1939
+            },
+            {
+              "id": "environmental.agriculture-food-systems.insecta",
+              "label": "Insecta",
+              "weight": 1929
+            },
+            {
+              "id": "environmental.agriculture-food-systems.agriculture",
+              "label": "Agriculture",
+              "weight": 1831
+            },
+            {
+              "id": "environmental.agriculture-food-systems.progesterone",
+              "label": "Progesterone",
+              "weight": 1491
+            },
+            {
+              "id": "environmental.agriculture-food-systems.contraceptive-methods",
+              "label": "Contraceptive methods",
+              "weight": 1347
+            },
+            {
+              "id": "environmental.agriculture-food-systems.pluripotency",
+              "label": "pluripotency",
+              "weight": 1286
+            },
+            {
+              "id": "environmental.agriculture-food-systems.pesticides",
+              "label": "Pesticides",
+              "weight": 1284
+            },
+            {
+              "id": "environmental.agriculture-food-systems.larva",
+              "label": "Larva",
+              "weight": 1275
+            },
+            {
+              "id": "environmental.agriculture-food-systems.incubators",
+              "label": "Incubators",
+              "weight": 1232
+            },
+            {
+              "id": "environmental.agriculture-food-systems.contraceptive-agents",
+              "label": "Contraceptive Agents",
+              "weight": 1161
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "id": "engineering",
+      "label": "Engineering",
+      "weight": 2432272,
+      "children": [
+        {
+          "id": "engineering.biomedical-engineering",
+          "label": "Biomedical Engineering",
+          "weight": 1576115,
+          "children": [
+            {
+              "id": "engineering.biomedical-engineering.in-vivo",
+              "label": "in vivo",
+              "weight": 119019
+            },
+            {
+              "id": "engineering.biomedical-engineering.tissues",
+              "label": "Tissues",
+              "weight": 103840
+            },
+            {
+              "id": "engineering.biomedical-engineering.in-vitro",
+              "label": "In Vitro",
+              "weight": 85855
+            },
+            {
+              "id": "engineering.biomedical-engineering.pharmaceutical-preparations",
+              "label": "Pharmaceutical Preparations",
+              "weight": 79297
+            },
+            {
+              "id": "engineering.biomedical-engineering.novel-therapeutics",
+              "label": "novel therapeutics",
+              "weight": 49760
+            },
+            {
+              "id": "engineering.biomedical-engineering.therapeutic-target",
+              "label": "therapeutic target",
+              "weight": 34726
+            },
+            {
+              "id": "engineering.biomedical-engineering.engineering",
+              "label": "Engineering",
+              "weight": 34356
+            },
+            {
+              "id": "engineering.biomedical-engineering.operative-surgical-procedures",
+              "label": "Operative Surgical Procedures",
+              "weight": 29960
+            },
+            {
+              "id": "engineering.biomedical-engineering.new-therapeutic-target",
+              "label": "new therapeutic target",
+              "weight": 28481
+            },
+            {
+              "id": "engineering.biomedical-engineering.pharmacology",
+              "label": "Pharmacology",
+              "weight": 28272
+            },
+            {
+              "id": "engineering.biomedical-engineering.medicine",
+              "label": "Medicine",
+              "weight": 28180
+            },
+            {
+              "id": "engineering.biomedical-engineering.membrane",
+              "label": "Membrane",
+              "weight": 24808
+            },
+            {
+              "id": "engineering.biomedical-engineering.pharmacologic",
+              "label": "pharmacologic",
+              "weight": 20292
+            },
+            {
+              "id": "engineering.biomedical-engineering.devices",
+              "label": "Devices",
+              "weight": 19146
+            },
+            {
+              "id": "engineering.biomedical-engineering.biomedical-research",
+              "label": "Biomedical Research",
+              "weight": 17200
+            },
+            {
+              "id": "engineering.biomedical-engineering.biological-process",
+              "label": "Biological Process",
+              "weight": 16504
+            },
+            {
+              "id": "engineering.biomedical-engineering.crispr-cas-technology",
+              "label": "CRISPR/Cas technology",
+              "weight": 16374
+            },
+            {
+              "id": "engineering.biomedical-engineering.injections",
+              "label": "Injections",
+              "weight": 14663
+            },
+            {
+              "id": "engineering.biomedical-engineering.drug-targeting",
+              "label": "Drug Targeting",
+              "weight": 14642
+            },
+            {
+              "id": "engineering.biomedical-engineering.drug-development",
+              "label": "drug development",
+              "weight": 13314
+            },
+            {
+              "id": "engineering.biomedical-engineering.embryo",
+              "label": "Embryo",
+              "weight": 13183
+            },
+            {
+              "id": "engineering.biomedical-engineering.drug-kinetics",
+              "label": "Drug Kinetics",
+              "weight": 12957
+            },
+            {
+              "id": "engineering.biomedical-engineering.transplantation",
+              "label": "Transplantation",
+              "weight": 12764
+            },
+            {
+              "id": "engineering.biomedical-engineering.endothelial-cells",
+              "label": "Endothelial Cells",
+              "weight": 12659
+            },
+            {
+              "id": "engineering.biomedical-engineering.prototype",
+              "label": "prototype",
+              "weight": 12210
+            },
+            {
+              "id": "engineering.biomedical-engineering.organoids",
+              "label": "Organoids",
+              "weight": 12193
+            },
+            {
+              "id": "engineering.biomedical-engineering.optogenetics",
+              "label": "optogenetics",
+              "weight": 11788
+            },
+            {
+              "id": "engineering.biomedical-engineering.epithelium",
+              "label": "Epithelium",
+              "weight": 11491
+            },
+            {
+              "id": "engineering.biomedical-engineering.in-vivo-model",
+              "label": "in vivo Model",
+              "weight": 10963
+            },
+            {
+              "id": "engineering.biomedical-engineering.scaffold",
+              "label": "scaffold",
+              "weight": 10962
+            }
+          ]
+        },
+        {
+          "id": "engineering.robotics-sensors",
+          "label": "Robotics & Sensors",
+          "weight": 595044,
+          "children": [
+            {
+              "id": "engineering.robotics-sensors.monitor",
+              "label": "Monitor",
+              "weight": 64941
+            },
+            {
+              "id": "engineering.robotics-sensors.biological-markers",
+              "label": "Biological Markers",
+              "weight": 53232
+            },
+            {
+              "id": "engineering.robotics-sensors.peripheral",
+              "label": "Peripheral",
+              "weight": 19872
+            },
+            {
+              "id": "engineering.robotics-sensors.biometry",
+              "label": "Biometry",
+              "weight": 18655
+            },
+            {
+              "id": "engineering.robotics-sensors.new-technology",
+              "label": "new technology",
+              "weight": 15115
+            },
+            {
+              "id": "engineering.robotics-sensors.sensor",
+              "label": "sensor",
+              "weight": 15024
+            },
+            {
+              "id": "engineering.robotics-sensors.scanning",
+              "label": "Scanning",
+              "weight": 12744
+            },
+            {
+              "id": "engineering.robotics-sensors.biopsy",
+              "label": "Biopsy",
+              "weight": 12435
+            },
+            {
+              "id": "engineering.robotics-sensors.equipment",
+              "label": "Equipment",
+              "weight": 12140
+            },
+            {
+              "id": "engineering.robotics-sensors.precision-medicine",
+              "label": "precision medicine",
+              "weight": 11962
+            },
+            {
+              "id": "engineering.robotics-sensors.analog",
+              "label": "analog",
+              "weight": 9877
+            },
+            {
+              "id": "engineering.robotics-sensors.electronic-health-record",
+              "label": "Electronic Health Record",
+              "weight": 9403
+            },
+            {
+              "id": "engineering.robotics-sensors.imaging-techniques",
+              "label": "Imaging Techniques",
+              "weight": 8831
+            },
+            {
+              "id": "engineering.robotics-sensors.instrumentation",
+              "label": "instrumentation",
+              "weight": 8155
+            },
+            {
+              "id": "engineering.robotics-sensors.predictive-marker",
+              "label": "predictive marker",
+              "weight": 7383
+            },
+            {
+              "id": "engineering.robotics-sensors.imaging-technology",
+              "label": "Imaging technology",
+              "weight": 5498
+            },
+            {
+              "id": "engineering.robotics-sensors.imaging-approach",
+              "label": "imaging approach",
+              "weight": 5407
+            },
+            {
+              "id": "engineering.robotics-sensors.computers",
+              "label": "Computers",
+              "weight": 5232
+            },
+            {
+              "id": "engineering.robotics-sensors.novel-diagnostics",
+              "label": "novel diagnostics",
+              "weight": 5106
+            },
+            {
+              "id": "engineering.robotics-sensors.imaging-biomarker",
+              "label": "imaging biomarker",
+              "weight": 4832
+            },
+            {
+              "id": "engineering.robotics-sensors.data-acquisition",
+              "label": "data acquisition",
+              "weight": 4648
+            },
+            {
+              "id": "engineering.robotics-sensors.electronics",
+              "label": "Electronics",
+              "weight": 4500
+            },
+            {
+              "id": "engineering.robotics-sensors.temporal-measurement",
+              "label": "temporal measurement",
+              "weight": 4427
+            },
+            {
+              "id": "engineering.robotics-sensors.calibration",
+              "label": "Calibration",
+              "weight": 4267
+            },
+            {
+              "id": "engineering.robotics-sensors.microscope",
+              "label": "Microscope",
+              "weight": 4118
+            },
+            {
+              "id": "engineering.robotics-sensors.imaging-device",
+              "label": "Imaging Device",
+              "weight": 4103
+            },
+            {
+              "id": "engineering.robotics-sensors.prognostic-marker",
+              "label": "Prognostic Marker",
+              "weight": 3659
+            },
+            {
+              "id": "engineering.robotics-sensors.biosensor",
+              "label": "Biosensor",
+              "weight": 3442
+            },
+            {
+              "id": "engineering.robotics-sensors.care-systems",
+              "label": "care systems",
+              "weight": 3385
+            },
+            {
+              "id": "engineering.robotics-sensors.ultrasonography",
+              "label": "Ultrasonography",
+              "weight": 3342
+            }
+          ]
+        },
+        {
+          "id": "engineering.nanotechnology",
+          "label": "Nanotechnology",
+          "weight": 212509,
+          "children": [
+            {
+              "id": "engineering.nanotechnology.shapes",
+              "label": "Shapes",
+              "weight": 28207
+            },
+            {
+              "id": "engineering.nanotechnology.small-molecule",
+              "label": "small molecule",
+              "weight": 24025
+            },
+            {
+              "id": "engineering.nanotechnology.kinetics",
+              "label": "Kinetics",
+              "weight": 16258
+            },
+            {
+              "id": "engineering.nanotechnology.microscopy",
+              "label": "Microscopy",
+              "weight": 13298
+            },
+            {
+              "id": "engineering.nanotechnology.cryoelectron-microscopy",
+              "label": "Cryoelectron Microscopy",
+              "weight": 8099
+            },
+            {
+              "id": "engineering.nanotechnology.nanoparticle",
+              "label": "nanoparticle",
+              "weight": 7001
+            },
+            {
+              "id": "engineering.nanotechnology.small-molecule-inhibitor",
+              "label": "small molecule inhibitor",
+              "weight": 6947
+            },
+            {
+              "id": "engineering.nanotechnology.diffusion",
+              "label": "Diffusion",
+              "weight": 6654
+            },
+            {
+              "id": "engineering.nanotechnology.metals",
+              "label": "Metals",
+              "weight": 5406
+            },
+            {
+              "id": "engineering.nanotechnology.electron-microscopy",
+              "label": "Electron Microscopy",
+              "weight": 5265
+            },
+            {
+              "id": "engineering.nanotechnology.microfluidics",
+              "label": "Microfluidics",
+              "weight": 4559
+            },
+            {
+              "id": "engineering.nanotechnology.confocal-microscopy",
+              "label": "Confocal Microscopy",
+              "weight": 4201
+            },
+            {
+              "id": "engineering.nanotechnology.microscopic",
+              "label": "Microscopic",
+              "weight": 3954
+            },
+            {
+              "id": "engineering.nanotechnology.fluorescence-microscopy",
+              "label": "Fluorescence Microscopy",
+              "weight": 3210
+            },
+            {
+              "id": "engineering.nanotechnology.microscopic-imaging",
+              "label": "microscopic imaging",
+              "weight": 3014
+            },
+            {
+              "id": "engineering.nanotechnology.nanoscale",
+              "label": "nanoscale",
+              "weight": 2522
+            },
+            {
+              "id": "engineering.nanotechnology.diameter",
+              "label": "Diameter",
+              "weight": 2327
+            },
+            {
+              "id": "engineering.nanotechnology.nano",
+              "label": "nano",
+              "weight": 2245
+            },
+            {
+              "id": "engineering.nanotechnology.molecular-weight",
+              "label": "Molecular Weight",
+              "weight": 2078
+            },
+            {
+              "id": "engineering.nanotechnology.nanotechnology",
+              "label": "Nanotechnology",
+              "weight": 2009
+            },
+            {
+              "id": "engineering.nanotechnology.molecular-targeted-therapies",
+              "label": "molecular targeted therapies",
+              "weight": 1875
+            },
+            {
+              "id": "engineering.nanotechnology.light-microscopy",
+              "label": "light microscopy",
+              "weight": 1797
+            },
+            {
+              "id": "engineering.nanotechnology.solvents",
+              "label": "Solvents",
+              "weight": 1565
+            },
+            {
+              "id": "engineering.nanotechnology.nanomolar",
+              "label": "nanomolar",
+              "weight": 1493
+            },
+            {
+              "id": "engineering.nanotechnology.microfilaments",
+              "label": "Microfilaments",
+              "weight": 1426
+            },
+            {
+              "id": "engineering.nanotechnology.nanobodies",
+              "label": "nanobodies",
+              "weight": 1372
+            },
+            {
+              "id": "engineering.nanotechnology.nano-string",
+              "label": "nano-string",
+              "weight": 1318
+            },
+            {
+              "id": "engineering.nanotechnology.transmission-electron-microscopy",
+              "label": "Transmission Electron Microscopy",
+              "weight": 1315
+            },
+            {
+              "id": "engineering.nanotechnology.nanopore",
+              "label": "nanopore",
+              "weight": 1294
+            },
+            {
+              "id": "engineering.nanotechnology.nanoparticle-delivery",
+              "label": "nanoparticle delivery",
+              "weight": 1214
+            }
+          ]
+        },
+        {
+          "id": "engineering.energy-materials",
+          "label": "Energy & Materials",
+          "weight": 48604,
+          "children": [
+            {
+              "id": "engineering.energy-materials.oxidation",
+              "label": "oxidation",
+              "weight": 6292
+            },
+            {
+              "id": "engineering.energy-materials.oxidation-reduction",
+              "label": "Oxidation-Reduction",
+              "weight": 6139
+            },
+            {
+              "id": "engineering.energy-materials.catalysis",
+              "label": "Catalysis",
+              "weight": 2648
+            },
+            {
+              "id": "engineering.energy-materials.catalytic-domain",
+              "label": "Catalytic Domain",
+              "weight": 2500
+            },
+            {
+              "id": "engineering.energy-materials.energy-balance",
+              "label": "energy balance",
+              "weight": 2211
+            },
+            {
+              "id": "engineering.energy-materials.chemical-synthesis",
+              "label": "chemical synthesis",
+              "weight": 1921
+            },
+            {
+              "id": "engineering.energy-materials.zinc",
+              "label": "Zinc",
+              "weight": 1343
+            },
+            {
+              "id": "engineering.energy-materials.hydrogen-bonding",
+              "label": "Hydrogen Bonding",
+              "weight": 1328
+            },
+            {
+              "id": "engineering.energy-materials.hydrogen",
+              "label": "Hydrogen",
+              "weight": 1199
+            },
+            {
+              "id": "engineering.energy-materials.synthesis-chemistry",
+              "label": "Synthesis Chemistry",
+              "weight": 1154
+            },
+            {
+              "id": "engineering.energy-materials.polarized-cell",
+              "label": "polarized cell",
+              "weight": 1154
+            },
+            {
+              "id": "engineering.energy-materials.energy-generating-resources",
+              "label": "Energy-Generating Resources",
+              "weight": 1028
+            },
+            {
+              "id": "engineering.energy-materials.chemical-property",
+              "label": "chemical property",
+              "weight": 975
+            },
+            {
+              "id": "engineering.energy-materials.organic-synthesis",
+              "label": "Organic Synthesis",
+              "weight": 957
+            },
+            {
+              "id": "engineering.energy-materials.free-energy",
+              "label": "Free Energy",
+              "weight": 918
+            },
+            {
+              "id": "engineering.energy-materials.nuclear-pore-complex",
+              "label": "Nuclear Pore Complex",
+              "weight": 837
+            },
+            {
+              "id": "engineering.energy-materials.biomass",
+              "label": "Biomass",
+              "weight": 800
+            },
+            {
+              "id": "engineering.energy-materials.electrolytes",
+              "label": "Electrolytes",
+              "weight": 750
+            },
+            {
+              "id": "engineering.energy-materials.nuclear-export",
+              "label": "Nuclear Export",
+              "weight": 730
+            },
+            {
+              "id": "engineering.energy-materials.phthalates",
+              "label": "phthalates",
+              "weight": 610
+            },
+            {
+              "id": "engineering.energy-materials.cadmium",
+              "label": "Cadmium",
+              "weight": 506
+            },
+            {
+              "id": "engineering.energy-materials.satellite-cell",
+              "label": "satellite cell",
+              "weight": 483
+            },
+            {
+              "id": "engineering.energy-materials.polyethylene-glycols",
+              "label": "Polyethylene Glycols",
+              "weight": 461
+            },
+            {
+              "id": "engineering.energy-materials.energy-transfer",
+              "label": "Energy Transfer",
+              "weight": 455
+            },
+            {
+              "id": "engineering.energy-materials.energy-supply",
+              "label": "Energy Supply",
+              "weight": 388
+            },
+            {
+              "id": "engineering.energy-materials.electronic-liquid",
+              "label": "electronic liquid",
+              "weight": 372
+            },
+            {
+              "id": "engineering.energy-materials.foam-cells",
+              "label": "Foam Cells",
+              "weight": 366
+            },
+            {
+              "id": "engineering.energy-materials.flame-retardants",
+              "label": "Flame Retardants",
+              "weight": 357
+            },
+            {
+              "id": "engineering.energy-materials.electricity",
+              "label": "Electricity",
+              "weight": 349
+            },
+            {
+              "id": "engineering.energy-materials.ethylene-glycol",
+              "label": "ethylene glycol",
+              "weight": 334
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "id": "edu-social",
+      "label": "Education & Social Sciences",
+      "weight": 9004987,
+      "children": [
+        {
+          "id": "edu-social.behavioral-sciences",
+          "label": "Behavioral Sciences",
+          "weight": 4453333,
+          "children": [
+            {
+              "id": "edu-social.behavioral-sciences.research",
+              "label": "Research",
+              "weight": 283803
+            },
+            {
+              "id": "edu-social.behavioral-sciences.testing",
+              "label": "Testing",
+              "weight": 273289
+            },
+            {
+              "id": "edu-social.behavioral-sciences.work",
+              "label": "Work",
+              "weight": 215504
+            },
+            {
+              "id": "edu-social.behavioral-sciences.human",
+              "label": "Human",
+              "weight": 200874
+            },
+            {
+              "id": "edu-social.behavioral-sciences.response",
+              "label": "response",
+              "weight": 162463
+            },
+            {
+              "id": "edu-social.behavioral-sciences.process",
+              "label": "Process",
+              "weight": 156072
+            },
+            {
+              "id": "edu-social.behavioral-sciences.outcome",
+              "label": "Outcome",
+              "weight": 152706
+            },
+            {
+              "id": "edu-social.behavioral-sciences.methods",
+              "label": "Methods",
+              "weight": 148980
+            },
+            {
+              "id": "edu-social.behavioral-sciences.affect",
+              "label": "Affect",
+              "weight": 148599
+            },
+            {
+              "id": "edu-social.behavioral-sciences.research-personnel",
+              "label": "Research Personnel",
+              "weight": 136005
+            },
+            {
+              "id": "edu-social.behavioral-sciences.risk",
+              "label": "Risk",
+              "weight": 107518
+            },
+            {
+              "id": "edu-social.behavioral-sciences.experimental-study",
+              "label": "experimental study",
+              "weight": 92674
+            },
+            {
+              "id": "edu-social.behavioral-sciences.lead",
+              "label": "Lead",
+              "weight": 89983
+            },
+            {
+              "id": "edu-social.behavioral-sciences.techniques",
+              "label": "Techniques",
+              "weight": 77158
+            },
+            {
+              "id": "edu-social.behavioral-sciences.clinical-trials",
+              "label": "Clinical Trials",
+              "weight": 68896
+            },
+            {
+              "id": "edu-social.behavioral-sciences.success",
+              "label": "success",
+              "weight": 68669
+            },
+            {
+              "id": "edu-social.behavioral-sciences.interest",
+              "label": "interest",
+              "weight": 61451
+            },
+            {
+              "id": "edu-social.behavioral-sciences.behavior",
+              "label": "Behavior",
+              "weight": 61004
+            },
+            {
+              "id": "edu-social.behavioral-sciences.investigation",
+              "label": "Investigation",
+              "weight": 57957
+            },
+            {
+              "id": "edu-social.behavioral-sciences.physiological",
+              "label": "Physiological",
+              "weight": 57203
+            },
+            {
+              "id": "edu-social.behavioral-sciences.life",
+              "label": "Life",
+              "weight": 55082
+            },
+            {
+              "id": "edu-social.behavioral-sciences.behavioral",
+              "label": "Behavioral",
+              "weight": 54011
+            },
+            {
+              "id": "edu-social.behavioral-sciences.career",
+              "label": "career",
+              "weight": 52254
+            },
+            {
+              "id": "edu-social.behavioral-sciences.exposure-to",
+              "label": "Exposure to",
+              "weight": 48846
+            },
+            {
+              "id": "edu-social.behavioral-sciences.communication",
+              "label": "Communication",
+              "weight": 44958
+            },
+            {
+              "id": "edu-social.behavioral-sciences.methodology",
+              "label": "Methodology",
+              "weight": 43295
+            },
+            {
+              "id": "edu-social.behavioral-sciences.novel-strategies",
+              "label": "novel strategies",
+              "weight": 43066
+            },
+            {
+              "id": "edu-social.behavioral-sciences.leadership",
+              "label": "Leadership",
+              "weight": 35514
+            },
+            {
+              "id": "edu-social.behavioral-sciences.procedures",
+              "label": "Procedures",
+              "weight": 33655
+            },
+            {
+              "id": "edu-social.behavioral-sciences.predisposition",
+              "label": "Predisposition",
+              "weight": 32051
+            }
+          ]
+        },
+        {
+          "id": "edu-social.policy-implementation",
+          "label": "Policy & Implementation",
+          "weight": 1380963,
+          "children": [
+            {
+              "id": "edu-social.policy-implementation.intervention",
+              "label": "Intervention",
+              "weight": 104123
+            },
+            {
+              "id": "edu-social.policy-implementation.united-states-national-institutes-of-health",
+              "label": "United States National Institutes of Health",
+              "weight": 67887
+            },
+            {
+              "id": "edu-social.policy-implementation.evaluation",
+              "label": "Evaluation",
+              "weight": 62045
+            },
+            {
+              "id": "edu-social.policy-implementation.clinical-research",
+              "label": "Clinical Research",
+              "weight": 49925
+            },
+            {
+              "id": "edu-social.policy-implementation.research-project-grants",
+              "label": "Research Project Grants",
+              "weight": 40078
+            },
+            {
+              "id": "edu-social.policy-implementation.enrollment",
+              "label": "Enrollment",
+              "weight": 36344
+            },
+            {
+              "id": "edu-social.policy-implementation.clinic",
+              "label": "Clinic",
+              "weight": 36214
+            },
+            {
+              "id": "edu-social.policy-implementation.follow-up",
+              "label": "follow-up",
+              "weight": 34673
+            },
+            {
+              "id": "edu-social.policy-implementation.pre-clinical",
+              "label": "pre-clinical",
+              "weight": 33679
+            },
+            {
+              "id": "edu-social.policy-implementation.policies",
+              "label": "Policies",
+              "weight": 25059
+            },
+            {
+              "id": "edu-social.policy-implementation.guidelines",
+              "label": "Guidelines",
+              "weight": 20178
+            },
+            {
+              "id": "edu-social.policy-implementation.treatment-strategy",
+              "label": "treatment strategy",
+              "weight": 20037
+            },
+            {
+              "id": "edu-social.policy-implementation.patient-focused-outcomes",
+              "label": "Patient-Focused Outcomes",
+              "weight": 19324
+            },
+            {
+              "id": "edu-social.policy-implementation.fda-approved",
+              "label": "FDA approved",
+              "weight": 17756
+            },
+            {
+              "id": "edu-social.policy-implementation.research-support",
+              "label": "Research Support",
+              "weight": 17165
+            },
+            {
+              "id": "edu-social.policy-implementation.advisory-committees",
+              "label": "Advisory Committees",
+              "weight": 15724
+            },
+            {
+              "id": "edu-social.policy-implementation.standard-of-care",
+              "label": "standard of care",
+              "weight": 14960
+            },
+            {
+              "id": "edu-social.policy-implementation.hospitalization",
+              "label": "Hospitalization",
+              "weight": 14192
+            },
+            {
+              "id": "edu-social.policy-implementation.applications-grants",
+              "label": "Applications Grants",
+              "weight": 13949
+            },
+            {
+              "id": "edu-social.policy-implementation.outreach",
+              "label": "outreach",
+              "weight": 13896
+            },
+            {
+              "id": "edu-social.policy-implementation.modernization",
+              "label": "Modernization",
+              "weight": 13582
+            },
+            {
+              "id": "edu-social.policy-implementation.consultations",
+              "label": "Consultations",
+              "weight": 13135
+            },
+            {
+              "id": "edu-social.policy-implementation.efficacy-evaluation",
+              "label": "efficacy evaluation",
+              "weight": 12623
+            },
+            {
+              "id": "edu-social.policy-implementation.prevention-strategy",
+              "label": "Prevention strategy",
+              "weight": 12297
+            },
+            {
+              "id": "edu-social.policy-implementation.peer-review",
+              "label": "Peer Review",
+              "weight": 11825
+            },
+            {
+              "id": "edu-social.policy-implementation.community-engagement",
+              "label": "community engagement",
+              "weight": 10939
+            },
+            {
+              "id": "edu-social.policy-implementation.aftercare",
+              "label": "Aftercare",
+              "weight": 10730
+            },
+            {
+              "id": "edu-social.policy-implementation.clinical-application",
+              "label": "clinical application",
+              "weight": 10475
+            },
+            {
+              "id": "edu-social.policy-implementation.medical-center",
+              "label": "Medical center",
+              "weight": 10456
+            },
+            {
+              "id": "edu-social.policy-implementation.implementation-science",
+              "label": "implementation science",
+              "weight": 9694
+            }
+          ]
+        },
+        {
+          "id": "edu-social.health-education",
+          "label": "Health Education",
+          "weight": 1359822,
+          "children": [
+            {
+              "id": "edu-social.health-education.patients",
+              "label": "Patients",
+              "weight": 190516
+            },
+            {
+              "id": "edu-social.health-education.clinical",
+              "label": "Clinical",
+              "weight": 185381
+            },
+            {
+              "id": "edu-social.health-education.training",
+              "label": "Training",
+              "weight": 113982
+            },
+            {
+              "id": "edu-social.health-education.recruit",
+              "label": "recruit",
+              "weight": 80010
+            },
+            {
+              "id": "edu-social.health-education.mentors",
+              "label": "Mentors",
+              "weight": 54486
+            },
+            {
+              "id": "edu-social.health-education.faculty",
+              "label": "Faculty",
+              "weight": 32950
+            },
+            {
+              "id": "edu-social.health-education.fostering",
+              "label": "Fostering",
+              "weight": 32625
+            },
+            {
+              "id": "edu-social.health-education.education",
+              "label": "Education",
+              "weight": 31607
+            },
+            {
+              "id": "edu-social.health-education.mentorship",
+              "label": "Mentorship",
+              "weight": 29590
+            },
+            {
+              "id": "edu-social.health-education.career-development",
+              "label": "career development",
+              "weight": 28961
+            },
+            {
+              "id": "edu-social.health-education.physicians",
+              "label": "Physicians",
+              "weight": 24707
+            },
+            {
+              "id": "edu-social.health-education.training-programs",
+              "label": "Training Programs",
+              "weight": 21064
+            },
+            {
+              "id": "edu-social.health-education.students",
+              "label": "Students",
+              "weight": 18889
+            },
+            {
+              "id": "edu-social.health-education.educational-workshop",
+              "label": "Educational workshop",
+              "weight": 18825
+            },
+            {
+              "id": "edu-social.health-education.research-training",
+              "label": "Research Training",
+              "weight": 17809
+            },
+            {
+              "id": "edu-social.health-education.clinical-practice",
+              "label": "clinical practice",
+              "weight": 17494
+            },
+            {
+              "id": "edu-social.health-education.medical-schools",
+              "label": "medical schools",
+              "weight": 16803
+            },
+            {
+              "id": "edu-social.health-education.patient-care",
+              "label": "Patient Care",
+              "weight": 14041
+            },
+            {
+              "id": "edu-social.health-education.schools",
+              "label": "Schools",
+              "weight": 13751
+            },
+            {
+              "id": "edu-social.health-education.clinical-care",
+              "label": "clinical care",
+              "weight": 13580
+            },
+            {
+              "id": "edu-social.health-education.veterans",
+              "label": "Veterans",
+              "weight": 13232
+            },
+            {
+              "id": "edu-social.health-education.college",
+              "label": "college",
+              "weight": 12442
+            },
+            {
+              "id": "edu-social.health-education.clinical-translation",
+              "label": "clinical translation",
+              "weight": 11149
+            },
+            {
+              "id": "edu-social.health-education.caregivers",
+              "label": "Caregivers",
+              "weight": 9961
+            },
+            {
+              "id": "edu-social.health-education.fellowship",
+              "label": "Fellowship",
+              "weight": 8890
+            },
+            {
+              "id": "edu-social.health-education.educational-process-of-instructing",
+              "label": "Educational process of instructing",
+              "weight": 8137
+            },
+            {
+              "id": "edu-social.health-education.educational-curriculum",
+              "label": "Educational Curriculum",
+              "weight": 7855
+            },
+            {
+              "id": "edu-social.health-education.patient-oriented",
+              "label": "patient oriented",
+              "weight": 7845
+            },
+            {
+              "id": "edu-social.health-education.training-and-education",
+              "label": "Training and Education",
+              "weight": 7600
+            },
+            {
+              "id": "edu-social.health-education.clinical-development",
+              "label": "clinical development",
+              "weight": 7545
+            }
+          ]
+        },
+        {
+          "id": "edu-social.social-determinants",
+          "label": "Social Determinants",
+          "weight": 1314933,
+          "children": [
+            {
+              "id": "edu-social.social-determinants.health",
+              "label": "Health",
+              "weight": 126177
+            },
+            {
+              "id": "edu-social.social-determinants.communities",
+              "label": "Communities",
+              "weight": 92477
+            },
+            {
+              "id": "edu-social.social-determinants.mortality",
+              "label": "mortality",
+              "weight": 64702
+            },
+            {
+              "id": "edu-social.social-determinants.family",
+              "label": "Family",
+              "weight": 49586
+            },
+            {
+              "id": "edu-social.social-determinants.caring",
+              "label": "Caring",
+              "weight": 46461
+            },
+            {
+              "id": "edu-social.social-determinants.risk-factors",
+              "label": "Risk Factors",
+              "weight": 45863
+            },
+            {
+              "id": "edu-social.social-determinants.morbidity-disease-rate",
+              "label": "Morbidity - disease rate",
+              "weight": 44902
+            },
+            {
+              "id": "edu-social.social-determinants.prevalence",
+              "label": "Prevalence",
+              "weight": 35498
+            },
+            {
+              "id": "edu-social.social-determinants.quality-of-life",
+              "label": "Quality of life",
+              "weight": 34019
+            },
+            {
+              "id": "edu-social.social-determinants.social",
+              "label": "social",
+              "weight": 29771
+            },
+            {
+              "id": "edu-social.social-determinants.epidemiology",
+              "label": "Epidemiology",
+              "weight": 20781
+            },
+            {
+              "id": "edu-social.social-determinants.health-disparity",
+              "label": "health disparity",
+              "weight": 18964
+            },
+            {
+              "id": "edu-social.social-determinants.public-health-relevance",
+              "label": "public health relevance",
+              "weight": 15848
+            },
+            {
+              "id": "edu-social.social-determinants.societies",
+              "label": "Societies",
+              "weight": 13259
+            },
+            {
+              "id": "edu-social.social-determinants.subgroup",
+              "label": "Subgroup",
+              "weight": 12625
+            },
+            {
+              "id": "edu-social.social-determinants.minority",
+              "label": "Minority",
+              "weight": 11596
+            },
+            {
+              "id": "edu-social.social-determinants.cohort-studies",
+              "label": "Cohort Studies",
+              "weight": 11265
+            },
+            {
+              "id": "edu-social.social-determinants.population-heterogeneity",
+              "label": "Population Heterogeneity",
+              "weight": 10843
+            },
+            {
+              "id": "edu-social.social-determinants.vulnerable-populations",
+              "label": "Vulnerable Populations",
+              "weight": 10379
+            },
+            {
+              "id": "edu-social.social-determinants.epidemiology-study",
+              "label": "epidemiology study",
+              "weight": 10084
+            },
+            {
+              "id": "edu-social.social-determinants.high-prevalence",
+              "label": "High Prevalence",
+              "weight": 9689
+            },
+            {
+              "id": "edu-social.social-determinants.adverse-effects",
+              "label": "Adverse effects",
+              "weight": 9391
+            },
+            {
+              "id": "edu-social.social-determinants.severity-of-illness",
+              "label": "Severity of illness",
+              "weight": 9116
+            },
+            {
+              "id": "edu-social.social-determinants.burden-of-illness",
+              "label": "burden of illness",
+              "weight": 8657
+            },
+            {
+              "id": "edu-social.social-determinants.rural",
+              "label": "Rural",
+              "weight": 8471
+            },
+            {
+              "id": "edu-social.social-determinants.socioeconomics",
+              "label": "socioeconomics",
+              "weight": 8397
+            },
+            {
+              "id": "edu-social.social-determinants.global-health",
+              "label": "global health",
+              "weight": 6776
+            },
+            {
+              "id": "edu-social.social-determinants.neighborhoods",
+              "label": "Neighborhoods",
+              "weight": 6683
+            },
+            {
+              "id": "edu-social.social-determinants.underrepresented-populations",
+              "label": "Underrepresented Populations",
+              "weight": 6607
+            },
+            {
+              "id": "edu-social.social-determinants.underrepresented-minority",
+              "label": "Underrepresented Minority",
+              "weight": 6536
+            }
+          ]
+        },
+        {
+          "id": "edu-social.economics-workforce",
+          "label": "Economics & Workforce",
+          "weight": 495936,
+          "children": [
+            {
+              "id": "edu-social.economics-workforce.cost",
+              "label": "cost",
+              "weight": 51702
+            },
+            {
+              "id": "edu-social.economics-workforce.medical",
+              "label": "Medical",
+              "weight": 49011
+            },
+            {
+              "id": "edu-social.economics-workforce.healthcare",
+              "label": "Healthcare",
+              "weight": 22479
+            },
+            {
+              "id": "edu-social.economics-workforce.equilibrium",
+              "label": "Equilibrium",
+              "weight": 22083
+            },
+            {
+              "id": "edu-social.economics-workforce.hospitals",
+              "label": "Hospitals",
+              "weight": 20214
+            },
+            {
+              "id": "edu-social.economics-workforce.productivity",
+              "label": "Productivity",
+              "weight": 19758
+            },
+            {
+              "id": "edu-social.economics-workforce.human-resources",
+              "label": "Human Resources",
+              "weight": 15668
+            },
+            {
+              "id": "edu-social.economics-workforce.cost-effective",
+              "label": "cost effective",
+              "weight": 14924
+            },
+            {
+              "id": "edu-social.economics-workforce.patient-population",
+              "label": "patient population",
+              "weight": 14690
+            },
+            {
+              "id": "edu-social.economics-workforce.pre-clinical-model",
+              "label": "Pre-Clinical Model",
+              "weight": 13287
+            },
+            {
+              "id": "edu-social.economics-workforce.healthcare-systems",
+              "label": "Healthcare Systems",
+              "weight": 12139
+            },
+            {
+              "id": "edu-social.economics-workforce.health-system",
+              "label": "Health system",
+              "weight": 11871
+            },
+            {
+              "id": "edu-social.economics-workforce.health-personnel",
+              "label": "Health Personnel",
+              "weight": 10707
+            },
+            {
+              "id": "edu-social.economics-workforce.economics",
+              "label": "Economics",
+              "weight": 10432
+            },
+            {
+              "id": "edu-social.economics-workforce.health-care-costs",
+              "label": "Health Care Costs",
+              "weight": 9590
+            },
+            {
+              "id": "edu-social.economics-workforce.adverse-outcome",
+              "label": "adverse outcome",
+              "weight": 7188
+            },
+            {
+              "id": "edu-social.economics-workforce.clinical-management",
+              "label": "Clinical Management",
+              "weight": 6147
+            },
+            {
+              "id": "edu-social.economics-workforce.cost-effectiveness",
+              "label": "cost effectiveness",
+              "weight": 5474
+            },
+            {
+              "id": "edu-social.economics-workforce.risk-stratification",
+              "label": "risk stratification",
+              "weight": 4773
+            },
+            {
+              "id": "edu-social.economics-workforce.individualized-medicine",
+              "label": "individualized medicine",
+              "weight": 4751
+            },
+            {
+              "id": "edu-social.economics-workforce.economic-burden",
+              "label": "Economic Burden",
+              "weight": 4705
+            },
+            {
+              "id": "edu-social.economics-workforce.health-care-service-utilization",
+              "label": "health care service utilization",
+              "weight": 4539
+            },
+            {
+              "id": "edu-social.economics-workforce.phase-i-clinical-trials",
+              "label": "Phase I Clinical Trials",
+              "weight": 4305
+            },
+            {
+              "id": "edu-social.economics-workforce.medicare",
+              "label": "Medicare",
+              "weight": 4152
+            },
+            {
+              "id": "edu-social.economics-workforce.health-care-availability",
+              "label": "health care availability",
+              "weight": 4148
+            },
+            {
+              "id": "edu-social.economics-workforce.opioid-epidemic",
+              "label": "opioid epidemic",
+              "weight": 3951
+            },
+            {
+              "id": "edu-social.economics-workforce.health-care-delivery",
+              "label": "health care delivery",
+              "weight": 3704
+            },
+            {
+              "id": "edu-social.economics-workforce.organizational-structure",
+              "label": "organizational structure",
+              "weight": 3499
+            },
+            {
+              "id": "edu-social.economics-workforce.employment",
+              "label": "Employment",
+              "weight": 3373
+            },
+            {
+              "id": "edu-social.economics-workforce.medical-records",
+              "label": "Medical Records",
+              "weight": 3077
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "id": "low-confidence",
+      "label": "Low confidence",
+      "weight": 15678169,
+      "children": [
+        {
+          "id": "low-confidence.unclassified",
+          "label": "Unclassified",
+          "weight": 15678169,
+          "children": [
+            {
+              "id": "low-confidence.unclassified.goals",
+              "label": "Goals",
+              "weight": 287365
+            },
+            {
+              "id": "low-confidence.unclassified.development",
+              "label": "Development",
+              "weight": 261166
+            },
+            {
+              "id": "low-confidence.unclassified.novel",
+              "label": "novel",
+              "weight": 239268
+            },
+            {
+              "id": "low-confidence.unclassified.improved",
+              "label": "improved",
+              "weight": 222221
+            },
+            {
+              "id": "low-confidence.unclassified.role",
+              "label": "Role",
+              "weight": 220706
+            },
+            {
+              "id": "low-confidence.unclassified.modeling",
+              "label": "Modeling",
+              "weight": 203415
+            },
+            {
+              "id": "low-confidence.unclassified.address",
+              "label": "Address",
+              "weight": 192113
+            },
+            {
+              "id": "low-confidence.unclassified.time",
+              "label": "Time",
+              "weight": 174144
+            },
+            {
+              "id": "low-confidence.unclassified.individual",
+              "label": "Individual",
+              "weight": 164323
+            },
+            {
+              "id": "low-confidence.unclassified.programs",
+              "label": "programs",
+              "weight": 149799
+            },
+            {
+              "id": "low-confidence.unclassified.design",
+              "label": "design",
+              "weight": 147292
+            },
+            {
+              "id": "low-confidence.unclassified.mediating",
+              "label": "Mediating",
+              "weight": 140089
+            },
+            {
+              "id": "low-confidence.unclassified.population",
+              "label": "Population",
+              "weight": 138327
+            },
+            {
+              "id": "low-confidence.unclassified.innovation",
+              "label": "innovation",
+              "weight": 138120
+            },
+            {
+              "id": "low-confidence.unclassified.system",
+              "label": "System",
+              "weight": 133983
+            },
+            {
+              "id": "low-confidence.unclassified.mus",
+              "label": "Mus",
+              "weight": 132123
+            },
+            {
+              "id": "low-confidence.unclassified.experience",
+              "label": "experience",
+              "weight": 125978
+            },
+            {
+              "id": "low-confidence.unclassified.insight",
+              "label": "insight",
+              "weight": 123210
+            },
+            {
+              "id": "low-confidence.unclassified.complex",
+              "label": "Complex",
+              "weight": 114325
+            },
+            {
+              "id": "low-confidence.unclassified.link",
+              "label": "Link",
+              "weight": 113586
+            },
+            {
+              "id": "low-confidence.unclassified.tool",
+              "label": "tool",
+              "weight": 108032
+            },
+            {
+              "id": "low-confidence.unclassified.funding",
+              "label": "Funding",
+              "weight": 99384
+            },
+            {
+              "id": "low-confidence.unclassified.reporting",
+              "label": "Reporting",
+              "weight": 99141
+            },
+            {
+              "id": "low-confidence.unclassified.resources",
+              "label": "Resources",
+              "weight": 96818
+            },
+            {
+              "id": "low-confidence.unclassified.area",
+              "label": "Area",
+              "weight": 96120
+            },
+            {
+              "id": "low-confidence.unclassified.play",
+              "label": "Play",
+              "weight": 95751
+            },
+            {
+              "id": "low-confidence.unclassified.sampling",
+              "label": "Sampling",
+              "weight": 94853
+            },
+            {
+              "id": "low-confidence.unclassified.collaborations",
+              "label": "Collaborations",
+              "weight": 91044
+            },
+            {
+              "id": "low-confidence.unclassified.site",
+              "label": "Site",
+              "weight": 90261
+            },
+            {
+              "id": "low-confidence.unclassified.technology",
+              "label": "Technology",
+              "weight": 85439
+            }
+          ]
+        }
+      ]
     }
   ]
 }
