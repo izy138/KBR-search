@@ -635,11 +635,15 @@ def analytics_project_term_theme_cloud() -> dict[str, object]:
   buckets = payload.get("buckets")
   if not isinstance(buckets, list):
     buckets = []
+  tree = payload.get("tree")
+  if not isinstance(tree, list):
+    tree = []
   return {
     "generated_at": payload.get("generated_at"),
     "method": payload.get("method"),
     "low_confidence_cosine": payload.get("low_confidence_cosine"),
     "buckets": buckets,
+    "tree": tree,
     "source_path": str(path.resolve()),
   }
 
@@ -874,18 +878,19 @@ def analytics_by_activity_project_compare(
 
 @router.get("/term-tree")
 def analytics_term_tree() -> list[dict[str, object]]:
-  """Return the static 3-level NIH research term hierarchy for the frontend term-cloud browser.
+  """Return the 3-level term hierarchy for the TermCloud browser.
 
-  The hierarchy is hardcoded — no OpenSearch lookup is performed. Leaf labels
-  are drawn from NIH PROJECT_TERMS vocabulary and organised into 6 top-level
-  categories: Health, Life Sciences, Computing & AI, Environmental, Engineering,
-  and Education & Social Sciences.
-
-  Returns:
-    A list of top-level category nodes. Each node contains:
-      - id (str): dot-notation identifier.
-      - label (str): human-readable name.
-      - children (list[dict]): subcategory nodes, each with the same shape.
-        Leaf nodes omit the ``children`` key.
+  Uses ``tree`` from ``project_term_theme_counts.json`` when present (built from
+  ``THEME_TAXONOMY`` in ``indexer/build_project_term_theme_counts.py``). Otherwise
+  falls back to the static ``_TERM_HIERARCHY``.
   """
+  path = _THEME_COUNTS_PATH
+  if path.is_file():
+    try:
+      payload = json.loads(path.read_text(encoding="utf-8"))
+      tree = payload.get("tree")
+      if isinstance(tree, list) and tree:
+        return tree
+    except (OSError, json.JSONDecodeError):
+      pass
   return _TERM_HIERARCHY

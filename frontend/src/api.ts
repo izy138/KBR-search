@@ -299,6 +299,8 @@ export interface ProjectTermThemeCloudResponse {
   method: string | null;
   low_confidence_cosine?: number | null;
   buckets: ThemeBucket[];
+  /** 3-level hierarchy from ``THEME_TAXONOMY``: category → subcategory → terms. */
+  tree?: TermNode[];
   source_path?: string;
   message?: string;
 }
@@ -439,6 +441,7 @@ export function getProjectTermThemeCloud(): Promise<ProjectTermThemeCloudRespons
 export interface TermNode {
   id: string;
   label: string;
+  weight?: number;
   children?: TermNode[];
 }
 

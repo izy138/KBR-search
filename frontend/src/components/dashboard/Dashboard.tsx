@@ -623,7 +623,7 @@ export default function Dashboard({ onSearchNavigate, onTermSearchNavigate }: Da
       </div>
 
       <div className="mt-[0.85rem] w-full">
-        <ProjectTermsThemeCloud payload={termThemeCloud} />
+        <ProjectTermsThemeCloud payload={termThemeCloud} onSearch={handleTermBrowseSearch} />
         <TermCloud onSearch={handleTermBrowseSearch} />
       </div>
 
