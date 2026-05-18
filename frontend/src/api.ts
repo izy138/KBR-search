@@ -1,3 +1,5 @@
+import type { AdvancedSearchQuery } from "./types/advancedSearch";
+
 const API_BASE_URL = import.meta.env.VITE_API_BASE_URL ?? "http://localhost:8000";
 
 export interface SearchResultRecord {
@@ -156,6 +158,7 @@ export type SearchProjectsOptions = {
   fyMin?: string;
   fyMax?: string;
   projectTerms?: string[];
+  advancedSearch?: AdvancedSearchQuery | null;
   sortBy?: SearchSortField | "";
   sortOrder?: SearchSortDirection;
 };
@@ -175,11 +178,15 @@ export async function searchProjects(
     fyMin = "",
     fyMax = "",
     projectTerms = [],
+    advancedSearch = null,
     sortBy = "",
     sortOrder = "asc",
   } = options;
   const url = new URL(`${API_BASE_URL}/search/`);
-  url.searchParams.set("q", query);
+  url.searchParams.set("q", advancedSearch ? "" : query);
+  if (advancedSearch && advancedSearch.clauses.some((clause) => clause.text.trim())) {
+    url.searchParams.set("advanced_q", JSON.stringify(advancedSearch));
+  }
   url.searchParams.set("limit", String(limit));
   url.searchParams.set("page", String(page));
   if (category) {
@@ -319,6 +326,8 @@ export interface ProjectTermThemeCloudResponse {
   method: string | null;
   low_confidence_cosine?: number | null;
   buckets: ThemeBucket[];
+  /** 3-level hierarchy from ``THEME_TAXONOMY``: category → subcategory → terms. */
+  tree?: TermNode[];
   source_path?: string;
   message?: string;
 }
@@ -461,6 +470,7 @@ export function getProjectTermThemeCloud(): Promise<ProjectTermThemeCloudRespons
 export interface TermNode {
   id: string;
   label: string;
+  weight?: number;
   children?: TermNode[];
 }
 

@@ -582,6 +582,7 @@ export default function Dashboard({
         }}
         searchQuery={searchQuery}
         onSearch={onSearchNavigate}
+        showAdvancedToggle={false}
         onUpdateDashboard={onUpdateDashboard}
         searchSubmitOnClear
         onApply={onApplyFilters}
@@ -622,7 +623,7 @@ export default function Dashboard({
       </div>
 
       <div className="mt-[0.85rem] w-full">
-        <ProjectTermsThemeCloud payload={termThemeCloud} />
+        <ProjectTermsThemeCloud payload={termThemeCloud} onSearch={handleTermBrowseSearch} />
         <TermCloud onSearch={handleTermBrowseSearch} />
       </div>
 

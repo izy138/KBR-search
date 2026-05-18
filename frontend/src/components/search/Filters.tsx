@@ -10,6 +10,7 @@ import {
 import FilterField from "./FilterField";
 import FilterSelect from "./FilterSelect";
 import FiscalYearRangeSlider from "./FiscalYearRangeSlider";
+import type { AdvancedSearchQuery } from "../../types/advancedSearch";
 import SearchBar from "./SearchBar";
 
 const FILTER_FIELD_WIDTH = {
@@ -77,6 +78,10 @@ type FiltersProps = {
   onClear: () => void;
   searchQuery?: string;
   onSearch?: (query: string) => void;
+  onAdvancedSearch?: (query: AdvancedSearchQuery) => void;
+  advancedSearch?: AdvancedSearchQuery | null;
+  onExitAdvancedSearch?: () => void;
+  showAdvancedToggle?: boolean;
   onUpdateDashboard?: (query: string) => void;
   searchSubmitOnClear?: boolean;
   /** Override built-in SearchBar when a custom search UI is required. */
@@ -90,6 +95,10 @@ function Filters({
   onClear,
   searchQuery,
   onSearch,
+  onAdvancedSearch,
+  advancedSearch,
+  onExitAdvancedSearch,
+  showAdvancedToggle = true,
   onUpdateDashboard,
   searchSubmitOnClear = true,
   searchSlot,
@@ -130,6 +139,10 @@ function Filters({
     (onSearch != null ? (
       <SearchBar
         onSearch={onSearch}
+        onAdvancedSearch={onAdvancedSearch}
+        advancedSearch={advancedSearch}
+        onExitAdvancedSearch={onExitAdvancedSearch}
+        showAdvancedToggle={showAdvancedToggle}
         onUpdateDashboard={onUpdateDashboard}
         initialQuery={searchQuery ?? ""}
         submitOnClear={searchSubmitOnClear}
