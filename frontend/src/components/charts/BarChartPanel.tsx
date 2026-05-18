@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useRef, useState, type ReactNode } from "react";
+import { useCallback, useEffect, useMemo, useRef, useState, type MouseEvent, type ReactNode } from "react";
 import { cn } from "../../utils/cn";
 import { CLS_RECHARTS_FOCUS_RESET } from "../../utils/chartStyles";
 import {
@@ -271,6 +271,14 @@ export default function BarChartPanel({
     onBarClick(barEntry.payload);
   };
 
+  const handleChartMouseDownCapture = useCallback((event: MouseEvent<HTMLDivElement>): void => {
+    if (event.button !== 0) return;
+    const target = event.target;
+    if (target instanceof Node && event.currentTarget.contains(target)) {
+      event.preventDefault();
+    }
+  }, []);
+
   const coloredBarShape = useMemo(() => {
     if (!barFillKey) return undefined;
     return createColoredBarShape((row) => {
@@ -304,10 +312,19 @@ export default function BarChartPanel({
       ) : (
         <div className="text-text-primary text-[0.9rem] font-semibold mb-[0.65rem]">{title}</div>
       )}
-      <div ref={fillHeight ? chartBodyRef : undefined} className={cn(fillHeight && "flex-1 min-h-0")}>
+      <div
+        ref={fillHeight ? chartBodyRef : undefined}
+        className={cn(fillHeight && "flex-1 min-h-0")}
+        onMouseDownCapture={handleChartMouseDownCapture}
+      >
         <ResponsiveContainer width="100%" height={chartHeight}>
         {isVertical ? (
-          <BarChart data={chartData} layout="vertical" margin={{ top: 4, right: 16, bottom: 4, left: 8 }}>
+          <BarChart
+            accessibilityLayer={false}
+            data={chartData}
+            layout="vertical"
+            margin={{ top: 4, right: 16, bottom: 4, left: 8 }}
+          >
             <CartesianGrid strokeDasharray="3 3" horizontal={false} stroke="var(--border)" />
             <XAxis type="number" {...valueAxisProps} />
             <YAxis
@@ -335,6 +352,7 @@ export default function BarChartPanel({
           </BarChart>
         ) : (
           <BarChart
+            accessibilityLayer={false}
             key={chartKey}
             data={chartData}
             margin={chartMargin}
