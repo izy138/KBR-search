@@ -1,3 +1,5 @@
+import { isFiscalYearRangeFiltered } from "../utils/fiscalYearRange";
+
 export type FilterValues = {
   pi: string;
   ic: string;
@@ -17,7 +19,13 @@ export const emptyFilterValues = (): FilterValues => ({
 });
 
 export const hasActiveFilters = (filters: FilterValues): boolean =>
-  Boolean(filters.pi || filters.ic || filters.activity || filters.state || filters.fyMin || filters.fyMax);
+  Boolean(
+    filters.pi
+      || filters.ic
+      || filters.activity
+      || filters.state
+      || isFiscalYearRangeFiltered(filters.fyMin, filters.fyMax),
+  );
 
 export const normalizeFiltersOnApply = (
   draft: FilterValues,
@@ -26,15 +34,19 @@ export const normalizeFiltersOnApply = (
   let fyMin = draft.fyMin.trim();
   let fyMax = draft.fyMax.trim();
 
-  if (!fyMin && !fyMax && fyChoices.length > 0) {
-    fyMin = String(fyChoices[0]);
-    fyMax = String(fyChoices[fyChoices.length - 1]);
-  }
-
   const nMin = fyMin ? Number.parseInt(fyMin, 10) : Number.NaN;
   const nMax = fyMax ? Number.parseInt(fyMax, 10) : Number.NaN;
   if (Number.isFinite(nMin) && Number.isFinite(nMax) && nMin > nMax) {
-    return { ...draft, fyMin: String(nMax), fyMax: String(nMin) };
+    [fyMin, fyMax] = [fyMax, fyMin];
+  }
+
+  if (fyChoices.length > 0 && fyMin && fyMax) {
+    const catalogMin = String(fyChoices[0]);
+    const catalogMax = String(fyChoices[fyChoices.length - 1]);
+    if (fyMin === catalogMin && fyMax === catalogMax) {
+      fyMin = "";
+      fyMax = "";
+    }
   }
 
   return { ...draft, fyMin, fyMax };

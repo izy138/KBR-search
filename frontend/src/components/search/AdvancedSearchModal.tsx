@@ -95,7 +95,6 @@ const AdvancedSearchModal: FC<AdvancedSearchModalProps> = ({
   return (
     <div
       className="fixed inset-0 z-[120] flex items-start justify-center overflow-y-auto bg-black/45 px-4 py-8"
-        role="presentation"
         onMouseDown={(event) => {
           if (event.target === event.currentTarget) {
             onClose();
