@@ -1,0 +1,31 @@
+# Styling Convention
+
+- Use Tailwind utility classes exclusively for all component styling.
+- Never create or edit CSS class rules in .css files (styles.css is for CSS custom properties and the filter-select portal only).
+- Never use BEM naming (block__element--modifier) or semantic className values that require a stylesheet.
+- Every className must resolve to Tailwind utilities or reference a constant from utils/.
+- Use the `cn()` utility from `utils/cn.ts` for conditional/dynamic classes.
+- Reusable class compositions live in `utils/chartStyles.ts`, `utils/sharedStyles.ts`, or `utils/filtersLayout.ts` as exported string constants (CLS_* naming).
+- For SVG elements inside Recharts, use inline `style` props — Tailwind cannot target SVG internals.
+- For Recharts portaled components, use `wrapperStyle` prop or arbitrary variants like `[&_.recharts-class]:utility`.
+- CSS custom properties are defined in `styles.css` (:root) and mapped to Tailwind via `@theme` in `index.css`.
+
+# Available Theme Tokens
+
+Colors: bg, surface, surface-hover, border, border-strong, text-primary, text-secondary, text-muted, accent, accent-hover, accent-light, accent-text, green, green-light, tag-bg, tag-text, sort-asc, sort-desc
+Radii: radius-sm (6px), radius-md (10px), radius-lg (14px)
+Shadows: shadow-sm, shadow-md
+Fonts: font-sans (DM Sans), font-mono (DM Mono)
+
+# Usage Examples
+
+```tsx
+// Correct: Tailwind utility classes
+<div className={cn(CLS_CHART_PANEL, "min-h-[330px]")}>
+
+// Correct: conditional classes
+<button className={cn(CLS_CHART_SCALE_TOGGLE_BTN, isActive && CLS_CHART_SCALE_TOGGLE_BTN_ACTIVE)}>
+
+// Wrong: BEM class requiring stylesheet
+<div className="chart-panel chart-panel--pie">
+```

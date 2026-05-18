@@ -176,7 +176,7 @@ export default function StateMap({
   const isPointerStillOverMap = (
     event: MouseEvent<SVGPathElement>,
   ): boolean => {
-    const canvas = event.currentTarget.closest(".state-map-canvas");
+    const canvas = event.currentTarget.closest("[data-map-canvas]");
     if (!canvas) return false;
 
     const related = event.relatedTarget;
@@ -354,9 +354,9 @@ export default function StateMap({
     ));
 
   return (
-    <div className="chart-panel state-map-panel">
-      <div className="chart-panel-title">Projects by State</div>
-      <div className="state-map-canvas" onMouseLeave={clearHover}>
+    <div className="bg-surface border border-border rounded-[--radius-lg] w-full px-4 py-[0.9rem] min-h-[310px] relative">
+      <div className="text-text-primary text-[0.9rem] font-semibold mb-1">Projects by State</div>
+      <div className="-mt-[0.2rem] relative" data-map-canvas onMouseLeave={clearHover}>
         <ComposableMap
           projection="geoAlbersUsa"
           projectionConfig={{ scale: 900 }}
@@ -383,7 +383,7 @@ export default function StateMap({
           </Geographies>
         </ComposableMap>
 
-        <div className="state-map-pr-inset">
+        <div className="absolute left-[90%] top-[90%] w-[14px] overflow-visible pointer-events-auto [&_svg]:block [&_svg]:w-full [&_svg]:h-auto [&_svg]:overflow-visible">
           <ComposableMap
             projection="geoConicEqualArea"
             projectionConfig={{
@@ -417,12 +417,12 @@ export default function StateMap({
 
       {tooltip && (
         <div
-          className="map-tooltip"
+          className="bg-surface border border-border rounded-[--radius-md] shadow-md text-[0.8125rem] px-[0.875rem] py-[0.625rem] pointer-events-none min-w-[160px] fixed z-[1000]"
           style={{ left: tooltip.x, top: tooltip.y }}
         >
-          <div className="map-tooltip-state">{tooltip.stateName}</div>
-          <div className="map-tooltip-row">Projects: {tooltip.count.toLocaleString()}</div>
-          <div className="map-tooltip-row">Funding: {formatDollarsCompact(tooltip.totalFunding)}</div>
+          <div className="text-text-primary font-semibold mb-1 text-[0.82rem]">{tooltip.stateName}</div>
+          <div className="text-text-secondary">Projects: {tooltip.count.toLocaleString()}</div>
+          <div className="text-text-secondary">Funding: {formatDollarsCompact(tooltip.totalFunding)}</div>
         </div>
       )}
     </div>

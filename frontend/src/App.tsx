@@ -5,6 +5,7 @@ import {
   Suspense,
   useCallback,
   useEffect,
+  useMemo,
   useRef,
   useState,
 } from "react";
@@ -17,13 +18,11 @@ import type { DashboardSearchFilters } from "./components/dashboard/Dashboard";
 import Filters from "./components/search/Filters";
 import InvestigatorPage from "./components/investigator/InvestigatorPage";
 import ResultsList from "./components/search/ResultsList";
-import SearchBar from "./components/search/SearchBar";
 import Pagination, { getPageNumbers } from "./components/shared/Pagination";
-import TermCloud from "./components/search/TermCloud";
 import ErrorBoundary from "./components/shared/ErrorBoundary";
 import { type SearchResultRecord } from "./api";
 import { useFilterCatalog } from "./hooks/useFilterCatalog";
-import { CLS_EMPTY_STATE, CLS_BACK_LINK } from "./utils/sharedStyles";
+import type { FilterValues } from "./types/filters";
 
 const Dashboard = lazy(() => import("./components/dashboard/Dashboard"));
 const ProjectDetailsPage = lazy(() => import("./components/project/ProjectDetailsPage"));
@@ -116,6 +115,28 @@ export default function App() {
 
   const searchFilterCatalog = useFilterCatalog();
 
+  const appliedFilters = useMemo<FilterValues>(
+    () => ({
+      pi: selectedPI,
+      ic: selectedIC,
+      activity: selectedActivity,
+      state: selectedState,
+      fyMin,
+      fyMax,
+    }),
+    [selectedPI, selectedIC, selectedActivity, selectedState, fyMin, fyMax],
+  );
+
+  const filterCatalog = useMemo(
+    () => ({
+      icNames: searchFilterCatalog?.icNames ?? [],
+      activityCodes: searchFilterCatalog?.activityCodes ?? [],
+      states: searchFilterCatalog?.states ?? [],
+      fiscalYearOptions: searchFilterCatalog?.fiscalYearOptions,
+    }),
+    [searchFilterCatalog],
+  );
+
   useEffect(() => {
     setJumpToPageInput(String(currentPage));
   }, [currentPage]);
@@ -145,19 +166,7 @@ export default function App() {
     setCurrentPage(1);
   };
 
-  const handleTermCloudSearch = (terms: string[]) => {
-    setProjectTermFilters(terms);
-    setCurrentPage(1);
-  };
-
-  const handleApplyFilters = (filters: {
-    pi: string;
-    ic: string;
-    activity: string;
-    state: string;
-    fyMin: string;
-    fyMax: string;
-  }) => {
+  const handleApplyFilters = (filters: FilterValues) => {
     setSelectedPI(filters.pi);
     setSelectedIC(filters.ic);
     setSelectedActivity(filters.activity);
@@ -192,6 +201,21 @@ export default function App() {
       navigate("/");
     },
     [navigate, setQuery, setProjectTermFilters],
+  );
+
+  const handleDashboardTermSearchNavigate = useCallback(
+    (terms: string[], filters: DashboardSearchFilters) => {
+      setSelectedPI(filters.pi);
+      setSelectedIC(filters.ic);
+      setSelectedActivity(filters.activity);
+      setSelectedState(filters.state);
+      setFyMin(filters.fyMin);
+      setFyMax(filters.fyMax);
+      setProjectTermFilters(terms);
+      setCurrentPage(1);
+      navigate("/");
+    },
+    [navigate, setProjectTermFilters],
   );
 
   const handleSearchFromProjectTerms = useCallback(
@@ -332,12 +356,15 @@ export default function App() {
       >
         <ErrorBoundary>
           <Suspense fallback={
-            <div className={CLS_EMPTY_STATE} role="status">
+            <div className="flex flex-col items-center justify-center px-6 py-12 text-center text-text-muted text-[0.92rem]" role="status">
               <span className="text-text-secondary text-sm">Loading…</span>
             </div>
           }>
             {isDashboardVisible ? (
-              <Dashboard onSearchNavigate={handleDashboardSearchNavigate} />
+              <Dashboard
+                onSearchNavigate={handleDashboardSearchNavigate}
+                onTermSearchNavigate={handleDashboardTermSearchNavigate}
+              />
             ) : semanticSimilarProjectId ? (
               <SemanticSimilarProjectPage
                 projectId={decodeURIComponent(semanticSimilarProjectId)}
@@ -349,15 +376,15 @@ export default function App() {
               <SemanticVectorLabPage />
             ) : selectedProjectId ? (
               projectLoading ? (
-                <div className={CLS_EMPTY_STATE} role="status" aria-live="polite">
+                <div className="flex flex-col items-center justify-center px-6 py-12 text-center text-text-muted text-[0.92rem]" role="status" aria-live="polite">
                   <strong className="text-text-secondary text-[15px]">Loading project…</strong>
                 </div>
               ) : projectError ? (
-                <div className={CLS_EMPTY_STATE} role="status" aria-live="polite">
+                <div className="flex flex-col items-center justify-center px-6 py-12 text-center text-text-muted text-[0.92rem]" role="status" aria-live="polite">
                   <strong className="text-text-secondary text-[15px]">{projectError}</strong>
                   <button
                     type="button"
-                    className={CLS_BACK_LINK}
+                    className="inline-block p-0 border-none bg-transparent text-accent font-sans text-[15.5px] cursor-pointer hover:underline"
                     onClick={() => navigate("/")}
                     style={{ marginTop: "0.85rem" }}
                   >
@@ -373,11 +400,11 @@ export default function App() {
                   onSearchWithProjectTerms={handleSearchFromProjectTerms}
                 />
               ) : (
-                <div className={CLS_EMPTY_STATE} role="status" aria-live="polite">
+                <div className="flex flex-col items-center justify-center px-6 py-12 text-center text-text-muted text-[0.92rem]" role="status" aria-live="polite">
                   <strong className="text-text-secondary text-[15px]">Project not found</strong>
                   <button
                     type="button"
-                    className={CLS_BACK_LINK}
+                    className="inline-block p-0 border-none bg-transparent text-accent font-sans text-[15.5px] cursor-pointer hover:underline"
                     onClick={() => navigate("/")}
                     style={{ marginTop: "0.85rem" }}
                   >
@@ -404,28 +431,13 @@ export default function App() {
             ) : (
               <>
                 <Filters
-                  searchSlot={<SearchBar onSearch={handleSearch} initialQuery={query} />}
-                  icNames={searchFilterCatalog?.icNames ?? []}
-                  activityCodes={searchFilterCatalog?.activityCodes ?? []}
-                  states={searchFilterCatalog?.states ?? []}
-                  fiscalYearOptions={searchFilterCatalog?.fiscalYearOptions}
-                  selectedPI={selectedPI}
-                  selectedIC={selectedIC}
-                  selectedActivity={selectedActivity}
-                  selectedState={selectedState}
-                  fyMin={fyMin}
-                  fyMax={fyMax}
-                  onPIChange={setSelectedPI}
-                  onICChange={setSelectedIC}
-                  onActivityChange={setSelectedActivity}
-                  onStateChange={setSelectedState}
-                  onFyMinChange={setFyMin}
-                  onFyMaxChange={setFyMax}
+                  applied={appliedFilters}
+                  catalog={filterCatalog}
+                  searchQuery={query}
+                  onSearch={handleSearch}
                   onApply={handleApplyFilters}
                   onClear={handleClearFilters}
                 />
-
-                <TermCloud onSearch={handleTermCloudSearch} />
 
                 <div className="flex items-center justify-between pt-2 pl-1 gap-4 max-[900px]:flex-col max-[900px]:items-start max-[900px]:gap-2">
                   <div className="text-text-secondary text-sm pt-[0.35rem]">

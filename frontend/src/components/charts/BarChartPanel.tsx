@@ -203,9 +203,9 @@ export default function BarChartPanel({
       : numericValue.toLocaleString();
 
     return (
-      <div className="chart-tooltip">
-        <div className="chart-tooltip-title">{label}</div>
-        <div className="chart-tooltip-row">{displayValue}</div>
+      <div className="bg-surface border border-border rounded-[--radius-md] shadow-md text-[0.8125rem] px-[0.875rem] py-[0.625rem] pointer-events-none min-w-[160px] z-10">
+        <div className="text-text-primary font-semibold mb-1 text-[0.82rem]">{label}</div>
+        <div className="text-text-secondary">{displayValue}</div>
       </div>
     );
   };
@@ -258,10 +258,10 @@ export default function BarChartPanel({
       : undefined);
 
   const panelClass = cn(
-    "chart-panel",
+    "bg-surface border border-border rounded-[--radius-lg] w-full px-4 py-[0.9rem] min-h-[310px]",
     panelClassName,
-    fillHeight && "chart-panel--fill-height",
-    onBarClick && "chart-panel--bar-clickable",
+    fillHeight && "flex flex-col min-h-0 h-full",
+    onBarClick && "[&_.recharts-bar-rectangle]:cursor-pointer",
   );
 
   const handleBarClick = (barEntry: { payload?: Record<string, unknown> }): void => {
@@ -292,17 +292,17 @@ export default function BarChartPanel({
   return (
     <div className={panelClass}>
       {headerCenter != null || headerEnd != null ? (
-        <div className="chart-panel-header">
-          <div className="chart-panel-title">{title}</div>
+        <div className="grid grid-cols-[auto_minmax(0,1fr)_auto] items-center gap-3 mb-[0.65rem]">
+          <div className="text-text-primary text-[0.9rem] font-semibold mb-0 whitespace-nowrap">{title}</div>
           {headerCenter != null ? (
-            <div className="chart-panel-header-center">{headerCenter}</div>
+            <div className="justify-self-center min-w-0 w-full">{headerCenter}</div>
           ) : null}
-          {headerEnd != null ? <div className="chart-panel-header-end">{headerEnd}</div> : null}
+          {headerEnd != null ? <div className="justify-self-end">{headerEnd}</div> : null}
         </div>
       ) : (
-        <div className="chart-panel-title">{title}</div>
+        <div className="text-text-primary text-[0.9rem] font-semibold mb-[0.65rem]">{title}</div>
       )}
-      <div ref={fillHeight ? chartBodyRef : undefined} className="chart-panel-chart-body">
+      <div ref={fillHeight ? chartBodyRef : undefined} className={cn(fillHeight && "flex-1 min-h-0")}>
         <ResponsiveContainer width="100%" height={chartHeight}>
         {isVertical ? (
           <BarChart data={chartData} layout="vertical" margin={{ top: 4, right: 16, bottom: 4, left: 8 }}>

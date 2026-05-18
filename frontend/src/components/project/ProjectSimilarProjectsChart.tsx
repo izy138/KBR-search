@@ -166,6 +166,7 @@ export default function ProjectSimilarProjectsChart({
             </span>
           </div>
         }
+        panelClassName="!bg-transparent !border-none !rounded-none !p-0 !min-h-0"
         data={chartData}
         dataKey="total_funding"
         labelKey="short_label"

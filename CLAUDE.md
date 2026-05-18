@@ -43,6 +43,10 @@ KBR-Internship/
 │       │   └── useTheme.ts          # Dark/light mode + light theme variants
 │       ├── utils/
 │       │   ├── format.ts            # formatDollarsCompact, formatDollarsFull
+│       │   ├── chartStyles.ts       # CLS_* Tailwind class constants for chart panels, tooltips, pie
+│       │   ├── sharedStyles.ts      # CLS_* Tailwind class constants for shared UI patterns
+│       │   ├── filtersLayout.ts     # CLS_* Tailwind class constants for filter bar layout
+│       │   ├── cn.ts                # Class name combiner utility
 │       │   ├── piNames.ts           # PI name parsing and ordering
 │       │   └── recurrenceGrouping.ts # Group similar projects by recurrence
 │       └── components/
@@ -217,12 +221,11 @@ New components go in the feature directory they belong to. If a component is use
 
 **`SearchResultRecord` in `api.ts` must list all fields explicitly.** Never use an index signature. If the API returns a new field, add it to the interface with the correct type.
 
-### CSS
-- All design tokens live as CSS custom properties on `[data-theme]` selectors in `styles.css`
-- 6 theme variants: `light` (default), `dark`, plus 4 light sub-themes (`blueAccent`, `yellowBeige`, `mintSlate`, `blueModified`)
-- Component styles use BEM-like class naming (`.result-row-cell`, `.filter-select-panel--grid`)
-- Responsive breakpoints at 900px and 768px
-- Prefer CSS classes over inline styles
+### CSS Styling Conventions
+- Use Tailwind utility classes exclusively. Do NOT edit styles.css or any .css files.
+- Do NOT use BEM class names (e.g. `activity-pie-tail-panel__header`). Convert to Tailwind inline.
+- Do NOT use `className="some-semantic-name"` that requires a stylesheet. Every className must be resolvable by Tailwind.
+- The `cn()` utility from `../../utils/cn` is available for conditional classes.
 
 ## Environment Variables
 

@@ -13,6 +13,7 @@ import type { LegendPayload } from "recharts";
 import type { TooltipContentProps } from "recharts/types/component/Tooltip";
 import type { NameType, ValueType } from "recharts/types/component/DefaultTooltipContent";
 import type { ActivityFundingPieResponse, ActivityPieSlice } from "../../api";
+import { cn } from "../../utils/cn";
 
 const DEFAULT_CHART_HEIGHT_PX = 360;
 
@@ -40,6 +41,9 @@ const OUTER_PIE_OUTER_RADIUS_PX = 175;
 const PIE_HOVER_OUTER_EXPAND_PX = 5;
 const PIE_HOVER_STROKE_WIDTH = 2;
 const PIE_SLICE_HOVER_TRANSITION = "fill 0.15s ease, stroke 0.15s ease, opacity 0.15s ease";
+
+const PIE_FOCUS_RESET =
+  "[&_.recharts-wrapper_svg:focus]:outline-none [&_.recharts-wrapper_svg:focus-visible]:outline-none [&_.recharts-sector:focus]:outline-none [&_.recharts-sector:focus-visible]:outline-none [&_.recharts-pie-sector:focus]:outline-none [&_.recharts-pie-sector:focus-visible]:outline-none [&_.recharts-layer_path:focus]:outline-none [&_.recharts-layer_path:focus-visible]:outline-none";
 
 const PIE_COLORS = [
   "#1a56db",
@@ -275,9 +279,6 @@ function renderSliceLabel({
   const radius = innerRadius + (outerRadius - innerRadius) * 0.55;
   const x = cx + radius * Math.cos(-midAngle * RADIAN);
   const y = cy + radius * Math.sin(-midAngle * RADIAN);
-  const groupClass = compact
-    ? "activity-pie-slice-label-group activity-pie-slice-label-group--inner"
-    : "activity-pie-slice-label-group";
   return (
     <text
       x={x}
@@ -285,12 +286,20 @@ function renderSliceLabel({
       fill="#fff"
       textAnchor="middle"
       dominantBaseline="middle"
-      className={groupClass}
+      style={{ pointerEvents: "none" }}
     >
-      <tspan x={x} dy={compact ? "-0.45em" : "-0.55em"} className="activity-pie-slice-label__code">
+      <tspan
+        x={x}
+        dy={compact ? "-0.45em" : "-0.55em"}
+        style={{ fill: "#fff", fontWeight: 700, paintOrder: "stroke fill", stroke: "rgba(15,23,42,0.5)", strokeWidth: "2px" }}
+      >
         {row.isOther ? "Other" : row.name}
       </tspan>
-      <tspan x={x} dy={compact ? "0.95em" : "1.05em"} className="activity-pie-slice-label__pct">
+      <tspan
+        x={x}
+        dy={compact ? "0.95em" : "1.05em"}
+        style={{ fill: "#fff", fontWeight: 600, paintOrder: "stroke fill", stroke: "rgba(15,23,42,0.45)", strokeWidth: "2px" }}
+      >
         {`${pctAll.toFixed(1)}%`}
       </tspan>
     </text>
@@ -355,13 +364,13 @@ export default function ActivityFundingPiePanel({
     }
     const codeLabel = row.isOther ? "Other" : row.name;
     return (
-      <div className="chart-tooltip chart-tooltip--activity-pie">
-        <div className="chart-tooltip--activity-pie__line">
-          <span className="chart-tooltip--activity-pie__code">{codeLabel}</span>
-          <span className="chart-tooltip--activity-pie__sep">·</span>
+      <div className="bg-surface border border-border rounded-[--radius-md] shadow-md min-w-0 px-[0.68rem] py-[0.45rem] text-[14px] leading-[1.25] pointer-events-none z-10">
+        <div className="flex flex-wrap items-baseline gap-x-[0.45rem] gap-y-[0.3rem] whitespace-nowrap">
+          <span className="font-bold text-text-primary">{codeLabel}</span>
+          <span className="text-text-muted select-none">·</span>
           <span>{formatDollars(row.value)}</span>
         </div>
-        <div className="chart-tooltip--activity-pie__line chart-tooltip--activity-pie__line--muted">
+        <div className="flex flex-wrap items-baseline gap-x-[0.45rem] gap-y-[0.3rem] whitespace-nowrap text-text-muted mt-[0.15rem]">
           {row.count.toLocaleString()} projects
         </div>
       </div>
@@ -377,16 +386,16 @@ export default function ActivityFundingPiePanel({
     const ring =
       innerChartData.some((r) => r.name === row.name) ? "inner" : "outer";
     return (
-      <span className="activity-pie-legend-format">
-        <span className="activity-pie-legend-format__code">{value}</span>
-        <span className="activity-pie-legend-format__meta">
+      <span className="inline-flex flex-col items-start gap-[0.15rem] leading-[1.25] max-w-[14rem] text-left">
+        <span className="font-semibold">{value}</span>
+        <span className="text-text-muted font-normal">
           {formatDollars(row.value)} · {ring} ring
         </span>
-        <span className="activity-pie-legend-format__pct-stack">
-          <span className="activity-pie-legend-format__code activity-pie-legend-format__code--above-pct">
+        <span className="flex flex-col items-start gap-[0.08rem] mt-[0.1rem]">
+          <span className="font-bold tracking-[0.02em]">
             {value}
           </span>
-          <span className="activity-pie-legend-format__pct">{pct}% of all indexed</span>
+          <span className="text-text-muted font-medium">{pct}% of all indexed</span>
         </span>
       </span>
     );
@@ -394,36 +403,32 @@ export default function ActivityFundingPiePanel({
 
   if (chartData.length === 0) {
     return (
-      <div className="chart-panel chart-panel--pie">
-        <div className="chart-panel-header">
-          <div className="chart-panel-title">{title}</div>
+      <div className="bg-surface border border-border rounded-[--radius-lg] w-full px-4 py-[0.9rem] text-[14px] min-h-0">
+        <div className="grid grid-cols-[auto_minmax(0,1fr)_auto] items-center gap-3 mb-[0.65rem]">
+          <div className="text-text-primary text-[0.9rem] font-semibold mb-0">{title}</div>
         </div>
-        <p className="chart-panel-empty">No activity funding data.</p>
+        <p className="text-text-muted text-[0.875rem] mt-2 m-0">No activity funding data.</p>
       </div>
     );
   }
 
   return (
-    <div className="chart-panel chart-panel--pie">
-      <div className="chart-panel-header">
-        <div className="chart-panel-title">{title}</div>
+    <div className="bg-surface border border-border rounded-[--radius-lg] w-full px-4 py-[0.9rem] text-[14px] min-h-0">
+      <div className="grid grid-cols-[auto_minmax(0,1fr)_auto] items-center gap-3 mb-[0.65rem]">
+        <div className="text-text-primary text-[0.9rem] font-semibold mb-0">{title}</div>
       </div>
 
       {pie.more_activities_than_buckets ? (
-        <p className="chart-panel-note">
+        <p className="text-text-secondary text-[0.75rem] leading-[1.45] m-0 mb-2 font-[inherit]">
           OpenSearch returned the top {pie.activity_buckets_fetched} activity buckets by funding;
           {pie.sum_other_doc_count.toLocaleString()} additional project rows sit outside those
-          buckets. Increase the API <code className="chart-inline-code">limit</code> query param for
+          buckets. Increase the API <code className="bg-tag-bg rounded-[4px] font-mono text-[0.72rem] px-[0.3rem] py-[0.1rem]">limit</code> query param for
           fuller coverage.
         </p>
       ) : null}
-      <div
-        className={`chart-panel-body chart-panel-body--pie${
-          showTailPanel ? " chart-panel-body--pie-with-tail" : ""
-        }`}
-      >
+      <div className={showTailPanel ? "grid grid-cols-[minmax(0,1fr)_minmax(11rem,14rem)] gap-3 items-stretch min-h-[360px] px-1 pb-1" : "min-h-[360px] min-w-0 px-1 pb-1"}>
         <div
-          className="chart-pie-size-host"
+          className={cn("w-full min-w-0 [&_svg]:text-[inherit]", PIE_FOCUS_RESET)}
           style={{ height: chartHeight, minHeight: chartHeight }}
           onMouseDown={(event) => {
             if (event.target instanceof SVGElement) {
@@ -513,24 +518,24 @@ export default function ActivityFundingPiePanel({
           </ResponsiveContainer>
         </div>
         {showTailPanel ? (
-          <aside className="activity-pie-tail-panel" aria-label="Other Activity Codes">
-            <div className="activity-pie-tail-panel__header">
-              <h4 className="activity-pie-tail-panel__title">
+          <aside className="flex flex-col min-h-0 max-h-[360px] px-[0.9rem] py-[0.85rem] border border-border-strong rounded-lg bg-bg" aria-label="Other Activity Codes">
+            <div className="flex items-start justify-between gap-2 mb-1">
+              <h4 className="m-0 font-bold leading-[1.25]">
                 Other Activity Codes
               </h4>
             </div>
-            <p className="activity-pie-tail-panel__summary">
+            <p className="m-0 mb-[0.35rem] leading-[1.2] text-text-muted">
               {tailDetailRows.length} codes ·{" "}
               {formatDollars(tailDetailRows.reduce((acc, r) => acc + r.value, 0))}
             </p>
-            <ul className="activity-pie-tail-panel__list">
+            <ul className="flex-1 min-h-0 m-0 p-0 list-none overflow-y-auto">
               {tailDetailRows.map((row) => (
-                <li key={row.name} className="activity-pie-tail-panel__item">
-                  <div className="activity-pie-tail-panel__item-line">
-                    <span className="activity-pie-tail-panel__code">{row.name}</span>
-                    <span className="activity-pie-tail-panel__meta">{formatDollars(row.value)}</span>
+                <li key={row.name} className="flex flex-col gap-[0.05rem] py-[0.28rem] border-b border-border leading-[1.2] last:border-b-0">
+                  <div className="flex items-baseline justify-between gap-[0.35rem] min-w-0">
+                    <span className="font-bold tracking-[0.02em] shrink-0">{row.name}</span>
+                    <span className="text-text-secondary text-right whitespace-nowrap">{formatDollars(row.value)}</span>
                   </div>
-                  <span className="activity-pie-tail-panel__count">
+                  <span className="text-text-muted">
                     {row.count.toLocaleString()} projects
                   </span>
                 </li>

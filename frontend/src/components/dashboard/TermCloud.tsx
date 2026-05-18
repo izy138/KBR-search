@@ -1,26 +1,22 @@
 import { useEffect, useState } from "react";
 import { getTermTree, type TermNode } from "../../api";
+import { cn } from "../../utils/cn";
 
-/** Maximum number of leaf terms a user may select at once. */
 const MAX_SELECTION = 20;
 
 type TermCloudProps = {
   onSearch: (terms: string[]) => void;
 };
 
-const CLS_CAT_PILL_BASE =
+const catPillBase =
   "inline-flex items-center gap-[0.35rem] px-[0.85rem] py-[0.45rem] rounded-full bg-tag-bg text-tag-text border border-border text-sm font-semibold cursor-pointer transition-[background,border-color,color] duration-150 hover:border-border-strong";
 
-const CLS_SUBCAT_PILL_BASE =
+const subcatPillBase =
   "inline-flex items-center px-[0.65rem] py-[0.3rem] rounded-full bg-surface text-text-secondary border border-border text-[0.825rem] cursor-pointer transition-[background,border-color,color] duration-150 hover:border-border-strong";
 
-const CLS_LEAF_BASE =
+const leafBase =
   "inline-flex items-center px-[0.55rem] py-1 rounded-sm bg-tag-bg text-tag-text border border-border text-[0.8rem] cursor-pointer transition-[background,border-color,color] duration-150 hover:border-border-strong";
 
-/**
- * Recursively counts how many of a node's descendants (including itself if it
- * is a leaf) are present in `selected`.
- */
 function countSelectedDescendants(node: TermNode, selected: Set<string>): number {
   if (!node.children) return selected.has(node.label) ? 1 : 0;
   return node.children.reduce(
@@ -29,10 +25,6 @@ function countSelectedDescendants(node: TermNode, selected: Set<string>): number
   );
 }
 
-/**
- * Immutably toggles a string value in a Set-based state slice, producing a new
- * Set instance so React detects the change.
- */
 function toggleInSet(
   setState: React.Dispatch<React.SetStateAction<Set<string>>>,
   value: string,
@@ -48,12 +40,6 @@ function toggleInSet(
   });
 }
 
-/**
- * TermCloud — collapsible hierarchical browser for NIH project terms.
- *
- * Three-level hierarchy: Category → Subcategory → Leaf term.
- * Selected leaf labels are passed to `onSearch` as `project_terms` filter values.
- */
 export default function TermCloud({ onSearch }: TermCloudProps): React.ReactElement {
   const [tree, setTree] = useState<TermNode[]>([]);
   const [loading, setLoading] = useState<boolean>(false);
@@ -102,7 +88,7 @@ export default function TermCloud({ onSearch }: TermCloudProps): React.ReactElem
   const selectedCount = selectedTerms.size;
 
   return (
-    <div className="mx-0 my-2 px-3">
+    <div className="mx-0 mt-3 px-3 pb-1">
       <button
         type="button"
         className="flex items-center gap-2 w-full py-2 bg-transparent border-none text-text-secondary text-sm font-semibold cursor-pointer tracking-[0.02em] hover:text-text-primary"
@@ -126,7 +112,6 @@ export default function TermCloud({ onSearch }: TermCloudProps): React.ReactElem
 
       {!collapsed && !loading && !error && (
         <>
-          {/* Top-level category pills */}
           <div className="flex flex-wrap gap-2 py-[0.4rem]">
             {tree.map((cat) => {
               const descendantCount = countSelectedDescendants(cat, selectedTerms);
@@ -135,7 +120,10 @@ export default function TermCloud({ onSearch }: TermCloudProps): React.ReactElem
                 <button
                   key={cat.id}
                   type="button"
-                  className={`${CLS_CAT_PILL_BASE}${isExpanded ? " bg-accent-light border-accent text-accent-text" : ""}`}
+                  className={cn(
+                    catPillBase,
+                    isExpanded && "bg-accent-light border-accent text-accent-text",
+                  )}
                   onClick={() => toggleInSet(setExpandedCategories, cat.id)}
                   aria-expanded={isExpanded}
                 >
@@ -150,7 +138,6 @@ export default function TermCloud({ onSearch }: TermCloudProps): React.ReactElem
             })}
           </div>
 
-          {/* Subcategory and leaf rows, rendered per expanded category */}
           {tree.map((cat) => {
             if (!expandedCategories.has(cat.id) || !cat.children) return null;
             return (
@@ -162,7 +149,10 @@ export default function TermCloud({ onSearch }: TermCloudProps): React.ReactElem
                       <button
                         key={sub.id}
                         type="button"
-                        className={`${CLS_SUBCAT_PILL_BASE}${isSubExpanded ? " bg-accent-light border-accent text-accent-text" : ""}`}
+                        className={cn(
+                          subcatPillBase,
+                          isSubExpanded && "bg-accent-light border-accent text-accent-text",
+                        )}
                         onClick={() => toggleInSet(setExpandedSubcats, sub.id)}
                         aria-expanded={isSubExpanded}
                       >
@@ -172,7 +162,6 @@ export default function TermCloud({ onSearch }: TermCloudProps): React.ReactElem
                   })}
                 </div>
 
-                {/* Leaf chips per expanded subcategory, nested inside this category block */}
                 {cat.children.map((sub) => {
                   if (!expandedSubcats.has(sub.id) || !sub.children) return null;
                   return (
@@ -183,7 +172,10 @@ export default function TermCloud({ onSearch }: TermCloudProps): React.ReactElem
                           <button
                             key={leaf.id}
                             type="button"
-                            className={`${CLS_LEAF_BASE}${isSelected ? " bg-accent text-white border-accent" : ""}`}
+                            className={cn(
+                              leafBase,
+                              isSelected && "bg-accent text-white border-accent",
+                            )}
                             onClick={() => handleToggleLeaf(leaf.label)}
                             aria-pressed={isSelected}
                           >
@@ -207,7 +199,7 @@ export default function TermCloud({ onSearch }: TermCloudProps): React.ReactElem
             <div className="flex items-center gap-3 py-[0.6rem] mt-2 border-t border-border">
               <button
                 type="button"
-                className="bg-accent text-white border-none rounded-[var(--radius-sm)] px-[0.9rem] py-[0.38rem] font-sans text-[14px] font-medium cursor-pointer whitespace-nowrap transition-[background] duration-150 hover:bg-accent-hover"
+                className="bg-accent text-white border-none rounded-sm px-[0.9rem] py-[0.38rem] font-sans text-[14px] font-medium cursor-pointer whitespace-nowrap transition-[background] duration-150 hover:bg-accent-hover"
                 onClick={handleSearch}
               >
                 Search {selectedCount} term{selectedCount > 1 ? "s" : ""}

@@ -1,5 +1,4 @@
 import type { SearchResultRecord } from "../../api";
-import { CLS_BACK_LINK } from "../../utils/sharedStyles";
 import Pagination from "../shared/Pagination";
 import ResultsList from "../search/ResultsList";
 
@@ -36,7 +35,7 @@ export default function InvestigatorPage({
 }: InvestigatorPageProps) {
   return (
     <>
-      <button type="button" className={CLS_BACK_LINK} onClick={onBack}>
+      <button type="button" className="inline-block p-0 border-none bg-transparent text-accent font-sans text-[15.5px] cursor-pointer hover:underline" onClick={onBack}>
         Back to results
       </button>
 

@@ -9,7 +9,6 @@ import {
   searchSimilarByText,
 } from "../../api";
 import { formatDollarsFull } from "../../utils/format";
-import { CLS_TAG_ACTIVITY, CLS_TAG_FY } from "../../utils/sharedStyles";
 
 const DEFAULT_K = 12;
 const PICK_SEARCH_LIMIT = 12;
@@ -41,8 +40,8 @@ function ResultSnippet({ item }: { item: SearchResultRecord }): JSX.Element {
     <div className="min-w-0">
       <div className={CLS_HIT_TITLE}>{title}</div>
       <div className={CLS_HIT_META}>
-        {item.ACTIVITY ? <span className={CLS_TAG_ACTIVITY}>{item.ACTIVITY}</span> : null}
-        {item.FY != null ? <span className={CLS_TAG_FY}>FY {item.FY}</span> : null}
+        {item.ACTIVITY ? <span className="inline-block px-[0.42rem] py-[0.12rem] rounded-full text-[0.72rem] font-semibold leading-[1.3] bg-accent-light text-accent-text">{item.ACTIVITY}</span> : null}
+        {item.FY != null ? <span className="inline-block px-[0.42rem] py-[0.12rem] rounded-full text-[0.72rem] font-semibold leading-[1.3] bg-green-light text-green">FY {item.FY}</span> : null}
         {item.IC_NAME ? <span className="text-text-muted">{item.IC_NAME}</span> : null}
       </div>
       {id ? (
