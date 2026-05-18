@@ -20,6 +20,8 @@ import ResultsList, { type SortState as ResultsSortState } from "./components/se
 import Pagination, { getPageNumbers } from "./components/shared/Pagination";
 import ErrorBoundary from "./components/shared/ErrorBoundary";
 import { type SearchResultRecord, type SearchSortDirection, type SearchSortField } from "./api";
+import type { AdvancedSearchQuery } from "./types/advancedSearch";
+import { formatAdvancedSearchQuery, hasAdvancedSearchContent } from "./utils/advancedSearch";
 import { useFilterCatalog } from "./hooks/useFilterCatalog";
 import type { FilterValues } from "./types/filters";
 
@@ -32,6 +34,7 @@ export default function App() {
   type SortOption = "relevant" | "alphaAsc" | "alphaDesc";
 
   const [searchQuery, setSearchQuery] = useState("");
+  const [advancedSearch, setAdvancedSearch] = useState<AdvancedSearchQuery | null>(null);
   const [selectedPI, setSelectedPI] = useState("");
   const [selectedIC, setSelectedIC] = useState("");
   const [selectedActivity, setSelectedActivity] = useState("");
@@ -109,6 +112,8 @@ export default function App() {
   } = useSearch({
     query: searchQuery,
     setQuery: setSearchQuery,
+    advancedSearch:
+      advancedSearch && hasAdvancedSearchContent(advancedSearch) ? advancedSearch : null,
     selectedPI,
     selectedIC,
     selectedActivity,
@@ -190,10 +195,31 @@ export default function App() {
   }, []);
 
   const handleSearch = (nextQuery: string) => {
+    setAdvancedSearch(null);
     setSearchQuery(nextQuery);
     setProjectTermFilters([]);
     setCurrentPage(1);
   };
+
+  const handleAdvancedSearch = useCallback((nextQuery: AdvancedSearchQuery) => {
+    setAdvancedSearch(nextQuery);
+    setSearchQuery("");
+    setProjectTermFilters([]);
+    setCurrentPage(1);
+  }, []);
+
+  const handleExitAdvancedSearch = useCallback(() => {
+    setAdvancedSearch(null);
+    setSearchQuery("");
+    setCurrentPage(1);
+  }, []);
+
+  const activeSearchLabel = useMemo(() => {
+    if (advancedSearch && hasAdvancedSearchContent(advancedSearch)) {
+      return formatAdvancedSearchQuery(advancedSearch);
+    }
+    return searchQuery;
+  }, [advancedSearch, searchQuery]);
 
   const handleApplyFilters = (filters: FilterValues) => {
     setSelectedPI(filters.pi);
@@ -222,6 +248,7 @@ export default function App() {
 
   const handleDashboardSearchNavigate = useCallback(
     (nextQuery: string) => {
+      setAdvancedSearch(null);
       setSearchQuery(nextQuery);
       setProjectTermFilters([]);
       setCurrentPage(1);
@@ -241,6 +268,7 @@ export default function App() {
 
   const handleSearchFromProjectTerms = useCallback(
     (payload: { terms: string[]; additionalQuery: string }) => {
+      setAdvancedSearch(null);
       setProjectTermFilters(payload.terms);
       setSearchQuery(payload.additionalQuery.trim());
       setCurrentPage(1);
@@ -471,7 +499,10 @@ export default function App() {
                   applied={appliedFilters}
                   catalog={filterCatalog}
                   searchQuery={searchQuery}
+                  advancedSearch={advancedSearch}
                   onSearch={handleSearch}
+                  onAdvancedSearch={handleAdvancedSearch}
+                  onExitAdvancedSearch={handleExitAdvancedSearch}
                   onApply={handleApplyFilters}
                   onClear={handleClearFilters}
                 />
@@ -484,7 +515,7 @@ export default function App() {
                       <span>
                         <strong className="text-text-primary font-medium">{visibleTotal.toLocaleString()}</strong> results
                         {total > visibleTotal ? ` out of ${total.toLocaleString()}` : ""}
-                        {searchQuery ? ` for "${searchQuery}"` : ""}
+                        {activeSearchLabel ? ` for "${activeSearchLabel}"` : ""}
                         {projectTermFilters.length > 0 && (
                           <span className="inline-flex flex-wrap items-center gap-[0.3rem] align-middle">
                             {" — "}

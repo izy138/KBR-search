@@ -103,21 +103,90 @@ def analytics_scope(
   )
 
 
+def multi_match_clause(text: str) -> dict[str, object]:
+  """Single keyword clause across the standard search fields."""
+  return {
+    "multi_match": {
+      "query": text,
+      "fields": SEARCH_FIELDS,
+      "type": "best_fields",
+      "operator": "and",
+    },
+  }
+
+
 def build_keyword_must(q: str) -> list[dict[str, object]]:
   """Return bool ``must`` clauses for dashboard/search keyword queries."""
   stripped = q.strip()
   if not stripped:
     return []
-  return [
-    {
-      "multi_match": {
-        "query": stripped,
-        "fields": SEARCH_FIELDS,
-        "type": "best_fields",
-        "operator": "and",
+  return [multi_match_clause(stripped)]
+
+
+MAX_ADVANCED_CLAUSES = 8
+MAX_ADVANCED_CLAUSE_LENGTH = 200
+
+
+def _advanced_clause_bool(text: str, negated: bool) -> dict[str, object]:
+  clause = multi_match_clause(text)
+  if negated:
+    return {"bool": {"must_not": [clause]}}
+  return clause
+
+
+def _combine_advanced(left: dict[str, object], right: dict[str, object], operator: str) -> dict[str, object]:
+  if operator == "or":
+    return {
+      "bool": {
+        "should": [left, right],
+        "minimum_should_match": 1,
       },
-    },
-  ]
+    }
+  return {"bool": {"must": [left, right]}}
+
+
+def build_advanced_keyword_clause(
+  clauses: list[dict[str, object]],
+  operators: list[str],
+) -> dict[str, object] | None:
+  """Fold non-empty advanced clauses left-to-right with per-gap AND/OR."""
+  parsed: list[tuple[str, bool]] = []
+  for raw in clauses:
+    if not isinstance(raw, dict):
+      continue
+    text = str(raw.get("text", "")).strip()
+    if not text:
+      continue
+    if len(text) > MAX_ADVANCED_CLAUSE_LENGTH:
+      text = text[:MAX_ADVANCED_CLAUSE_LENGTH]
+    negated = bool(raw.get("negated", False))
+    parsed.append((text, negated))
+  if not parsed:
+    return None
+  if len(parsed) > MAX_ADVANCED_CLAUSES:
+    parsed = parsed[:MAX_ADVANCED_CLAUSES]
+  result = _advanced_clause_bool(parsed[0][0], parsed[0][1])
+  for index in range(1, len(parsed)):
+    op = "and"
+    if index - 1 < len(operators):
+      candidate = str(operators[index - 1]).strip().lower()
+      if candidate == "or":
+        op = "or"
+    text, negated = parsed[index]
+    next_clause = _advanced_clause_bool(text, negated)
+    result = _combine_advanced(result, next_clause, op)
+  return result
+
+
+def build_advanced_keyword_must(
+  clauses: list[dict[str, object]],
+  operators: list[str],
+) -> list[dict[str, object]]:
+  """Return a single bool ``must`` entry for an advanced keyword query."""
+  folded = build_advanced_keyword_clause(clauses, operators)
+  if folded is None:
+    return []
+  return [folded]
 
 
 def with_query_filters(

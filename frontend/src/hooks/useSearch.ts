@@ -5,10 +5,12 @@ import {
   type SearchSortDirection,
   type SearchSortField,
 } from "../api";
+import type { AdvancedSearchQuery } from "../types/advancedSearch";
 
 export type UseSearchParams = {
   query: string;
   setQuery: (q: string) => void;
+  advancedSearch: AdvancedSearchQuery | null;
   selectedPI: string;
   selectedIC: string;
   selectedActivity: string;
@@ -51,6 +53,7 @@ export type UseSearchReturn = {
 export function useSearch({
   query,
   setQuery,
+  advancedSearch,
   selectedPI,
   selectedIC,
   selectedActivity,
@@ -83,6 +86,7 @@ export function useSearch({
           fyMin,
           fyMax,
           projectTerms: projectTermFilters,
+          advancedSearch,
           sortBy,
           sortOrder,
         });
@@ -101,6 +105,7 @@ export function useSearch({
       fyMin,
       fyMax,
       projectTermFilters,
+      advancedSearch,
       sortBy,
       sortOrder,
     ],
@@ -112,6 +117,7 @@ export function useSearch({
   }, [
     enabled,
     query,
+    advancedSearch,
     projectTermFilters,
     currentPage,
     resultsPerPage,
