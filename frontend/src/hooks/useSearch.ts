@@ -1,7 +1,14 @@
 import { useCallback, useEffect, useState } from "react";
-import { searchProjects, type SearchResultRecord } from "../api";
+import {
+  searchProjects,
+  type SearchResultRecord,
+  type SearchSortDirection,
+  type SearchSortField,
+} from "../api";
 
 export type UseSearchParams = {
+  query: string;
+  setQuery: (q: string) => void;
   selectedPI: string;
   selectedIC: string;
   selectedActivity: string;
@@ -10,13 +17,18 @@ export type UseSearchParams = {
   fyMax: string;
   currentPage: number;
   resultsPerPage: number;
+  /**
+   * Empty string means "no sort" (OpenSearch returns results in relevance/index
+   * order). When set, the backend sorts the full result set before pagination
+   * so column sorts span all pages rather than only the visible one.
+   */
+  sortBy: SearchSortField | "";
+  sortOrder: SearchSortDirection;
   /** Set to false when on dashboard, project detail, investigator, or semantic views. */
   enabled: boolean;
 };
 
 export type UseSearchReturn = {
-  query: string;
-  setQuery: (q: string) => void;
   projectTermFilters: string[];
   setProjectTermFilters: React.Dispatch<React.SetStateAction<string[]>>;
   results: SearchResultRecord[];
@@ -37,6 +49,8 @@ export type UseSearchReturn = {
  * routes pay zero fetch cost.
  */
 export function useSearch({
+  query,
+  setQuery,
   selectedPI,
   selectedIC,
   selectedActivity,
@@ -45,9 +59,10 @@ export function useSearch({
   fyMax,
   currentPage,
   resultsPerPage,
+  sortBy,
+  sortOrder,
   enabled,
 }: UseSearchParams): UseSearchReturn {
-  const [query, setQuery] = useState("");
   const [projectTermFilters, setProjectTermFilters] = useState<string[]>([]);
   const [results, setResults] = useState<SearchResultRecord[]>([]);
   const [loading, setLoading] = useState(false);
@@ -68,6 +83,8 @@ export function useSearch({
           fyMin,
           fyMax,
           projectTerms: projectTermFilters,
+          sortBy,
+          sortOrder,
         });
         setResults(payload.results ?? []);
         setTotal(payload.total ?? 0);
@@ -84,6 +101,8 @@ export function useSearch({
       fyMin,
       fyMax,
       projectTermFilters,
+      sortBy,
+      sortOrder,
     ],
   );
 
@@ -103,11 +122,11 @@ export function useSearch({
     selectedState,
     fyMin,
     fyMax,
+    sortBy,
+    sortOrder,
   ]);
 
   return {
-    query,
-    setQuery,
     projectTermFilters,
     setProjectTermFilters,
     results,

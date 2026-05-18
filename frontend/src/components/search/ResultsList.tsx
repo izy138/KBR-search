@@ -5,15 +5,7 @@ import { formatDollarsCompact } from "../../utils/format";
 
 // ─── Types ────────────────────────────────────────────────────────────────────
 
-type ResultsListProps = {
-  results: SearchResultRecord[];
-  primarySort: "relevant" | "alphaAsc" | "alphaDesc";
-  loading?: boolean;
-  onOpenDetails?: (item: SearchResultRecord) => void;
-  onOpenInvestigator?: (name: string) => void;
-};
-
-type ColumnKey =
+export type ColumnKey =
   | "PI_NAMEs"
   | "ORG_NAME"
   | "IC_NAME"
@@ -22,16 +14,33 @@ type ColumnKey =
   | "FY"
   | "TOTAL_COST";
 
+export type SortDirection = "asc" | "desc" | "none";
+
+export interface SortState {
+  column: ColumnKey | null;
+  direction: SortDirection;
+}
+
+type ResultsListProps = {
+  results: SearchResultRecord[];
+  primarySort: "relevant" | "alphaAsc" | "alphaDesc";
+  loading?: boolean;
+  onOpenDetails?: (item: SearchResultRecord) => void;
+  onOpenInvestigator?: (name: string) => void;
+  /**
+   * Controlled sort. When provided together with `onSortChange`, the parent
+   * owns the sort state and is expected to fetch already-sorted results from
+   * the API. Without these props, `ResultsList` falls back to its legacy
+   * client-side sort over the rows currently in `results` (used by views
+   * where all results are loaded at once, e.g. the semantic similar page).
+   */
+  sort?: SortState;
+  onSortChange?: (next: SortState) => void;
+};
+
 interface ColumnDef {
   key: ColumnKey;
   label: string;
-}
-
-type SortDirection = "asc" | "desc" | "none";
-
-interface SortState {
-  column: ColumnKey | null;
-  direction: SortDirection;
 }
 
 // ─── Constants ────────────────────────────────────────────────────────────────
@@ -343,20 +352,40 @@ const ResultsList: FC<ResultsListProps> = ({
   loading,
   onOpenDetails,
   onOpenInvestigator,
+  sort: controlledSort,
+  onSortChange,
 }) => {
-  const [sort, setSort] = useState<SortState>({ column: null, direction: "none" });
+  const isControlled = controlledSort !== undefined && onSortChange !== undefined;
+  const [internalSort, setInternalSort] = useState<SortState>({ column: null, direction: "none" });
+  const sort = isControlled ? controlledSort : internalSort;
 
-  const handleSort = useCallback((column: ColumnKey) => {
-    setSort((prev) => {
-      if (prev.column !== column) {
-        return { column, direction: "asc" };
+  const handleSort = useCallback(
+    (column: ColumnKey) => {
+      const nextSort: SortState = (() => {
+        if (sort.column !== column) {
+          return { column, direction: "asc" };
+        }
+        const nextDirection = cycleSortDirection(sort.direction);
+        return {
+          column: nextDirection === "none" ? null : column,
+          direction: nextDirection,
+        };
+      })();
+
+      if (isControlled) {
+        onSortChange(nextSort);
+      } else {
+        setInternalSort(nextSort);
       }
-      const next = cycleSortDirection(prev.direction);
-      return { column: next === "none" ? null : column, direction: next };
-    });
-  }, []);
+    },
+    [sort, isControlled, onSortChange],
+  );
 
   const sortedResults = useMemo<SearchResultRecord[]>(() => {
+    // In controlled mode the parent has already requested a sorted page from
+    // the API, so we only fall through to client-side sorting when the parent
+    // does not own the sort state.
+    if (isControlled) return results;
     const baseResults = applyPrimarySort(results, primarySort);
     if (sort.column === null || sort.direction === "none") return baseResults;
     const col = sort.column;
@@ -368,7 +397,7 @@ const ResultsList: FC<ResultsListProps> = ({
       if (av > bv) return dir === "asc" ? 1 : -1;
       return 0;
     });
-  }, [results, primarySort, sort]);
+  }, [isControlled, results, primarySort, sort]);
 
   if (loading) {
     return (

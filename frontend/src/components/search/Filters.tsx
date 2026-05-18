@@ -13,11 +13,11 @@ import FilterSelect from "./FilterSelect";
 import SearchBar from "./SearchBar";
 
 const FILTER_FIELD_WIDTH = {
-  pi: "w-[230px] max-[1100px]:flex-1 max-[1100px]:min-w-[140px]",
-  ic: "w-[230px] max-[1100px]:flex-1 max-[1100px]:min-w-[130px]",
-  activity: "w-[105px] max-[1100px]:min-w-[110px]",
-  state: "w-[75px] max-[1100px]:min-w-[100px]",
-  fiscalYear: "w-[172px] shrink-0",
+  pi: "w-[280px] max-[1100px]:flex-1 max-[1100px]:min-w-[140px]",
+  ic: "w-[280px] max-[1100px]:flex-1 max-[1100px]:min-w-[130px]",
+  activity: "w-[165px] max-[1100px]:min-w-[110px]",
+  state: "w-[165px] max-[1100px]:min-w-[100px]",
+  fiscalYear: "w-[195px] shrink-0",
 } as const;
 
 export type { FilterValues } from "../../types/filters";
@@ -77,6 +77,7 @@ type FiltersProps = {
   onClear: () => void;
   searchQuery?: string;
   onSearch?: (query: string) => void;
+  onUpdateDashboard?: (query: string) => void;
   searchSubmitOnClear?: boolean;
   /** When true, dropdown changes apply immediately (PI still uses Apply / Enter). */
   applyOnSelectChange?: boolean;
@@ -91,6 +92,7 @@ function Filters({
   onClear,
   searchQuery,
   onSearch,
+  onUpdateDashboard,
   searchSubmitOnClear = true,
   applyOnSelectChange = false,
   searchSlot,
@@ -136,14 +138,15 @@ function Filters({
     (onSearch != null ? (
       <SearchBar
         onSearch={onSearch}
+        onUpdateDashboard={onUpdateDashboard}
         initialQuery={searchQuery ?? ""}
         submitOnClear={searchSubmitOnClear}
       />
     ) : null);
 
   return (
-    <section className="-mt-1 flex flex-col items-stretch gap-[0.7rem] overflow-x-auto rounded-lg border border-border bg-surface px-3 pt-2.5 pb-3 min-[1101px]:grid min-[1101px]:items-end min-[1101px]:overflow-x-visible min-[1101px]:grid-cols-[565px_1fr]">
-      {searchContent ? <div className="min-w-0 w-full">{searchContent}</div> : null}
+    <section className="-mt-1 flex flex-col items-stretch gap-[0.7rem] overflow-x-auto rounded-lg border border-border bg-surface px-3 pt-2.5 pb-3 min-[1101px]:overflow-x-visible">
+      {searchContent ? <div className="min-w-0 w-full max-w-[720px] mx-auto">{searchContent}</div> : null}
 
       <div className="flex min-w-0 flex-wrap items-end gap-2 max-[1100px]:w-full">
         <FilterField label="Principal Investigator" className={FILTER_FIELD_WIDTH.pi}>
@@ -220,7 +223,7 @@ function Filters({
               Clear All
             </button>
           ) : null}
-          <button type="button" className="min-h-[1.5rem] cursor-pointer whitespace-nowrap rounded-sm border-none bg-accent px-[0.6rem] py-[0.34rem] font-sans text-[14px] font-medium text-white transition-colors duration-150 hover:bg-accent-hover" onClick={handleApply}>
+          <button type="button" className="min-h-[1.5rem] cursor-pointer whitespace-nowrap rounded-sm border-none bg-green px-[0.6rem] py-[0.34rem] font-sans text-[14px] font-medium text-white transition-colors duration-150 hover:brightness-110" onClick={handleApply}>
             Apply Filters
           </button>
         </div>
