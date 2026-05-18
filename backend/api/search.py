@@ -166,7 +166,7 @@ def search(
         must.append(
             {"match": {"PROJECT_TERMS": {"query": term, "operator": "and"}}},
         )
-    if not must and not normalized_terms:
+    if not must:
         must.append({"match_all": {}})
     if category:
         must.append({"term": {"category.keyword": category}})
