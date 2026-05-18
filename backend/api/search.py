@@ -35,6 +35,51 @@ RRF_K_CONST = 60  # Standard smoothing constant from the original RRF paper.
 HYBRID_FETCH_MULTIPLIER = 4  # Pull this many * k from each side before fusing.
 HYBRID_MAX_FETCH = 100
 
+# Whitelist of fields the search results table is allowed to sort by, mapped to
+# the actual OpenSearch field used for sorting. String fields point at their
+# `.keyword` subfield (lexical sort); numeric fields sort on the raw field.
+SORTABLE_FIELDS: dict[str, str] = {
+    "PI_NAMEs":      "PI_NAMEs.keyword",
+    "ORG_NAME":      "ORG_NAME.keyword",
+    "IC_NAME":       "IC_NAME.keyword",
+    "ORG_STATE":     "ORG_STATE.keyword",
+    "ACTIVITY":      "ACTIVITY.keyword",
+    "PROJECT_TITLE": "PROJECT_TITLE.keyword",
+    "FY":            "FY",
+    "TOTAL_COST":    "TOTAL_COST",
+}
+NUMERIC_SORTABLE_FIELDS: set[str] = {"FY", "TOTAL_COST"}
+
+
+def _build_sort_clause(sort_by: str, sort_order: str) -> list[dict[str, object]] | None:
+    """Return an OpenSearch sort clause for a whitelisted column, or None."""
+    if not sort_by:
+        return None
+    target = SORTABLE_FIELDS.get(sort_by)
+    if target is None:
+        raise HTTPException(
+            status_code=400,
+            detail=(
+                f"Unsupported sort_by '{sort_by}'. Allowed: "
+                f"{', '.join(sorted(SORTABLE_FIELDS))}."
+            ),
+        )
+    if sort_order not in {"asc", "desc"}:
+        raise HTTPException(
+            status_code=400,
+            detail="sort_order must be 'asc' or 'desc'.",
+        )
+    unmapped = "long" if sort_by in NUMERIC_SORTABLE_FIELDS else "keyword"
+    return [
+        {
+            target: {
+                "order": sort_order,
+                "unmapped_type": unmapped,
+                "missing": "_last",
+            },
+        },
+    ]
+
 _index_embedding_dimension: int | None = None
 logger = logging.getLogger(__name__)
 
@@ -108,9 +153,22 @@ def search(
         default_factory=list,
         description="Each phrase must match PROJECT_TERMS (AND across phrases); repeat param",
     ),
+    sort_by: str = Query(
+        default="",
+        description=(
+            "Field to sort results by across the whole result set (not just the "
+            "current page). Allowed values: PI_NAMEs, ORG_NAME, IC_NAME, ORG_STATE, "
+            "ACTIVITY, PROJECT_TITLE, FY, TOTAL_COST. Empty = relevance / index order."
+        ),
+    ),
+    sort_order: str = Query(
+        default="asc",
+        description="Sort direction when sort_by is set: 'asc' or 'desc'.",
+    ),
 ) -> dict[str, object]:
 
     client = get_client()
+    sort_clause = _build_sort_clause(sort_by, sort_order)
     normalized_terms = _normalize_project_terms(project_terms)
     must: list[dict[str, object]] = []
     filters: list[dict[str, object]] = []
@@ -177,10 +235,15 @@ def search(
             detail=f"Requested page exceeds max result window ({MAX_RESULT_WINDOW}).",
         )
     size = min(limit, MAX_RESULT_WINDOW - from_)
-    response = client.search(
-        index=INDEX_NAME,
-        body={"from": from_, "size": size, "query": os_query, "track_total_hits": True},
-    )
+    body: dict[str, object] = {
+        "from": from_,
+        "size": size,
+        "query": os_query,
+        "track_total_hits": True,
+    }
+    if sort_clause is not None:
+        body["sort"] = sort_clause
+    response = client.search(index=INDEX_NAME, body=body)
 
     hits = response.get("hits", {}).get("hits", [])
     results = []

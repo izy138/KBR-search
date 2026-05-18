@@ -14,13 +14,12 @@ import { useProjectDetails } from "./hooks/useProjectDetails";
 import { useInvestigatorProjects, INVESTIGATOR_PER_PAGE } from "./hooks/useInvestigatorProjects";
 import { useSearch } from "./hooks/useSearch";
 import { matchPath, useLocation, useNavigate } from "react-router-dom";
-import type { DashboardSearchFilters } from "./components/dashboard/Dashboard";
 import Filters from "./components/search/Filters";
 import InvestigatorPage from "./components/investigator/InvestigatorPage";
-import ResultsList from "./components/search/ResultsList";
+import ResultsList, { type SortState as ResultsSortState } from "./components/search/ResultsList";
 import Pagination, { getPageNumbers } from "./components/shared/Pagination";
 import ErrorBoundary from "./components/shared/ErrorBoundary";
-import { type SearchResultRecord } from "./api";
+import { type SearchResultRecord, type SearchSortDirection, type SearchSortField } from "./api";
 import { useFilterCatalog } from "./hooks/useFilterCatalog";
 import type { FilterValues } from "./types/filters";
 
@@ -32,6 +31,7 @@ const SemanticSimilarProjectPage = lazy(() => import("./components/semantic/Sema
 export default function App() {
   type SortOption = "relevant" | "alphaAsc" | "alphaDesc";
 
+  const [searchQuery, setSearchQuery] = useState("");
   const [selectedPI, setSelectedPI] = useState("");
   const [selectedIC, setSelectedIC] = useState("");
   const [selectedActivity, setSelectedActivity] = useState("");
@@ -43,6 +43,15 @@ export default function App() {
   const [currentPage, setCurrentPage] = useState(1);
   const [jumpToPageInput, setJumpToPageInput] = useState("1");
   const [sortOption, setSortOption] = useState<SortOption>("relevant");
+  /**
+   * Tracks the active column-header sort. When set, it takes precedence over
+   * `sortOption` so the column the user clicked is what gets pushed to the
+   * backend (which sorts the full result set, not just the current page).
+   */
+  const [columnSort, setColumnSort] = useState<ResultsSortState>({
+    column: null,
+    direction: "none",
+  });
   const [investigatorPage, setInvestigatorPage] = useState(1);
   const [showScrollTop, setShowScrollTop] = useState(false);
   const navigate = useNavigate();
@@ -76,9 +85,21 @@ export default function App() {
     && !semanticSimilarProjectId
     && !isSemanticHub;
 
+  const { sortBy, sortOrder } = useMemo<{
+    sortBy: SearchSortField | "";
+    sortOrder: SearchSortDirection;
+  }>(() => {
+    // Column-header sort wins over the primary dropdown so the chevron the
+    // user is actively pointing at always matches what the API returned.
+    if (columnSort.column && columnSort.direction !== "none") {
+      return { sortBy: columnSort.column, sortOrder: columnSort.direction };
+    }
+    if (sortOption === "alphaAsc") return { sortBy: "PROJECT_TITLE", sortOrder: "asc" };
+    if (sortOption === "alphaDesc") return { sortBy: "PROJECT_TITLE", sortOrder: "desc" };
+    return { sortBy: "", sortOrder: "asc" };
+  }, [columnSort, sortOption]);
+
   const {
-    query,
-    setQuery,
     projectTermFilters,
     setProjectTermFilters,
     results,
@@ -86,6 +107,8 @@ export default function App() {
     total,
     visibleTotal,
   } = useSearch({
+    query: searchQuery,
+    setQuery: setSearchQuery,
     selectedPI,
     selectedIC,
     selectedActivity,
@@ -94,6 +117,8 @@ export default function App() {
     fyMax,
     currentPage,
     resultsPerPage,
+    sortBy,
+    sortOrder,
     enabled: searchEnabled,
   });
 
@@ -165,7 +190,7 @@ export default function App() {
   }, []);
 
   const handleSearch = (nextQuery: string) => {
-    setQuery(nextQuery);
+    setSearchQuery(nextQuery);
     setProjectTermFilters([]);
     setCurrentPage(1);
   };
@@ -191,30 +216,22 @@ export default function App() {
     setCurrentPage(1);
   };
 
+  const handleDashboardQueryUpdate = useCallback((nextQuery: string) => {
+    setSearchQuery(nextQuery);
+  }, []);
+
   const handleDashboardSearchNavigate = useCallback(
-    (searchQuery: string, filters: DashboardSearchFilters) => {
-      setSelectedPI(filters.pi);
-      setSelectedIC(filters.ic);
-      setSelectedActivity(filters.activity);
-      setSelectedState(filters.state);
-      setFyMin(filters.fyMin);
-      setFyMax(filters.fyMax);
-      setQuery(searchQuery);
+    (nextQuery: string) => {
+      setSearchQuery(nextQuery);
       setProjectTermFilters([]);
       setCurrentPage(1);
       navigate("/search");
     },
-    [navigate, setQuery, setProjectTermFilters],
+    [navigate, setProjectTermFilters],
   );
 
   const handleDashboardTermSearchNavigate = useCallback(
-    (terms: string[], filters: DashboardSearchFilters) => {
-      setSelectedPI(filters.pi);
-      setSelectedIC(filters.ic);
-      setSelectedActivity(filters.activity);
-      setSelectedState(filters.state);
-      setFyMin(filters.fyMin);
-      setFyMax(filters.fyMax);
+    (terms: string[]) => {
       setProjectTermFilters(terms);
       setCurrentPage(1);
       navigate("/search");
@@ -225,7 +242,7 @@ export default function App() {
   const handleSearchFromProjectTerms = useCallback(
     (payload: { terms: string[]; additionalQuery: string }) => {
       setProjectTermFilters(payload.terms);
-      setQuery(payload.additionalQuery.trim());
+      setSearchQuery(payload.additionalQuery.trim());
       setCurrentPage(1);
       navigate("/search");
     },
@@ -236,6 +253,17 @@ export default function App() {
     setResultsPerPage(Number(e.target.value));
     setCurrentPage(1);
   };
+
+  const handleSortOptionChange = (e: ChangeEvent<HTMLSelectElement>) => {
+    setSortOption(e.target.value as SortOption);
+    setColumnSort({ column: null, direction: "none" });
+    setCurrentPage(1);
+  };
+
+  const handleColumnSortChange = useCallback((next: ResultsSortState) => {
+    setColumnSort(next);
+    setCurrentPage(1);
+  }, []);
 
   const handleJumpToPageSubmit = (e: FormEvent<HTMLFormElement>) => {
     e.preventDefault();
@@ -366,7 +394,12 @@ export default function App() {
           }>
             {isDashboardVisible ? (
               <Dashboard
+                searchQuery={searchQuery}
+                onUpdateDashboard={handleDashboardQueryUpdate}
                 onSearchNavigate={handleDashboardSearchNavigate}
+                appliedFilters={appliedFilters}
+                onApplyFilters={handleApplyFilters}
+                onClearFilters={handleClearFilters}
                 onTermSearchNavigate={handleDashboardTermSearchNavigate}
               />
             ) : semanticSimilarProjectId ? (
@@ -437,7 +470,7 @@ export default function App() {
                 <Filters
                   applied={appliedFilters}
                   catalog={filterCatalog}
-                  searchQuery={query}
+                  searchQuery={searchQuery}
                   onSearch={handleSearch}
                   onApply={handleApplyFilters}
                   onClear={handleClearFilters}
@@ -451,7 +484,7 @@ export default function App() {
                       <span>
                         <strong className="text-text-primary font-medium">{visibleTotal.toLocaleString()}</strong> results
                         {total > visibleTotal ? ` out of ${total.toLocaleString()}` : ""}
-                        {query ? ` for "${query}"` : ""}
+                        {searchQuery ? ` for "${searchQuery}"` : ""}
                         {projectTermFilters.length > 0 && (
                           <span className="inline-flex flex-wrap items-center gap-[0.3rem] align-middle">
                             {" — "}
@@ -488,7 +521,7 @@ export default function App() {
                     <select
                       className="px-[0.56rem] py-[0.3rem] border border-border rounded-sm bg-surface font-sans text-xs text-text-secondary cursor-pointer outline-none"
                       value={sortOption}
-                      onChange={(e) => setSortOption(e.target.value as SortOption)}
+                      onChange={handleSortOptionChange}
                       aria-label="Sort results"
                     >
                       <option value="relevant">Most Relevant</option>
@@ -513,6 +546,8 @@ export default function App() {
                   loading={loading}
                   onOpenDetails={handleOpenDetails}
                   onOpenInvestigator={handleOpenInvestigator}
+                  sort={columnSort}
+                  onSortChange={handleColumnSortChange}
                 />
 
                 {totalPages > 1 && (

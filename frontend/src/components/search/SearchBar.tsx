@@ -2,17 +2,21 @@ import { type FC, useEffect, useState } from "react";
 
 type SearchBarProps = {
   onSearch: (query: string) => void;
+  /** When set, shows a green "Update Dashboard" submit button; Search becomes a navigate action. */
+  onUpdateDashboard?: (query: string) => void;
   initialQuery?: string;
-  /** When false, × only clears the input (no onSearch). Default true. */
+  /** When false, × only clears the input (no callback). Default true. */
   submitOnClear?: boolean;
 };
 
 const SearchBar: FC<SearchBarProps> = ({
   onSearch,
+  onUpdateDashboard,
   initialQuery = "",
   submitOnClear = true,
 }) => {
   const [query, setQuery] = useState(initialQuery);
+  const isDashboardMode = onUpdateDashboard != null;
 
   useEffect(() => {
     setQuery(initialQuery);
@@ -20,12 +24,23 @@ const SearchBar: FC<SearchBarProps> = ({
 
   const handleSubmit = (event: React.FormEvent<HTMLFormElement>) => {
     event.preventDefault();
+    if (isDashboardMode) {
+      onUpdateDashboard(query.trim());
+    } else {
+      onSearch(query.trim());
+    }
+  };
+
+  const handleSearchClick = () => {
     onSearch(query.trim());
   };
 
   const handleClear = () => {
     setQuery("");
-    if (submitOnClear) {
+    if (!submitOnClear) return;
+    if (isDashboardMode) {
+      onUpdateDashboard("");
+    } else {
       onSearch("");
     }
   };
@@ -63,12 +78,30 @@ const SearchBar: FC<SearchBarProps> = ({
           ×
         </button>
       ) : null}
-      <button
-        type="submit"
-        className="cursor-pointer whitespace-nowrap rounded-sm border-none bg-accent px-[0.9rem] py-[0.38rem] font-sans text-sm font-medium text-white transition-colors duration-150 hover:bg-accent-hover"
-      >
-        Search
-      </button>
+      {isDashboardMode ? (
+        <>
+          <button
+            type="submit"
+            className="cursor-pointer whitespace-nowrap rounded-sm border-none bg-green px-[0.75rem] py-[0.38rem] font-sans text-sm font-medium text-white transition-colors duration-150 hover:brightness-110"
+          >
+            Update Dashboard
+          </button>
+          <button
+            type="button"
+            onClick={handleSearchClick}
+            className="cursor-pointer whitespace-nowrap rounded-sm border-none bg-accent px-[0.9rem] py-[0.38rem] font-sans text-sm font-medium text-white transition-colors duration-150 hover:bg-accent-hover"
+          >
+            Search
+          </button>
+        </>
+      ) : (
+        <button
+          type="submit"
+          className="cursor-pointer whitespace-nowrap rounded-sm border-none bg-accent px-[0.9rem] py-[0.38rem] font-sans text-sm font-medium text-white transition-colors duration-150 hover:bg-accent-hover"
+        >
+          Search
+        </button>
+      )}
     </form>
   );
 };

@@ -133,6 +133,18 @@ export interface HealthStatus {
   opensearch: string;
 }
 
+export type SearchSortField =
+  | "PI_NAMEs"
+  | "ORG_NAME"
+  | "IC_NAME"
+  | "ORG_STATE"
+  | "ACTIVITY"
+  | "PROJECT_TITLE"
+  | "FY"
+  | "TOTAL_COST";
+
+export type SearchSortDirection = "asc" | "desc";
+
 export type SearchProjectsOptions = {
   limit?: number;
   page?: number;
@@ -144,6 +156,8 @@ export type SearchProjectsOptions = {
   fyMin?: string;
   fyMax?: string;
   projectTerms?: string[];
+  sortBy?: SearchSortField | "";
+  sortOrder?: SearchSortDirection;
 };
 
 export async function searchProjects(
@@ -161,6 +175,8 @@ export async function searchProjects(
     fyMin = "",
     fyMax = "",
     projectTerms = [],
+    sortBy = "",
+    sortOrder = "asc",
   } = options;
   const url = new URL(`${API_BASE_URL}/search/`);
   url.searchParams.set("q", query);
@@ -178,6 +194,10 @@ export async function searchProjects(
   for (const term of projectTerms) {
     const trimmed = term.trim();
     if (trimmed) url.searchParams.append("project_terms", trimmed);
+  }
+  if (sortBy) {
+    url.searchParams.set("sort_by", sortBy);
+    url.searchParams.set("sort_order", sortOrder);
   }
   const response = await fetch(url.toString());
   if (!response.ok) {
@@ -356,6 +376,7 @@ export interface DashboardSummary {
 // ─── Analytics fetch helpers ──────────────────────────────────────────────────
 
 export type AnalyticsFilterOptions = {
+  q?: string;
   pi?: string;
   ic?: string;
   activity?: string;
@@ -366,6 +387,7 @@ export type AnalyticsFilterOptions = {
 
 function appendAnalyticsFilters(params: URLSearchParams, filters?: AnalyticsFilterOptions): void {
   if (!filters) return;
+  if (filters.q) params.set("q", filters.q);
   if (filters.pi) params.set("pi", filters.pi);
   if (filters.ic) params.set("ic", filters.ic);
   if (filters.activity) params.set("activity", filters.activity);
