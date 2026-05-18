@@ -1,4 +1,4 @@
-import { useState, type ReactElement } from "react";
+import { useMemo, useState, type ReactElement } from "react";
 import type { ProjectTermThemeCloudResponse, TermNode } from "../../api";
 import { cn } from "../../utils/cn";
 
@@ -14,9 +14,17 @@ const SVG_W = 580;
 const SVG_H = 520;
 const CX = SVG_W / 2;
 const CY = SVG_H / 2;
-const R_CAT = 155;
-const R_SUB = 118;
-const SUB_FAN_DEG = 168;
+const R_CAT_RX = 220;
+const R_CAT_RY = 145;
+const R_SUB = 155;
+const SUB_FAN_DEG = 210;
+const CAT_REPEL_GAP = 12;
+const CAT_REPEL_ITERATIONS = 20;
+const CAT_MAX_SHIFT = 110;
+const CAT_PEER_SHRINK = 0.78;
+const CAT_ACTIVE_RADIUS_BONUS = 4;
+const SUB_BASE_SCALE = 0.8;
+const SUB_ACTIVE_SCALE = 1.28;
 const LAYOUT_EASE = "cubic-bezier(0.4, 0, 0.2, 1)";
 const LAYOUT_MS = 500;
 const SUB_OPEN_MS = 580;
@@ -53,6 +61,87 @@ function splitLabel(label: string, maxCharsPerLine = 14): string[] {
   return lines.length > 0 ? lines : [label];
 }
 
+function wrapLabelWordsFull(label: string, maxCharsPerLine: number): string[] {
+  const normalized = label.trim();
+  if (normalized.includes(" & ")) {
+    return normalized
+      .split(" & ")
+      .map((part) => part.trim())
+      .filter(Boolean);
+  }
+  if (normalized.length <= maxCharsPerLine) {
+    return [normalized];
+  }
+  const words = normalized.split(/\s+/).filter(Boolean);
+  const lines: string[] = [];
+  let current = "";
+  for (const word of words) {
+    const next = current ? `${current} ${word}` : word;
+    if (next.length <= maxCharsPerLine) {
+      current = next;
+    } else {
+      if (current) lines.push(current);
+      current = word;
+    }
+  }
+  if (current) lines.push(current);
+  return lines.length > 0 ? lines : [normalized];
+}
+
+type CircleLabelFit = {
+  lines: string[];
+  fontSize: number;
+  radius: number;
+};
+
+function textFitsInCircle(
+  lines: string[],
+  fontSize: number,
+  radius: number,
+  pad: number,
+  lineHeightFactor = 1.12,
+): boolean {
+  const lineHeight = fontSize * lineHeightFactor;
+  const maxChars = Math.max(...lines.map((line) => line.length), 1);
+  const halfW = maxChars * fontSize * 0.32;
+  const halfH = (lines.length * lineHeight) / 2;
+  return Math.max(halfW, halfH) + pad <= radius;
+}
+
+function fitSubcategoryInCircle(
+  label: string,
+  weightRatio: number,
+  selected: boolean,
+  sizeScale = 1,
+): CircleLabelFit {
+  const pad = 6 * sizeScale;
+  const minR = 18 * sizeScale;
+  const maxR = 46 * sizeScale;
+  const weightR = (16 + weightRatio * 6) * sizeScale;
+  const minFont = 7 * sizeScale;
+  const maxFont = 10.5 * sizeScale;
+
+  for (let fontSize = maxFont; fontSize >= minFont; fontSize -= 0.25) {
+    const maxChars = Math.max(9, Math.round(fontSize * 1.95));
+    const lines = wrapLabelWordsFull(label, maxChars);
+    const textR = radiusForInsideText(lines, fontSize, minR, maxR, pad);
+    const radius = clamp(Math.max(textR, weightR), minR, maxR);
+    if (textFitsInCircle(lines, fontSize, radius, pad, 1.14)) {
+      const finalR = selected ? radius + 2 * sizeScale : radius;
+      return { lines, fontSize, radius: finalR };
+    }
+  }
+
+  const lines = wrapLabelWordsFull(label, Math.max(9, Math.round(10 * sizeScale)));
+  const fontSize = minFont;
+  const radius = clamp(
+    Math.max(radiusForInsideText(lines, fontSize, minR, maxR, pad), weightR),
+    minR,
+    maxR,
+  );
+  return { lines, fontSize, radius: selected ? radius + 2 * sizeScale : radius };
+}
+
 function radiusForInsideText(
   lines: string[],
   fontSize: number,
@@ -74,9 +163,42 @@ function catNodeRadius(weight: number, maxWeight: number, lines: string[], fontS
   return Math.max(weightR, textR);
 }
 
+function categoryDisplayMetrics(
+  baseR: number,
+  baseFontSize: number,
+  isActive: boolean,
+  selectionActive: boolean,
+): { radius: number; fontSize: number } {
+  if (!selectionActive) {
+    return { radius: baseR, fontSize: baseFontSize };
+  }
+  if (isActive) {
+    return { radius: baseR + CAT_ACTIVE_RADIUS_BONUS, fontSize: baseFontSize };
+  }
+  return {
+    radius: baseR * CAT_PEER_SHRINK,
+    fontSize: baseFontSize * CAT_PEER_SHRINK,
+  };
+}
+
 function radialPos(cx: number, cy: number, r: number, angleDeg: number): [number, number] {
   const rad = (angleDeg - 90) * (Math.PI / 180);
   return [cx + r * Math.cos(rad), cy + r * Math.sin(rad)];
+}
+
+function ellipsePos(
+  cx: number,
+  cy: number,
+  rx: number,
+  ry: number,
+  angleDeg: number,
+): [number, number] {
+  const rad = (angleDeg - 90) * (Math.PI / 180);
+  return [cx + rx * Math.cos(rad), cy + ry * Math.sin(rad)];
+}
+
+function outwardAngleDeg(cx: number, cy: number, x: number, y: number): number {
+  return (Math.atan2(x - cx, cy - y) * 180) / Math.PI;
 }
 
 function edgePoint(
@@ -122,6 +244,26 @@ function subOpenDelay(index: number, isActive: boolean): string {
   return `${Math.max(0, (5 - index) * 30)}ms`;
 }
 
+type CatNodeLayout = {
+  cat: TermNode;
+  x: number;
+  y: number;
+  angleDeg: number;
+  hue: number;
+  r: number;
+  lines: string[];
+};
+
+function fitSubcategoryNode(
+  sub: TermNode,
+  subMaxW: number,
+  selected: boolean,
+  sizeScale = 1,
+): CircleLabelFit {
+  const weightRatio = subMaxW > 0 ? (sub.weight ?? 0) / subMaxW : 0;
+  return fitSubcategoryInCircle(sub.label, weightRatio, selected, sizeScale);
+}
+
 function subcatPositions(
   catX: number,
   catY: number,
@@ -140,28 +282,153 @@ function subcatPositions(
   });
 }
 
-type CatNodeLayout = {
-  cat: TermNode;
-  x: number;
-  y: number;
-  angleDeg: number;
-  hue: number;
-  r: number;
-  lines: string[];
-};
+type CircleObstacle = { x: number; y: number; r: number };
 
-function subNodeRadius(
-  sub: TermNode,
-  subMaxW: number,
-  subFontSize: number,
-  selected: boolean,
-): number {
-  const subLines = splitLabel(sub.label, 11);
-  const subT = (sub.weight ?? 0) / subMaxW;
-  const textR = radiusForInsideText(subLines, subFontSize, 14, 30, 100);
-  const weightR = 13 + subT * 5;
-  const base = Math.max(textR, weightR);
-  return selected ? base + 2 : base;
+function circlesOverlap(
+  ax: number,
+  ay: number,
+  ar: number,
+  bx: number,
+  by: number,
+  br: number,
+  gap: number,
+): boolean {
+  return Math.hypot(ax - bx, ay - by) < ar + br + gap;
+}
+
+function pushCircleAway(
+  x: number,
+  y: number,
+  obstacle: CircleObstacle,
+  radius: number,
+  gap: number,
+): [number, number] {
+  const dx = x - obstacle.x;
+  const dy = y - obstacle.y;
+  const dist = Math.hypot(dx, dy) || 1;
+  const minDist = radius + obstacle.r + gap;
+  if (dist >= minDist) {
+    return [x, y];
+  }
+  const push = minDist - dist;
+  return [x + (dx / dist) * push, y + (dy / dist) * push];
+}
+
+function clampShiftFromBase(
+  x: number,
+  y: number,
+  baseX: number,
+  baseY: number,
+  maxShift: number,
+): [number, number] {
+  const dx = x - baseX;
+  const dy = y - baseY;
+  const dist = Math.hypot(dx, dy);
+  if (dist <= maxShift) {
+    return [x, y];
+  }
+  const scale = maxShift / dist;
+  return [baseX + dx * scale, baseY + dy * scale];
+}
+
+function subObstaclesForActiveCategory(
+  active: CatNodeLayout,
+  selectedSubId: string | null,
+): CircleObstacle[] {
+  const subs = active.cat.children ?? [];
+  if (subs.length === 0) return [];
+
+  const subMaxW = Math.max(...subs.map((s) => s.weight ?? 0), 1);
+  const positions = subcatPositions(active.x, active.y, subs.length, active.angleDeg);
+
+  return subs.map((sub, si) => {
+    const [sx, sy] = positions[si];
+    const fit = fitSubcategoryNode(
+      sub,
+      subMaxW,
+      selectedSubId === sub.id,
+      SUB_ACTIVE_SCALE * SUB_BASE_SCALE,
+    );
+    return { x: sx, y: sy, r: fit.radius };
+  });
+}
+
+function adjustCategoriesForActiveSubs(
+  nodes: CatNodeLayout[],
+  activeId: string | null,
+  selectedSubId: string | null,
+): CatNodeLayout[] {
+  if (!activeId) return nodes;
+
+  const active = nodes.find((node) => node.cat.id === activeId);
+  if (!active) return nodes;
+
+  const subObstacles = subObstaclesForActiveCategory(active, selectedSubId);
+  if (subObstacles.length === 0) return nodes;
+
+  const positions = nodes.map((node) => ({
+    x: node.x,
+    y: node.y,
+    baseX: node.x,
+    baseY: node.y,
+  }));
+
+  const activeIndex = nodes.findIndex((node) => node.cat.id === activeId);
+
+  for (let iter = 0; iter < CAT_REPEL_ITERATIONS; iter += 1) {
+    let moved = false;
+
+    for (let i = 0; i < nodes.length; i += 1) {
+      if (i === activeIndex) continue;
+
+      const node = nodes[i];
+      const pos = positions[i];
+      let { x, y } = pos;
+      const radius = node.r * CAT_PEER_SHRINK;
+
+      for (const obstacle of subObstacles) {
+        const [nx, ny] = pushCircleAway(x, y, obstacle, radius, CAT_REPEL_GAP);
+        if (nx !== x || ny !== y) {
+          x = nx;
+          y = ny;
+          moved = true;
+        }
+      }
+
+      for (let j = i + 1; j < nodes.length; j += 1) {
+        if (j === activeIndex) continue;
+        const other = nodes[j];
+        const otherPos = positions[j];
+        const otherR = other.r * CAT_PEER_SHRINK;
+        if (
+          circlesOverlap(x, y, radius, otherPos.x, otherPos.y, otherR, CAT_REPEL_GAP)
+        ) {
+          const dx = x - otherPos.x;
+          const dy = y - otherPos.y;
+          const dist = Math.hypot(dx, dy) || 1;
+          const minDist = radius + otherR + CAT_REPEL_GAP;
+          const push = (minDist - dist) / 2;
+          x += (dx / dist) * push;
+          y += (dy / dist) * push;
+          otherPos.x -= (dx / dist) * push;
+          otherPos.y -= (dy / dist) * push;
+          moved = true;
+        }
+      }
+
+      [x, y] = clampShiftFromBase(x, y, pos.baseX, pos.baseY, CAT_MAX_SHIFT);
+      pos.x = x;
+      pos.y = y;
+    }
+
+    if (!moved) break;
+  }
+
+  return nodes.map((node, i) => ({
+    ...node,
+    x: positions[i].x,
+    y: positions[i].y,
+  }));
 }
 
 function expandBounds(
@@ -182,15 +449,21 @@ function computeViewBox(
   activeId: string | null,
   selectedSubId: string | null,
   catFontSize: number,
-  subFontSize: number,
   padding = 28,
 ): string {
   const bounds = { minX: Infinity, minY: Infinity, maxX: -Infinity, maxY: -Infinity };
 
+  const selectionActive = activeId !== null;
+
   for (const node of catNodes) {
     const isActive = activeId === node.cat.id;
-    const displayR = isActive ? node.r + 4 : node.r;
-    const catLabelPad = node.lines.length * catFontSize * 1.15 + 6;
+    const { radius: displayR, fontSize: displayFontSize } = categoryDisplayMetrics(
+      node.r,
+      catFontSize,
+      isActive,
+      selectionActive,
+    );
+    const catLabelPad = node.lines.length * displayFontSize * 1.15 + 6;
     expandBounds(bounds, node.x, node.y, displayR, catLabelPad);
 
     if (!isActive) continue;
@@ -201,10 +474,14 @@ function computeViewBox(
 
     subs.forEach((sub, si) => {
       const [sx, sy] = subPositions[si];
-      const subR = subNodeRadius(sub, subMaxW, subFontSize, selectedSubId === sub.id);
-      const subLines = splitLabel(sub.label, 11);
-      const subLabelPad = subLines.length * subFontSize * 1.15 + 4;
-      expandBounds(bounds, sx, sy, subR, subLabelPad);
+      const fit = fitSubcategoryNode(
+        sub,
+        subMaxW,
+        selectedSubId === sub.id,
+        SUB_ACTIVE_SCALE * SUB_BASE_SCALE,
+      );
+      const subLabelPad = fit.lines.length * fit.fontSize * 1.12 + 4;
+      expandBounds(bounds, sx, sy, fit.radius, subLabelPad);
     });
   }
 
@@ -233,6 +510,7 @@ type InsideLabelProps = {
   fill: string;
   fontWeight?: number;
   visible?: boolean;
+  lineHeightFactor?: number;
 };
 
 function InsideLabel({
@@ -243,8 +521,9 @@ function InsideLabel({
   fill,
   fontWeight = 500,
   visible = true,
+  lineHeightFactor = 1.2,
 }: InsideLabelProps): ReactElement {
-  const lineHeight = fontSize * 1.2;
+  const lineHeight = fontSize * lineHeightFactor;
   const startDy = -((lines.length - 1) * lineHeight) / 2;
 
   return (
@@ -259,7 +538,7 @@ function InsideLabel({
         fontWeight,
         pointerEvents: "none",
         opacity: visible ? 1 : 0,
-        transition: "opacity 0.25s",
+        transition: "opacity 0.25s, font-size 0.45s ease",
       }}
     >
       {lines.map((line, i) => (
@@ -282,17 +561,26 @@ export default function ProjectTermsThemeCloud({ payload, onSearch }: Props): Re
 
   const maxWeight = Math.max(...rawTree.map((n) => n.weight ?? 0), 1);
   const n = rawTree.length;
-  const catFontSize = 10;
-  const subFontSize = 7;
+  const catFontSize = 12;
 
-  const catNodes = rawTree.map((cat, i) => {
-    const angleDeg = (360 / n) * i;
-    const [x, y] = radialPos(CX, CY, R_CAT, angleDeg);
-    const hue = HUES[i % HUES.length];
-    const lines = splitLabel(cat.label, 12);
-    const r = catNodeRadius(cat.weight ?? 0, maxWeight, lines, catFontSize);
-    return { cat, x, y, angleDeg, hue, r, lines };
-  });
+  const baseCatNodes = useMemo(
+    () =>
+      rawTree.map((cat, i) => {
+        const placementDeg = (360 / n) * i;
+        const [x, y] = ellipsePos(CX, CY, R_CAT_RX, R_CAT_RY, placementDeg);
+        const angleDeg = outwardAngleDeg(CX, CY, x, y);
+        const hue = HUES[i % HUES.length];
+        const lines = splitLabel(cat.label, 12);
+        const r = catNodeRadius(cat.weight ?? 0, maxWeight, lines, catFontSize);
+        return { cat, x, y, angleDeg, hue, r, lines };
+      }),
+    [rawTree, n, maxWeight, catFontSize],
+  );
+
+  const catNodes = useMemo(
+    () => adjustCategoriesForActiveSubs(baseCatNodes, activeId, selectedSubId),
+    [baseCatNodes, activeId, selectedSubId],
+  );
 
   const activeCatNode = catNodes.find((node) => node.cat.id === activeId);
   const selectedSub =
@@ -301,7 +589,7 @@ export default function ProjectTermsThemeCloud({ payload, onSearch }: Props): Re
   const leafRows = chunkRows(leafTerms, 3);
   const selectedCount = selectedTerms.size;
   const panelOpen = selectedSub !== null;
-  const viewBox = computeViewBox(catNodes, activeId, selectedSubId, catFontSize, subFontSize);
+  const viewBox = computeViewBox(catNodes, activeId, selectedSubId, catFontSize);
 
   const handleCategoryClick = (catId: string, isActive: boolean): void => {
     if (isActive) {
@@ -364,10 +652,7 @@ export default function ProjectTermsThemeCloud({ payload, onSearch }: Props): Re
       <div className="flex items-start justify-between gap-3 flex-wrap mb-[0.35rem]">
         <h3 className="text-text-primary text-[0.9rem] font-semibold mb-0">Project term themes</h3>
       </div>
-      <p className="text-text-secondary text-[0.75rem] leading-[1.45] m-0 mb-2">
-        Click a category, then a subcategory to browse terms. Add categories in{" "}
-        <code className="text-[0.7rem]">build_project_term_theme_counts.py</code>.
-      </p>
+     
 
       {buckets.length === 0 ? (
         <p className="text-text-muted text-[0.875rem] mt-2 m-0">
@@ -393,16 +678,30 @@ export default function ProjectTermsThemeCloud({ payload, onSearch }: Props): Re
               >
               {catNodes.map(({ cat, x, y, angleDeg, hue, r, lines }) => {
                 const isActive = activeId === cat.id;
-                const displayR = isActive ? r + 4 : r;
+                const selectionActive = activeId !== null;
+                const { radius: displayR, fontSize: displayCatFontSize } = categoryDisplayMetrics(
+                  r,
+                  catFontSize,
+                  isActive,
+                  selectionActive,
+                );
                 const subs: TermNode[] = cat.children ?? [];
-                const subPositions = subcatPositions(x, y, subs.length, angleDeg);
+                const subPositions = subcatPositions(0, 0, subs.length, angleDeg);
                 const subMaxW = Math.max(...subs.map((s) => s.weight ?? 0), 1);
+                const subSizeScale = (isActive ? SUB_ACTIVE_SCALE : 1) * SUB_BASE_SCALE;
+                const groupTransition = `transform ${LAYOUT_MS}ms ${LAYOUT_EASE}`;
 
                 return (
-                  <g key={cat.id}>
+                  <g
+                    key={cat.id}
+                    style={{
+                      transform: `translate(${x}px, ${y}px)`,
+                      transition: groupTransition,
+                    }}
+                  >
                     <circle
-                      cx={x}
-                      cy={y}
+                      cx={0}
+                      cy={0}
                       r={displayR}
                       style={{
                         fill: `hsl(${hue} 42% ${isActive ? 82 : 90}%)`,
@@ -422,25 +721,24 @@ export default function ProjectTermsThemeCloud({ payload, onSearch }: Props): Re
                       }}
                     />
                     <InsideLabel
-                      x={x}
-                      y={y}
+                      x={0}
+                      y={0}
                       lines={lines}
-                      fontSize={catFontSize}
+                      fontSize={displayCatFontSize}
                       fill={`hsl(${hue} 48% ${isActive ? 22 : 30}%)`}
                       fontWeight={isActive ? 700 : 600}
                     />
 
                     {subPositions.map(([sx, sy], si) => {
                       const sub = subs[si];
-                      const subR = sub
-                        ? subNodeRadius(
-                            sub,
-                            subMaxW,
-                            subFontSize,
-                            selectedSubId === sub.id,
-                          )
-                        : 16;
-                      const pathD = connectorPath(x, y, displayR, sx, sy, subR);
+                      const subFit = fitSubcategoryNode(
+                        sub,
+                        subMaxW,
+                        selectedSubId === sub.id,
+                        subSizeScale,
+                      );
+                      const subR = subFit.radius;
+                      const pathD = connectorPath(0, 0, displayR, sx, sy, subR);
                       const lineDelay = subOpenDelay(si, isActive);
 
                       return (
@@ -465,9 +763,14 @@ export default function ProjectTermsThemeCloud({ payload, onSearch }: Props): Re
 
                     {subs.map((sub, si) => {
                       const [sx, sy] = subPositions[si];
-                      const subLines = splitLabel(sub.label, 11);
                       const isSubSelected = selectedSubId === sub.id;
-                      const subR = subNodeRadius(sub, subMaxW, subFontSize, isSubSelected);
+                      const subFit = fitSubcategoryNode(
+                        sub,
+                        subMaxW,
+                        isSubSelected,
+                        subSizeScale,
+                      );
+                      const { lines: subLines, fontSize: subLabelFont, radius: subR } = subFit;
                       const animDelay = subOpenDelay(si, isActive);
 
                       return (
@@ -515,9 +818,11 @@ export default function ProjectTermsThemeCloud({ payload, onSearch }: Props): Re
                             x={sx}
                             y={sy}
                             lines={subLines}
-                            fontSize={subFontSize}
-                            fill={`hsl(${hue} 40% 24%)`}
+                            fontSize={subLabelFont}
+                            fill={`hsl(${hue} 48% 16%)`}
+                            fontWeight={700}
                             visible={isActive}
+                            lineHeightFactor={1.14}
                           />
                         </g>
                       );
