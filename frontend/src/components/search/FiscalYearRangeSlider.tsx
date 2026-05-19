@@ -97,15 +97,19 @@ function FiscalYearRangeSlider({
         pearling
         onChange={handleSliderChange}
         onAfterChange={handleSliderCommit}
-        renderTrack={(props, state) => (
-          <div
-            {...props}
-            className={cn(
-              "top-1/2 h-1.5 -translate-y-1/2 rounded-full",
-              state.index === 1 ? "bg-accent" : "bg-accent/25",
-            )}
-          />
-        )}
+        renderTrack={(props, state) => {
+          const { key, ...trackProps } = props;
+          return (
+            <div
+              key={key}
+              {...trackProps}
+              className={cn(
+                "top-1/2 h-1.5 -translate-y-1/2 rounded-full",
+                state.index === 1 ? "bg-accent" : "bg-accent/25",
+              )}
+            />
+          );
+        }}
         ariaLabel={["Minimum fiscal year", "Maximum fiscal year"]}
         ariaValuetext={(state) => String(choices[state.valueNow] ?? state.valueNow)}
         />

@@ -12,7 +12,9 @@ import { useTheme } from "./hooks/useTheme";
 import { useProjectDetails } from "./hooks/useProjectDetails";
 import { useInvestigatorProjects, INVESTIGATOR_PER_PAGE } from "./hooks/useInvestigatorProjects";
 import { useSearch } from "./hooks/useSearch";
+import { readInitialSearchFromWindow, useSearchUrlSync } from "./hooks/useSearchUrlSync";
 import { matchPath, useLocation, useNavigate } from "react-router-dom";
+import type { SortOption } from "./utils/searchUrlParams";
 import Filters from "./components/search/Filters";
 import FilterSelect from "./components/search/FilterSelect";
 import InvestigatorPage from "./components/investigator/InvestigatorPage";
@@ -25,6 +27,9 @@ import {
   type SearchSortDirection,
   type SearchSortField,
 } from "./api";
+import HelpTooltip from "./components/shared/HelpTooltip";
+import { HELP_SEARCH } from "./utils/helpContent";
+import { type SearchResultRecord, type SearchSortDirection, type SearchSortField } from "./api";
 import type { AdvancedSearchQuery } from "./types/advancedSearch";
 import { formatAdvancedSearchQuery, hasAdvancedSearchContent } from "./utils/advancedSearch";
 import { useFilterCatalog } from "./hooks/useFilterCatalog";
@@ -35,8 +40,6 @@ const Dashboard = lazy(() => import("./components/dashboard/Dashboard"));
 const ProjectDetailsPage = lazy(() => import("./components/project/ProjectDetailsPage"));
 const SemanticVectorLabPage = lazy(() => import("./components/semantic/SemanticVectorLabPage"));
 const SemanticSimilarProjectPage = lazy(() => import("./components/semantic/SemanticSimilarProjectPage"));
-
-type SortOption = "relevant" | "alphaAsc" | "alphaDesc";
 
 const SORT_SELECT_OPTIONS = [
   { value: "relevant", label: "Most Relevant" },
@@ -50,31 +53,43 @@ const PER_PAGE_SELECT_OPTIONS = [10, 25, 50, 100].map((n) => ({
 }));
 
 export default function App() {
+  const initialSearchUrl = readInitialSearchFromWindow();
 
-  const [searchQuery, setSearchQuery] = useState("");
-  const [advancedSearch, setAdvancedSearch] = useState<AdvancedSearchQuery | null>(null);
-  const [semanticSearchMode, setSemanticSearchMode] = useState(false);
-  const [semanticSearchCommitted, setSemanticSearchCommitted] = useState(false);
-  const [selectedPI, setSelectedPI] = useState("");
-  const [selectedIC, setSelectedIC] = useState("");
-  const [selectedActivity, setSelectedActivity] = useState("");
-  const [selectedState, setSelectedState] = useState("");
-  const [fyMin, setFyMin] = useState("");
-  const [fyMax, setFyMax] = useState("");
+  const [searchQuery, setSearchQuery] = useState(() => initialSearchUrl?.q ?? "");
+  const [advancedSearch, setAdvancedSearch] = useState<AdvancedSearchQuery | null>(
+    () => initialSearchUrl?.advancedSearch ?? null,
+  );
+  const [semanticSearchMode, setSemanticSearchMode] = useState(
+    () => initialSearchUrl?.semantic ?? false,
+  );
+  const [semanticSearchCommitted, setSemanticSearchCommitted] = useState(
+    () => initialSearchUrl?.semantic ?? false,
+  );
+  const [selectedPI, setSelectedPI] = useState(() => initialSearchUrl?.pi ?? "");
+  const [selectedIC, setSelectedIC] = useState(() => initialSearchUrl?.ic ?? "");
+  const [selectedActivity, setSelectedActivity] = useState(
+    () => initialSearchUrl?.activity ?? "",
+  );
+  const [selectedState, setSelectedState] = useState(() => initialSearchUrl?.state ?? "");
+  const [fyMin, setFyMin] = useState(() => initialSearchUrl?.fyMin ?? "");
+  const [fyMax, setFyMax] = useState(() => initialSearchUrl?.fyMax ?? "");
 
-  const [resultsPerPage, setResultsPerPage] = useState(25);
-  const [currentPage, setCurrentPage] = useState(1);
-  const [jumpToPageInput, setJumpToPageInput] = useState("1");
-  const [sortOption, setSortOption] = useState<SortOption>("relevant");
+  const [resultsPerPage, setResultsPerPage] = useState(() => initialSearchUrl?.limit ?? 25);
+  const [currentPage, setCurrentPage] = useState(() => initialSearchUrl?.page ?? 1);
+  const [jumpToPageInput, setJumpToPageInput] = useState(() =>
+    String(initialSearchUrl?.page ?? 1),
+  );
+  const [sortOption, setSortOption] = useState<SortOption>(
+    () => initialSearchUrl?.sortOption ?? "relevant",
+  );
   /**
    * Tracks the active column-header sort. When set, it takes precedence over
    * `sortOption` so the column the user clicked is what gets pushed to the
    * backend (which sorts the full result set, not just the current page).
    */
-  const [columnSort, setColumnSort] = useState<ResultsSortState>({
-    column: null,
-    direction: "none",
-  });
+  const [columnSort, setColumnSort] = useState<ResultsSortState>(
+    () => initialSearchUrl?.columnSort ?? { column: null, direction: "none" },
+  );
   const [investigatorPage, setInvestigatorPage] = useState(1);
   const [exportingCsv, setExportingCsv] = useState(false);
   const [exportCsvError, setExportCsvError] = useState<string | null>(null);
@@ -124,9 +139,53 @@ export default function App() {
     return { sortBy: "", sortOrder: "asc" };
   }, [columnSort, sortOption]);
 
+  const [projectTermFilters, setProjectTermFilters] = useState<string[]>(
+    () => initialSearchUrl?.projectTerms ?? [],
+  );
+  const [excludeProjectTermFilters, setExcludeProjectTermFilters] = useState<string[]>([]);
+
+  const { navigateToSearch } = useSearchUrlSync({
+    enabled: searchEnabled,
+    state: {
+      q: searchQuery,
+      advancedSearch:
+        advancedSearch && hasAdvancedSearchContent(advancedSearch) ? advancedSearch : null,
+      page: currentPage,
+      limit: resultsPerPage,
+      pi: selectedPI,
+      ic: selectedIC,
+      activity: selectedActivity,
+      state: selectedState,
+      fyMin,
+      fyMax,
+      projectTerms: projectTermFilters,
+      sortBy,
+      sortOrder,
+      sortOption,
+      columnSort,
+      semanticMode: semanticSearchMode,
+      semanticCommitted: semanticSearchCommitted,
+    },
+    setters: {
+      setQ: setSearchQuery,
+      setAdvancedSearch,
+      setPage: setCurrentPage,
+      setLimit: setResultsPerPage,
+      setPi: setSelectedPI,
+      setIc: setSelectedIC,
+      setActivity: setSelectedActivity,
+      setState: setSelectedState,
+      setFyMin,
+      setFyMax,
+      setProjectTerms: setProjectTermFilters,
+      setSortOption,
+      setColumnSort,
+      setSemanticMode: setSemanticSearchMode,
+      setSemanticCommitted: setSemanticSearchCommitted,
+    },
+  });
+
   const {
-    projectTermFilters,
-    setProjectTermFilters,
     results,
     loading,
     total,
@@ -136,6 +195,8 @@ export default function App() {
     setQuery: setSearchQuery,
     advancedSearch:
       advancedSearch && hasAdvancedSearchContent(advancedSearch) ? advancedSearch : null,
+    projectTermFilters,
+    excludeProjectTermFilters,
     selectedPI,
     selectedIC,
     selectedActivity,
@@ -223,6 +284,7 @@ export default function App() {
     setSemanticSearchCommitted(semanticSearchMode);
     setSearchQuery(nextQuery);
     setProjectTermFilters([]);
+    setExcludeProjectTermFilters([]);
     setCurrentPage(1);
   };
 
@@ -241,6 +303,7 @@ export default function App() {
     setAdvancedSearch(nextQuery);
     setSearchQuery("");
     setProjectTermFilters([]);
+    setExcludeProjectTermFilters([]);
     setCurrentPage(1);
   }, []);
 
@@ -307,6 +370,7 @@ export default function App() {
     setFyMin("");
     setFyMax("");
     setProjectTermFilters([]);
+    setExcludeProjectTermFilters([]);
     setColumnSort({ column: null, direction: "none" });
     setSortOption("relevant");
     setSearchQuery("");
@@ -314,7 +378,7 @@ export default function App() {
     setSemanticSearchMode(false);
     setSemanticSearchCommitted(false);
     setCurrentPage(1);
-  }, [setProjectTermFilters]);
+  }, []);
 
   const handleDashboardQueryUpdate = useCallback((nextQuery: string) => {
     setSearchQuery(nextQuery);
@@ -323,33 +387,58 @@ export default function App() {
   const handleDashboardSearchNavigate = useCallback(
     (nextQuery: string) => {
       setAdvancedSearch(null);
+      setSemanticSearchMode(false);
+      setSemanticSearchCommitted(false);
       setSearchQuery(nextQuery);
       setProjectTermFilters([]);
+      setExcludeProjectTermFilters([]);
       setCurrentPage(1);
-      navigate("/search");
+      navigateToSearch({
+        q: nextQuery,
+        advancedSearch: null,
+        projectTerms: [],
+        page: 1,
+        semanticMode: false,
+        semanticCommitted: false,
+      });
     },
-    [navigate, setProjectTermFilters],
+    [navigateToSearch],
   );
 
   const handleDashboardTermSearchNavigate = useCallback(
     (terms: string[]) => {
       setProjectTermFilters(terms);
+      setExcludeProjectTermFilters([]);
       setCurrentPage(1);
-      navigate("/search");
+      navigateToSearch({ projectTerms: terms, page: 1 });
     },
-    [navigate, setProjectTermFilters],
+    [navigateToSearch],
   );
 
   const handleSearchFromProjectTerms = useCallback(
-    (payload: { terms: string[]; additionalQuery: string }) => {
+    (payload: { terms: string[]; excludedTerms: string[]; additionalQuery: string }) => {
       setAdvancedSearch(null);
+      setSemanticSearchMode(false);
+      setSemanticSearchCommitted(false);
       setProjectTermFilters(payload.terms);
+      setExcludeProjectTermFilters(payload.excludedTerms);
       setSearchQuery(payload.additionalQuery.trim());
       setCurrentPage(1);
-      navigate("/search");
+      navigateToSearch({
+        q: payload.additionalQuery.trim(),
+        advancedSearch: null,
+        projectTerms: payload.terms,
+        page: 1,
+        semanticMode: false,
+        semanticCommitted: false,
+      });
     },
-    [navigate],
+    [navigateToSearch],
   );
+
+  const handleBackToSearch = useCallback(() => {
+    navigateToSearch();
+  }, [navigateToSearch]);
 
   const handlePerPageChange = useCallback((value: string) => {
     setResultsPerPage(Number(value));
@@ -435,7 +524,7 @@ export default function App() {
                 ? " text-accent-text bg-accent-light"
                 : " bg-transparent text-text-muted")
             }
-            onClick={() => navigate("/search")}
+            onClick={() => navigateToSearch()}
           >
             Search
           </button>
@@ -524,7 +613,7 @@ export default function App() {
                   <button
                     type="button"
                     className="inline-block p-0 border-none bg-transparent text-accent font-sans text-[15.5px] cursor-pointer hover:underline"
-                    onClick={() => navigate("/search")}
+                    onClick={handleBackToSearch}
                     style={{ marginTop: "0.85rem" }}
                   >
                     Back to results
@@ -533,7 +622,7 @@ export default function App() {
               ) : selectedProject ? (
                 <ProjectDetailsPage
                   item={selectedProject}
-                  onBack={() => navigate("/search")}
+                  onBack={handleBackToSearch}
                   onOpenInvestigator={handleOpenInvestigator}
                   onOpenDetails={handleOpenDetails}
                   onSearchWithProjectTerms={handleSearchFromProjectTerms}
@@ -544,7 +633,7 @@ export default function App() {
                   <button
                     type="button"
                     className="inline-block p-0 border-none bg-transparent text-accent font-sans text-[15.5px] cursor-pointer hover:underline"
-                    onClick={() => navigate("/search")}
+                    onClick={handleBackToSearch}
                     style={{ marginTop: "0.85rem" }}
                   >
                     Back to results
@@ -565,10 +654,13 @@ export default function App() {
                 onOpenDetails={handleOpenDetails}
                 onOpenInvestigator={handleOpenInvestigator}
                 onPageChange={setInvestigatorPage}
-                onBack={() => navigate("/search")}
+                onBack={handleBackToSearch}
               />
             ) : isSearchRoute ? (
               <>
+                <div className="mb-1 flex justify-end">
+                  <HelpTooltip label={HELP_SEARCH.label}>{HELP_SEARCH.body}</HelpTooltip>
+                </div>
                 <Filters
                   applied={appliedFilters}
                   catalog={filterCatalog}
@@ -593,11 +685,11 @@ export default function App() {
                         <strong className="text-text-primary font-medium">{visibleTotal.toLocaleString()}</strong> results
                         {total > visibleTotal ? ` out of ${total.toLocaleString()}` : ""}
                         {activeSearchLabel ? ` for "${activeSearchLabel}"` : ""}
-                        {projectTermFilters.length > 0 && (
+                        {(projectTermFilters.length > 0 || excludeProjectTermFilters.length > 0) && (
                           <span className="inline-flex flex-wrap items-center gap-[0.3rem] align-middle">
                             {" — "}
                             {projectTermFilters.map((term) => (
-                              <span key={term} className="inline-flex items-center gap-[0.2rem] px-[0.45rem] py-[0.15rem] rounded-[--radius-sm] bg-accent-light text-accent-text text-[0.78rem] font-medium">
+                              <span key={`include-${term}`} className="inline-flex items-center gap-[0.2rem] px-[0.5rem] py-[0.2rem] rounded-md border border-accent-text/25 bg-accent-light text-accent-text text-[0.78rem] font-medium dark:border-accent/45">
                                 {term}
                                 <button
                                   type="button"
@@ -606,6 +698,21 @@ export default function App() {
                                     setProjectTermFilters((prev) => prev.filter((t) => t !== term))
                                   }
                                   aria-label={`Remove ${term} filter`}
+                                >
+                                  ×
+                                </button>
+                              </span>
+                            ))}
+                            {excludeProjectTermFilters.map((term) => (
+                              <span key={`exclude-${term}`} className="inline-flex items-center gap-[0.2rem] px-[0.5rem] py-[0.2rem] rounded-md border border-red-200/90 bg-red-50 text-red-700 text-[0.78rem] font-medium dark:border-red-900/50 dark:bg-red-950/45 dark:text-red-300">
+                                NOT {term}
+                                <button
+                                  type="button"
+                                  className="bg-transparent border-none text-red-700 dark:text-red-300 cursor-pointer text-[0.85rem] px-[0.15rem] py-0 leading-none opacity-70 hover:opacity-100"
+                                  onClick={() =>
+                                    setExcludeProjectTermFilters((prev) => prev.filter((t) => t !== term))
+                                  }
+                                  aria-label={`Remove NOT ${term} filter`}
                                 >
                                   ×
                                 </button>

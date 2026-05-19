@@ -77,6 +77,7 @@ export interface SearchResultRecord {
 export interface SearchResponse {
   query: string;
   project_terms?: string[];
+  exclude_project_terms?: string[];
   limit: number;
   total: number;
   visible_total?: number;
@@ -158,6 +159,7 @@ export type SearchProjectsOptions = {
   fyMin?: string;
   fyMax?: string;
   projectTerms?: string[];
+  excludeProjectTerms?: string[];
   advancedSearch?: AdvancedSearchQuery | null;
   sortBy?: SearchSortField | "";
   sortOrder?: SearchSortDirection;
@@ -178,6 +180,7 @@ export async function searchProjects(
     fyMin = "",
     fyMax = "",
     projectTerms = [],
+    excludeProjectTerms = [],
     advancedSearch = null,
     sortBy = "",
     sortOrder = "asc",
@@ -201,6 +204,10 @@ export async function searchProjects(
   for (const term of projectTerms) {
     const trimmed = term.trim();
     if (trimmed) url.searchParams.append("project_terms", trimmed);
+  }
+  for (const term of excludeProjectTerms) {
+    const trimmed = term.trim();
+    if (trimmed) url.searchParams.append("exclude_project_terms", trimmed);
   }
   if (sortBy) {
     url.searchParams.set("sort_by", sortBy);
