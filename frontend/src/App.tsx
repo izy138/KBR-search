@@ -119,6 +119,8 @@ export default function App() {
   const {
     projectTermFilters,
     setProjectTermFilters,
+    excludeProjectTermFilters,
+    setExcludeProjectTermFilters,
     results,
     loading,
     total,
@@ -215,6 +217,7 @@ export default function App() {
     setSemanticSearchCommitted(semanticSearchMode);
     setSearchQuery(nextQuery);
     setProjectTermFilters([]);
+    setExcludeProjectTermFilters([]);
     setCurrentPage(1);
   };
 
@@ -233,6 +236,7 @@ export default function App() {
     setAdvancedSearch(nextQuery);
     setSearchQuery("");
     setProjectTermFilters([]);
+    setExcludeProjectTermFilters([]);
     setCurrentPage(1);
   }, []);
 
@@ -267,6 +271,7 @@ export default function App() {
     setFyMin("");
     setFyMax("");
     setProjectTermFilters([]);
+    setExcludeProjectTermFilters([]);
     setColumnSort({ column: null, direction: "none" });
     setSortOption("relevant");
     setSearchQuery("");
@@ -274,7 +279,7 @@ export default function App() {
     setSemanticSearchMode(false);
     setSemanticSearchCommitted(false);
     setCurrentPage(1);
-  }, [setProjectTermFilters]);
+  }, [setProjectTermFilters, setExcludeProjectTermFilters]);
 
   const handleDashboardQueryUpdate = useCallback((nextQuery: string) => {
     setSearchQuery(nextQuery);
@@ -285,30 +290,33 @@ export default function App() {
       setAdvancedSearch(null);
       setSearchQuery(nextQuery);
       setProjectTermFilters([]);
+      setExcludeProjectTermFilters([]);
       setCurrentPage(1);
       navigate("/search");
     },
-    [navigate, setProjectTermFilters],
+    [navigate, setProjectTermFilters, setExcludeProjectTermFilters],
   );
 
   const handleDashboardTermSearchNavigate = useCallback(
     (terms: string[]) => {
       setProjectTermFilters(terms);
+      setExcludeProjectTermFilters([]);
       setCurrentPage(1);
       navigate("/search");
     },
-    [navigate, setProjectTermFilters],
+    [navigate, setProjectTermFilters, setExcludeProjectTermFilters],
   );
 
   const handleSearchFromProjectTerms = useCallback(
-    (payload: { terms: string[]; additionalQuery: string }) => {
+    (payload: { terms: string[]; excludedTerms: string[]; additionalQuery: string }) => {
       setAdvancedSearch(null);
       setProjectTermFilters(payload.terms);
+      setExcludeProjectTermFilters(payload.excludedTerms);
       setSearchQuery(payload.additionalQuery.trim());
       setCurrentPage(1);
       navigate("/search");
     },
-    [navigate],
+    [navigate, setProjectTermFilters, setExcludeProjectTermFilters],
   );
 
   const handlePerPageChange = useCallback((value: string) => {
@@ -553,11 +561,11 @@ export default function App() {
                         <strong className="text-text-primary font-medium">{visibleTotal.toLocaleString()}</strong> results
                         {total > visibleTotal ? ` out of ${total.toLocaleString()}` : ""}
                         {activeSearchLabel ? ` for "${activeSearchLabel}"` : ""}
-                        {projectTermFilters.length > 0 && (
+                        {(projectTermFilters.length > 0 || excludeProjectTermFilters.length > 0) && (
                           <span className="inline-flex flex-wrap items-center gap-[0.3rem] align-middle">
                             {" — "}
                             {projectTermFilters.map((term) => (
-                              <span key={term} className="inline-flex items-center gap-[0.2rem] px-[0.45rem] py-[0.15rem] rounded-[--radius-sm] bg-accent-light text-accent-text text-[0.78rem] font-medium">
+                              <span key={`include-${term}`} className="inline-flex items-center gap-[0.2rem] px-[0.5rem] py-[0.2rem] rounded-md border border-accent-text/25 bg-accent-light text-accent-text text-[0.78rem] font-medium dark:border-accent/45">
                                 {term}
                                 <button
                                   type="button"
@@ -566,6 +574,21 @@ export default function App() {
                                     setProjectTermFilters((prev) => prev.filter((t) => t !== term))
                                   }
                                   aria-label={`Remove ${term} filter`}
+                                >
+                                  ×
+                                </button>
+                              </span>
+                            ))}
+                            {excludeProjectTermFilters.map((term) => (
+                              <span key={`exclude-${term}`} className="inline-flex items-center gap-[0.2rem] px-[0.5rem] py-[0.2rem] rounded-md border border-red-200/90 bg-red-50 text-red-700 text-[0.78rem] font-medium dark:border-red-900/50 dark:bg-red-950/45 dark:text-red-300">
+                                NOT {term}
+                                <button
+                                  type="button"
+                                  className="bg-transparent border-none text-red-700 dark:text-red-300 cursor-pointer text-[0.85rem] px-[0.15rem] py-0 leading-none opacity-70 hover:opacity-100"
+                                  onClick={() =>
+                                    setExcludeProjectTermFilters((prev) => prev.filter((t) => t !== term))
+                                  }
+                                  aria-label={`Remove NOT ${term} filter`}
                                 >
                                   ×
                                 </button>
