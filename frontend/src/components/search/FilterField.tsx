@@ -10,7 +10,7 @@ type FilterFieldProps = {
 const FilterField: FC<FilterFieldProps> = ({ label, children, className }) => (
   <div className={cn("flex min-w-0 flex-col", className)}>
     {label ? (
-      <div className="mb-[0.38rem] whitespace-nowrap text-[11px] font-semibold uppercase tracking-[0.06em] text-text-muted">
+      <div className="mb-[0.38rem] whitespace-nowrap text-[12px] font-semibold uppercase tracking-[0.06em] text-text-muted">
         {label}
       </div>
     ) : null}

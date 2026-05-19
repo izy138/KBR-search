@@ -12,6 +12,8 @@ import FiscalYearTag from "./FiscalYearTag";
 import ProjectActivityTermsChart from "./ProjectActivityTermsChart";
 import ProjectSimilarProjectsChart from "./ProjectSimilarProjectsChart";
 import SimilarProjectYearTags from "./SimilarProjectYearTags";
+import HelpTooltip from "../shared/HelpTooltip";
+import { HELP_PROJECT_KEYWORDS, HELP_PROJECT_SIMILAR } from "../../utils/helpContent";
 
 type TermSelectionMode = "include" | "exclude";
 
@@ -594,7 +596,12 @@ export default function ProjectDetailsPage({
         </div>
 
         <div className="col-span-full">
-          <h2 className={CLS_SECTION_H2}>Keywords or Research Terms</h2>
+          <div className="mb-[0.35rem] flex items-center gap-2">
+            <h2 className={cn(CLS_SECTION_H2, "mb-0")}>Keywords or Research Terms</h2>
+            {onSearchWithProjectTerms ? (
+              <HelpTooltip label={HELP_PROJECT_KEYWORDS.label}>{HELP_PROJECT_KEYWORDS.body}</HelpTooltip>
+            ) : null}
+          </div>
           {dedupedProjectTerms.length > 0 ? (
             <>
               <div className="flex flex-wrap gap-[0.4rem] w-full" role="group" aria-label="Project keyword tags">
@@ -702,9 +709,14 @@ export default function ProjectDetailsPage({
           </button>
         </div>
       ) : null}
-      <h2 id="project-details-similar-heading" className="text-[0.98rem] font-semibold text-text-primary tracking-[-0.01em] mb-[0.5rem]">
-        Similar Projects
-      </h2>
+      <div className="mb-[0.5rem] flex items-center gap-2">
+        <h2 id="project-details-similar-heading" className="text-[0.98rem] font-semibold text-text-primary tracking-[-0.01em] m-0">
+          Similar Projects
+        </h2>
+        {projectId ? (
+          <HelpTooltip label={HELP_PROJECT_SIMILAR.label}>{HELP_PROJECT_SIMILAR.body}</HelpTooltip>
+        ) : null}
+      </div>
       <hr className="h-0 m-0 mb-[0.75rem] border-0 border-b border-border" role="presentation" aria-hidden="true" />
       {!projectId ? (
         <p className="text-[0.84rem] text-text-secondary leading-[1.45]">No document id on this record; vector similarity is unavailable.</p>
