@@ -29,6 +29,7 @@ import type { AdvancedSearchQuery } from "./types/advancedSearch";
 import { formatAdvancedSearchQuery, hasAdvancedSearchContent } from "./utils/advancedSearch";
 import { useFilterCatalog } from "./hooks/useFilterCatalog";
 import type { FilterValues } from "./types/filters";
+import { cn } from "./utils/cn";
 
 const Dashboard = lazy(() => import("./components/dashboard/Dashboard"));
 const ProjectDetailsPage = lazy(() => import("./components/project/ProjectDetailsPage"));
@@ -624,24 +625,31 @@ export default function App() {
                     )}
                   </div>
 
-                  <div className="flex items-center gap-2 pb-[0.15rem] max-[900px]:w-full max-[900px]:justify-between max-[900px]:flex-wrap">
-                    <button
-                      type="button"
-                      className="inline-flex items-center gap-[0.35rem] px-[0.56rem] py-[0.3rem] border border-border rounded-sm bg-surface font-sans text-xs text-text-secondary cursor-pointer outline-none transition-[background,color,border-color] duration-150 hover:bg-surface-hover hover:text-text-primary hover:border-border-strong disabled:opacity-50 disabled:cursor-not-allowed"
-                      onClick={() => void handleDownloadCsv()}
-                      disabled={loading || exportingCsv || visibleTotal === 0}
-                      title="Download up to 10,000 matching rows with all original columns"
-                      aria-label={exportingCsv ? "Preparing CSV download" : "Download search results as CSV"}
-                      aria-busy={exportingCsv}
-                    >
-                      {exportingCsv && (
-                        <span
-                          className="inline-block size-3 border-2 border-current border-t-transparent rounded-full animate-spin shrink-0"
-                          aria-hidden="true"
-                        />
-                      )}
-                      {exportingCsv ? "Preparing CSV…" : "Download CSV"}
-                    </button>
+                  <div className="flex items-center gap-4 pb-[0.15rem] max-[900px]:w-full max-[900px]:justify-between max-[900px]:flex-wrap">
+                    <div className="w-full min-w-0">
+                      <button
+                        type="button"
+                        className={cn(
+                          "box-border w-full min-h-[2rem] rounded-sm border-2 border-accent-text/60 bg-bg px-[1rem] py-[0.5rem] font-sans text-[12px] leading-[1.35] text-text-primary outline-none transition-[border-color] duration-150",
+                          "inline-flex items-center justify-center gap-[0.35rem] cursor-pointer hover:border-accent-text/90 focus:border-accent",
+                          "disabled:cursor-not-allowed disabled:opacity-50",
+                        )}
+                        onClick={() => void handleDownloadCsv()}
+                        disabled={loading || exportingCsv || visibleTotal === 0}
+                        title="Download up to 10,000 matching rows with all original columns"
+                        aria-label={exportingCsv ? "Preparing CSV download" : "Download search results as CSV"}
+                        aria-busy={exportingCsv}
+                      >
+                        {exportingCsv && (
+                          <span
+                            className="inline-block size-3 border-2 border-current border-t-transparent rounded-full animate-spin shrink-0"
+                            aria-hidden="true"
+                          />
+                        )}
+                        {exportingCsv ? "Preparing CSV…" : "Download CSV"}
+                      </button>
+                              </div>
+                     <div className="min-w-[19.5rem] w-full flex items-center gap-3">         
                     <FilterSelect
                       compact
                       includeEmptyOption={false}
@@ -659,7 +667,8 @@ export default function App() {
                       options={PER_PAGE_SELECT_OPTIONS}
                       placeholder="Per page"
                       ariaLabel="Results per page"
-                    />
+                                />
+                                </div>
                   </div>
                 </div>
 

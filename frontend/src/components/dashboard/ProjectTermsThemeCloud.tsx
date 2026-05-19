@@ -570,7 +570,7 @@ export default function ProjectTermsThemeCloud({ payload, onSearch }: Props): Re
         const [x, y] = ellipsePos(CX, CY, R_CAT_RX, R_CAT_RY, placementDeg);
         const angleDeg = outwardAngleDeg(CX, CY, x, y);
         const hue = HUES[i % HUES.length];
-        const lines = splitLabel(cat.label, 12);
+        const lines = splitLabel(cat.label, 13);
         const r = catNodeRadius(cat.weight ?? 0, maxWeight, lines, catFontSize);
         return { cat, x, y, angleDeg, hue, r, lines };
       }),
