@@ -337,7 +337,7 @@ export default function App() {
     setSemanticSearchMode(false);
     setSemanticSearchCommitted(false);
     setCurrentPage(1);
-  }, [setProjectTermFilters, setExcludeProjectTermFilters]);
+  }, []);
 
   const handleDashboardQueryUpdate = useCallback((nextQuery: string) => {
     setSearchQuery(nextQuery);
