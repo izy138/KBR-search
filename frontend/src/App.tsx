@@ -1,5 +1,4 @@
 import {
-  type ChangeEvent,
   type FormEvent,
   lazy,
   Suspense,
@@ -15,6 +14,7 @@ import { useInvestigatorProjects, INVESTIGATOR_PER_PAGE } from "./hooks/useInves
 import { useSearch } from "./hooks/useSearch";
 import { matchPath, useLocation, useNavigate } from "react-router-dom";
 import Filters from "./components/search/Filters";
+import FilterSelect from "./components/search/FilterSelect";
 import InvestigatorPage from "./components/investigator/InvestigatorPage";
 import ResultsList, { type SortState as ResultsSortState } from "./components/search/ResultsList";
 import Pagination, { getPageNumbers } from "./components/shared/Pagination";
@@ -30,8 +30,20 @@ const ProjectDetailsPage = lazy(() => import("./components/project/ProjectDetail
 const SemanticVectorLabPage = lazy(() => import("./components/semantic/SemanticVectorLabPage"));
 const SemanticSimilarProjectPage = lazy(() => import("./components/semantic/SemanticSimilarProjectPage"));
 
+type SortOption = "relevant" | "alphaAsc" | "alphaDesc";
+
+const SORT_SELECT_OPTIONS = [
+  { value: "relevant", label: "Most Relevant" },
+  { value: "alphaAsc", label: "Title: A to Z" },
+  { value: "alphaDesc", label: "Title: Z to A" },
+] as const;
+
+const PER_PAGE_SELECT_OPTIONS = [10, 25, 50, 100].map((n) => ({
+  value: String(n),
+  label: `${n} per page`,
+}));
+
 export default function App() {
-  type SortOption = "relevant" | "alphaAsc" | "alphaDesc";
 
   const [searchQuery, setSearchQuery] = useState("");
   const [advancedSearch, setAdvancedSearch] = useState<AdvancedSearchQuery | null>(null);
@@ -293,16 +305,16 @@ export default function App() {
     [navigate],
   );
 
-  const handlePerPageChange = (e: ChangeEvent<HTMLSelectElement>) => {
-    setResultsPerPage(Number(e.target.value));
+  const handlePerPageChange = useCallback((value: string) => {
+    setResultsPerPage(Number(value));
     setCurrentPage(1);
-  };
+  }, []);
 
-  const handleSortOptionChange = (e: ChangeEvent<HTMLSelectElement>) => {
-    setSortOption(e.target.value as SortOption);
+  const handleSortOptionChange = useCallback((value: string) => {
+    setSortOption(value as SortOption);
     setColumnSort({ column: null, direction: "none" });
     setCurrentPage(1);
-  };
+  }, []);
 
   const handleColumnSortChange = useCallback((next: ResultsSortState) => {
     setColumnSort(next);
@@ -568,26 +580,31 @@ export default function App() {
                   </div>
 
                   <div className="flex items-center gap-2 pb-[0.15rem] max-[900px]:w-full max-[900px]:justify-between">
-                    <select
-                      className="px-[0.56rem] py-[0.3rem] border border-border rounded-sm bg-surface font-sans text-xs text-text-secondary cursor-pointer outline-none disabled:cursor-not-allowed disabled:opacity-50"
-                      value={sortOption}
-                      onChange={handleSortOptionChange}
-                      aria-label="Sort results"
-                      disabled={semanticSearchMode && semanticSearchCommitted}
-                    >
-                      <option value="relevant">Most Relevant</option>
-                      <option value="alphaAsc">Title: A to Z</option>
-                      <option value="alphaDesc">Title: Z to A</option>
-                    </select>
-                    <select
-                      className="px-[0.56rem] py-[0.3rem] border border-border rounded-sm bg-surface font-sans text-xs text-text-secondary cursor-pointer outline-none"
-                      value={resultsPerPage}
-                      onChange={handlePerPageChange}
-                    >
-                      {[10, 25, 50, 100].map((n) => (
-                        <option key={n} value={n}>{n} per page</option>
-                      ))}
-                    </select>
+                    <div className="w-[9.5rem] shrink-0">
+                      <FilterSelect
+                        value={sortOption}
+                        onChange={handleSortOptionChange}
+                        options={SORT_SELECT_OPTIONS}
+                        placeholder="Sort results"
+                        includeEmptyOption={false}
+                        compact
+                        ariaLabel="Sort results"
+                        menuMinWidthPx={168}
+                        disabled={semanticSearchMode && semanticSearchCommitted}
+                      />
+                    </div>
+                    <div className="w-[7.25rem] shrink-0">
+                      <FilterSelect
+                        value={String(resultsPerPage)}
+                        onChange={handlePerPageChange}
+                        options={PER_PAGE_SELECT_OPTIONS}
+                        placeholder="Per page"
+                        includeEmptyOption={false}
+                        compact
+                        ariaLabel="Results per page"
+                        menuMinWidthPx={120}
+                      />
+                    </div>
                   </div>
                 </div>
 
