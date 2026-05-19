@@ -1,6 +1,11 @@
 import type { SearchSortDirection, SearchSortField } from "../api";
 import type { AdvancedSearchQuery } from "../types/advancedSearch";
-import { hasAdvancedSearchContent, normalizeAdvancedSearchQuery } from "./advancedSearch";
+import {
+  composeUnifiedSearch,
+  hasAdvancedSearchContent,
+  normalizeAdvancedSearchQuery,
+  parseUnifiedSearch,
+} from "./advancedSearch";
 import type { SortState as ResultsSortState } from "../components/search/ResultsList";
 
 export type SortOption = "relevant" | "alphaAsc" | "alphaDesc";
@@ -125,8 +130,8 @@ export function parseSearchUrlParams(params: URLSearchParams): ParsedSearchUrl {
 }
 
 export type SearchUrlWriteInput = {
+  /** Unified search bar text (parenthesized advanced terms + plain keywords). */
   q: string;
-  advancedSearch: AdvancedSearchQuery | null;
   page: number;
   limit: number;
   pi: string;
@@ -143,11 +148,14 @@ export type SearchUrlWriteInput = {
 
 export function buildSearchUrlParams(input: SearchUrlWriteInput): URLSearchParams {
   const params = new URLSearchParams();
+  const { plainQ, advanced } = parseUnifiedSearch(input.q);
 
-  if (input.advancedSearch && hasAdvancedSearchContent(input.advancedSearch)) {
-    params.set("advanced_q", JSON.stringify(normalizeAdvancedSearchQuery(input.advancedSearch)));
-  } else if (input.q.trim()) {
-    params.set("q", input.q.trim());
+  if (advanced && hasAdvancedSearchContent(advanced)) {
+    params.set("advanced_q", JSON.stringify(normalizeAdvancedSearchQuery(advanced)));
+  }
+  const trimmedPlain = plainQ.trim();
+  if (trimmedPlain) {
+    params.set("q", trimmedPlain);
   }
 
   if (input.page > 1) params.set("page", String(input.page));
@@ -178,6 +186,10 @@ export function buildSearchUrlParams(input: SearchUrlWriteInput): URLSearchParam
 export function searchParamsToString(params: URLSearchParams): string {
   const serialized = params.toString();
   return serialized ? `?${serialized}` : "";
+}
+
+export function unifiedSearchFromParsed(parsed: Pick<ParsedSearchUrl, "q" | "advancedSearch">): string {
+  return composeUnifiedSearch(parsed.advancedSearch, parsed.q);
 }
 
 export function searchLocationsEqual(a: string, b: string): boolean {

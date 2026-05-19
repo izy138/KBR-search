@@ -3,7 +3,6 @@
 from __future__ import annotations
 
 from concurrent.futures import ThreadPoolExecutor
-import json
 import logging
 from typing import Any
 
@@ -24,7 +23,11 @@ from .og_export import (
     resolve_export_columns,
 )
 from .opensearch_client import get_client, get_index_name
-from .query_filters import build_advanced_keyword_must, build_keyword_must
+from .query_filters import (
+  build_advanced_keyword_must,
+  build_keyword_must,
+  parse_advanced_q_param,
+)
 
 router = APIRouter()
 
@@ -147,40 +150,6 @@ def _build_search_sort(
 
     unmapped_type = "long" if stripped in NUMERIC_SORT_FIELDS else "keyword"
     return [{os_field: {"order": normalized_order, "unmapped_type": unmapped_type}}]
-
-
-def _parse_advanced_q(raw: str) -> tuple[list[dict[str, object]], list[str]] | None:
-    stripped = raw.strip()
-    if not stripped:
-        return None
-    try:
-        payload = json.loads(stripped)
-    except json.JSONDecodeError as exc:
-        raise HTTPException(status_code=400, detail="advanced_q must be valid JSON") from exc
-    if not isinstance(payload, dict):
-        raise HTTPException(status_code=400, detail="advanced_q must be a JSON object")
-    clauses = payload.get("clauses")
-    operators = payload.get("operators")
-    if not isinstance(clauses, list):
-        raise HTTPException(status_code=400, detail="advanced_q.clauses must be an array")
-    if not isinstance(operators, list):
-        raise HTTPException(status_code=400, detail="advanced_q.operators must be an array")
-    normalized_clauses: list[dict[str, object]] = []
-    for item in clauses:
-        if not isinstance(item, dict):
-            continue
-        text = item.get("text", "")
-        negated = item.get("negated", False)
-        normalized_clauses.append(
-            {
-                "text": str(text) if text is not None else "",
-                "negated": bool(negated),
-            },
-        )
-    normalized_operators = [
-        op if str(op).strip().lower() == "or" else "and" for op in operators
-    ]
-    return normalized_clauses, normalized_operators
 
 
 def _build_search_bool_query(
@@ -323,7 +292,7 @@ def search(
     client = get_client()
     normalized_terms = _normalize_project_terms(project_terms)
     normalized_exclude_terms = _normalize_project_terms(exclude_project_terms)
-    parsed_advanced = _parse_advanced_q(advanced_q) if advanced_q.strip() else None
+    parsed_advanced = parse_advanced_q_param(advanced_q) if advanced_q.strip() else None
     os_query, must = _build_search_bool_query(
         q=q,
         parsed_advanced=parsed_advanced,
@@ -420,7 +389,7 @@ def export_search_csv(
     client = get_client()
     normalized_terms = _normalize_project_terms(project_terms)
     normalized_exclude_terms = _normalize_project_terms(exclude_project_terms)
-    parsed_advanced = _parse_advanced_q(advanced_q) if advanced_q.strip() else None
+    parsed_advanced = parse_advanced_q_param(advanced_q) if advanced_q.strip() else None
     os_query, _must = _build_search_bool_query(
         q=q,
         parsed_advanced=parsed_advanced,

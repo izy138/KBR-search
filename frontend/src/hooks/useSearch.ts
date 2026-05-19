@@ -6,14 +6,13 @@ import {
   type SearchSortDirection,
   type SearchSortField,
 } from "../api";
-import type { AdvancedSearchQuery } from "../types/advancedSearch";
+import { parseUnifiedSearch } from "../utils/advancedSearch";
 
 const SEMANTIC_SEARCH_MAX_K = 50;
 
 export type UseSearchParams = {
   query: string;
   setQuery: (q: string) => void;
-  advancedSearch: AdvancedSearchQuery | null;
   projectTermFilters: string[];
   excludeProjectTermFilters: string[];
   selectedPI: string;
@@ -60,7 +59,6 @@ export type UseSearchReturn = {
 export function useSearch({
   query,
   setQuery,
-  advancedSearch,
   projectTermFilters,
   excludeProjectTermFilters,
   selectedPI,
@@ -93,7 +91,6 @@ export function useSearch({
     fyMax,
     projectTermFilters,
     excludeProjectTermFilters,
-    advancedSearch,
     sortBy,
     sortOrder,
   });
@@ -108,7 +105,6 @@ export function useSearch({
     fyMax,
     projectTermFilters,
     excludeProjectTermFilters,
-    advancedSearch,
     sortBy,
     sortOrder,
   };
@@ -136,7 +132,8 @@ export function useSearch({
           return;
         }
 
-        const payload = await searchProjects(q, {
+        const { plainQ, advanced } = parseUnifiedSearch(q);
+        const payload = await searchProjects(plainQ, {
           page,
           limit,
           pi: ctx.selectedPI,
@@ -147,7 +144,7 @@ export function useSearch({
           fyMax: ctx.fyMax,
           projectTerms: ctx.projectTermFilters,
           excludeProjectTerms: ctx.excludeProjectTermFilters,
-          advancedSearch: ctx.advancedSearch,
+          advancedSearch: advanced,
           sortBy: ctx.sortBy,
           sortOrder: ctx.sortOrder,
         });
@@ -167,7 +164,6 @@ export function useSearch({
   }, [
     enabled,
     query,
-    advancedSearch,
     semanticSearchCommitted,
     projectTermFilters,
     excludeProjectTermFilters,

@@ -10,7 +10,12 @@ from typing import Annotated
 from fastapi import APIRouter, Depends, HTTPException, Query
 
 from .opensearch_client import get_client, get_index_name
-from .query_filters import AnalyticsScope, analytics_scope, with_query_filters
+from .query_filters import (
+  AnalyticsScope,
+  analytics_scope,
+  analytics_scope_keyword_kwargs,
+  with_query_filters,
+)
 
 router = APIRouter()
 INDEX_NAME = get_index_name()
@@ -352,7 +357,7 @@ def analytics_summary(
       },
     },
     scope.filters,
-    q=scope.q,
+    **analytics_scope_keyword_kwargs(scope),
   )
   response = client.search(index=INDEX_NAME, body=body)
 
@@ -389,7 +394,7 @@ def analytics_by_state(
       },
     },
     scope.filters,
-    q=scope.q,
+    **analytics_scope_keyword_kwargs(scope),
   )
   response = client.search(index=INDEX_NAME, body=body)
   buckets = response.get("aggregations", {}).get("by_state", {}).get("buckets", [])
@@ -424,7 +429,7 @@ def analytics_by_ic(
     body = with_query_filters(
       {"size": 0, "aggs": {"all_ics": all_ics_agg}},
       scope.filters,
-      q=scope.q,
+      **analytics_scope_keyword_kwargs(scope),
     )
     response = client.search(index=INDEX_NAME, body=body)
     buckets = response.get("aggregations", {}).get("all_ics", {}).get("buckets", [])
@@ -446,7 +451,7 @@ def analytics_by_ic(
       },
     },
     scope.filters,
-    q=scope.q,
+    **analytics_scope_keyword_kwargs(scope),
   )
   response = client.search(index=INDEX_NAME, body=body)
   all_buckets = response.get("aggregations", {}).get("all_ics", {}).get("buckets", [])
@@ -470,7 +475,7 @@ def _activity_funding_buckets(
   """Return (activity buckets, root aggregations) from a single search."""
   size = max(1, min(bucket_size, 500))
   filters = scope.filters if scope else []
-  q = scope.q if scope else ""
+  keyword_kwargs = analytics_scope_keyword_kwargs(scope) if scope else {"q": ""}
   body = with_query_filters(
     {
       "size": 0,
@@ -491,7 +496,7 @@ def _activity_funding_buckets(
       },
     },
     filters,
-    q=q,
+    **keyword_kwargs,
   )
   response = client.search(index=INDEX_NAME, body=body)
   aggs = response.get("aggregations", {})
@@ -680,7 +685,7 @@ def analytics_by_year(
       },
     },
     scope.filters,
-    q=scope.q,
+    **analytics_scope_keyword_kwargs(scope),
   )
   response = client.search(index=INDEX_NAME, body=body)
   buckets = response.get("aggregations", {}).get("by_year", {}).get("buckets", [])
@@ -717,7 +722,7 @@ def analytics_top_orgs(
       },
     },
     scope.filters,
-    q=scope.q,
+    **analytics_scope_keyword_kwargs(scope),
   )
   response = client.search(index=INDEX_NAME, body=body)
   buckets = response.get("aggregations", {}).get("top_orgs", {}).get("buckets", [])
@@ -753,7 +758,7 @@ def analytics_avg_grant_by_ic(
       },
     },
     scope.filters,
-    q=scope.q,
+    **analytics_scope_keyword_kwargs(scope),
   )
   response = client.search(index=INDEX_NAME, body=body)
   buckets = response.get("aggregations", {}).get("by_ic", {}).get("buckets", [])
