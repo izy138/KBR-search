@@ -517,7 +517,7 @@ export default function ActivityFundingPiePanel({
           </ResponsiveContainer>
         </div>
         {showTailPanel ? (
-          <aside className="flex flex-col min-h-0 max-h-[360px] pl-[0.9rem] pr-1 py-[0.85rem] border border-border-strong rounded-lg bg-bg" aria-label="Other Activity Codes">
+          <aside className="flex flex-col min-h-0 max-h-[360px] pl-[0.9rem] pr-1 py-[0.85rem] border border-border-strong rounded-[--radius-md] bg-bg" aria-label="Other Activity Codes">
             <div className="flex items-start justify-between gap-2 mb-1">
               <h4 className="m-0 font-bold leading-[1.25]">
                 Other Activity Codes
@@ -530,6 +530,8 @@ export default function ActivityFundingPiePanel({
             <ul className="flex-1 min-h-0 m-0 p-0 pr-6 -mr-1 list-none overflow-y-auto [scrollbar-width:thin]">
               {tailDetailRows.map((row) => {
                 const isSelected = selectedActivity === row.name;
+                const rowInnerClass =
+                  "flex w-full flex-col gap-0 rounded-md py-1 px-1.5 text-[0.8125rem] leading-[1.05]";
                 const rowBody = (
                   <>
                     <div className="flex items-baseline justify-between gap-[0.35rem] min-w-0">
@@ -546,19 +548,23 @@ export default function ActivityFundingPiePanel({
                   return (
                     <li
                       key={row.name}
-                      className="flex flex-col gap-[0.05rem] py-[0.28rem] pl-1 pr-1 border-b-2 m-[-3px] border-border-strong leading-[1.1] last:border-b-0"
+                      className="border-b-2 border-border-strong px-1.5 py-1 last:border-b-0"
                     >
-                      {rowBody}
+                      <div className={rowInnerClass}>{rowBody}</div>
                     </li>
                   );
                 }
 
                 return (
-                  <li key={row.name} className="border-b-2 m-[-3px] border-border-strong last:border-b-0">
+                  <li
+                    key={row.name}
+                    className="border-b-2 border-border-strong px-1.5 py-1 last:border-b-0"
+                  >
                     <button
                       type="button"
                       className={cn(
-                        "flex w-full cursor-pointer flex-col gap-[0.05rem] rounded-sm border-none bg-transparent py-[0.28rem] pl-1 pr-1 text-left font-[inherit] leading-[1.1] transition-[background,color] duration-150 hover:bg-surface-hover focus-visible:outline-2 focus-visible:outline-accent focus-visible:outline-offset-1",
+                        rowInnerClass,
+                        "appearance-none cursor-pointer border-none bg-transparent text-left font-[inherit] transition-[background,color] duration-150 hover:bg-surface-hover focus-visible:outline-2 focus-visible:outline-accent focus-visible:outline-offset-1",
                         isSelected && "bg-accent-light text-accent-text hover:bg-accent-light",
                       )}
                       aria-pressed={isSelected}

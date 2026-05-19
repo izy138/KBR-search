@@ -190,14 +190,20 @@ def search(
         default_factory=list,
         description="Each phrase must match PROJECT_TERMS (AND across phrases); repeat param",
     ),
+    exclude_project_terms: list[str] = Query(
+        default_factory=list,
+        description="Each phrase must not match PROJECT_TERMS; repeat param",
+    ),
     sort_by: str = Query(default="", description="Sort field (e.g. PROJECT_TITLE, FY)"),
     sort_order: str = Query(default="asc", description="asc or desc"),
 ) -> dict[str, object]:
 
     client = get_client()
     normalized_terms = _normalize_project_terms(project_terms)
+    normalized_exclude_terms = _normalize_project_terms(exclude_project_terms)
     parsed_advanced = _parse_advanced_q(advanced_q) if advanced_q.strip() else None
     must: list[dict[str, object]] = []
+    must_not: list[dict[str, object]] = []
     filters: list[dict[str, object]] = []
     if parsed_advanced is not None:
         adv_clauses, adv_operators = parsed_advanced
@@ -208,6 +214,10 @@ def search(
         # `match` tokenizes `term` and, with operator="and", requires all tokens
         # to appear anywhere in PROJECT_TERMS (order-independent, not exact phrase).
         must.append(
+            {"match": {"PROJECT_TERMS": {"query": term, "operator": "and"}}},
+        )
+    for term in normalized_exclude_terms:
+        must_not.append(
             {"match": {"PROJECT_TERMS": {"query": term, "operator": "and"}}},
         )
     if not must:
@@ -242,12 +252,14 @@ def search(
         if fy_max is not None:
             range_clause["lte"] = fy_max
         filters.append({"range": {"FY": range_clause}})
-    if len(must) == 1 and not filters:
+    if len(must) == 1 and not filters and not must_not:
         os_query: dict[str, object] = must[0]
     else:
         bool_query: dict[str, object] = {"must": must}
         if filters:
             bool_query["filter"] = filters
+        if must_not:
+            bool_query["must_not"] = must_not
         os_query = {"bool": bool_query}
     from_ = (page - 1) * limit
     if from_ >= MAX_RESULT_WINDOW:
@@ -286,6 +298,7 @@ def search(
         "advanced_q": parsed_advanced[0] if parsed_advanced else None,
         "advanced_operators": parsed_advanced[1] if parsed_advanced else None,
         "project_terms": normalized_terms,
+        "exclude_project_terms": normalized_exclude_terms,
         "limit": limit,
         "total": total_value,
         "visible_total": visible_total,

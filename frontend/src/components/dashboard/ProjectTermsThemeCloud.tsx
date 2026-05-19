@@ -365,8 +365,8 @@ export default function ProjectTermsThemeCloud({ payload, onSearch }: Props): Re
         <h3 className="text-text-primary text-[0.9rem] font-semibold mb-0">Project term themes</h3>
       </div>
       <p className="text-text-secondary text-[0.75rem] leading-[1.45] m-0 mb-2">
-        Click a category, then a subcategory to browse terms. Add categories in{" "}
-        <code className="text-[0.7rem]">build_project_term_theme_counts.py</code>.
+        Click a category, then a subcategory to browse terms. 
+        
       </p>
 
       {buckets.length === 0 ? (
