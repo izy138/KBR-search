@@ -382,10 +382,14 @@ const ResultsList: FC<ResultsListProps> = ({
   );
 
   const sortedResults = useMemo<SearchResultRecord[]>(() => {
-    // In controlled mode the parent has already requested a sorted page from
-    // the API, so we only fall through to client-side sorting when the parent
-    // does not own the sort state.
-    if (isControlled) return results;
+    // Controlled mode: API sorts column clicks; primary dropdown still applies
+    // when no column is active (relevance keeps API score order).
+    if (isControlled) {
+      if (sort.column === null || sort.direction === "none") {
+        return applyPrimarySort(results, primarySort);
+      }
+      return results;
+    }
     const baseResults = applyPrimarySort(results, primarySort);
     if (sort.column === null || sort.direction === "none") return baseResults;
     const col = sort.column;
