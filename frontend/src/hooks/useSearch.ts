@@ -40,8 +40,6 @@ export type UseSearchParams = {
 export type UseSearchReturn = {
   projectTermFilters: string[];
   setProjectTermFilters: React.Dispatch<React.SetStateAction<string[]>>;
-  excludeProjectTermFilters: string[];
-  setExcludeProjectTermFilters: React.Dispatch<React.SetStateAction<string[]>>;
   results: SearchResultRecord[];
   loading: boolean;
   total: number;
@@ -78,7 +76,6 @@ export function useSearch({
   enabled,
 }: UseSearchParams): UseSearchReturn {
   const [projectTermFilters, setProjectTermFilters] = useState<string[]>([]);
-  const [excludeProjectTermFilters, setExcludeProjectTermFilters] = useState<string[]>([]);
   const [results, setResults] = useState<SearchResultRecord[]>([]);
   const [loading, setLoading] = useState(false);
   const [total, setTotal] = useState(0);
@@ -94,7 +91,6 @@ export function useSearch({
     fyMin,
     fyMax,
     projectTermFilters,
-    excludeProjectTermFilters,
     advancedSearch,
     sortBy,
     sortOrder,
@@ -109,7 +105,6 @@ export function useSearch({
     fyMin,
     fyMax,
     projectTermFilters,
-    excludeProjectTermFilters,
     advancedSearch,
     sortBy,
     sortOrder,
@@ -148,7 +143,6 @@ export function useSearch({
           fyMin: ctx.fyMin,
           fyMax: ctx.fyMax,
           projectTerms: ctx.projectTermFilters,
-          excludeProjectTerms: ctx.excludeProjectTermFilters,
           advancedSearch: ctx.advancedSearch,
           sortBy: ctx.sortBy,
           sortOrder: ctx.sortOrder,
@@ -172,7 +166,6 @@ export function useSearch({
     advancedSearch,
     semanticSearchCommitted,
     projectTermFilters,
-    excludeProjectTermFilters,
     currentPage,
     resultsPerPage,
     selectedPI,
@@ -189,8 +182,6 @@ export function useSearch({
   return {
     projectTermFilters,
     setProjectTermFilters,
-    excludeProjectTermFilters,
-    setExcludeProjectTermFilters,
     results,
     loading,
     total,
