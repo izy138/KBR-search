@@ -2,6 +2,7 @@ import { type AriaAttributes, type FC, Fragment, useState, useCallback, useMemo 
 import type { SearchResultRecord } from "../../api";
 import { getOrderedPiNames } from "../../utils/piNames";
 import { formatDollarsCompact } from "../../utils/format";
+import { cn } from "../../utils/cn";
 
 // ─── Types ────────────────────────────────────────────────────────────────────
 
@@ -63,7 +64,7 @@ const COLUMNS: ColumnDef[] = [
 const CLS_COLS_GRID = "grid grid-cols-[20%_23%_28%_5%_5%_3%_8%] gap-x-8 items-center";
 
 const CLS_TH_BASE =
-  "inline-flex items-center gap-1 bg-transparent border-none px-[0.2rem] py-[0.24rem] cursor-pointer font-sans text-[10px] font-semibold tracking-[0.06em] uppercase text-text-muted rounded-sm transition-[color,background] duration-150 whitespace-nowrap overflow-hidden text-ellipsis min-w-0 hover:text-text-secondary hover:bg-surface-hover focus-visible:outline-2 focus-visible:outline-accent focus-visible:outline-offset-1";
+  "inline-flex w-fit max-w-full justify-self-start items-center gap-1 bg-transparent border-none px-[0.2rem] py-[0.24rem] cursor-pointer font-sans text-[10px] font-semibold tracking-[0.06em] uppercase rounded-sm transition-[color,background] duration-150 whitespace-nowrap hover:bg-surface-hover focus-visible:outline-2 focus-visible:outline-accent focus-visible:outline-offset-1";
 
 const CLS_CELL_VALUE_BASE = "block text-[12px] text-text-secondary whitespace-nowrap overflow-hidden text-ellipsis leading-[1.3]";
 
@@ -179,15 +180,18 @@ const ResultsHeader: FC<SortHeaderProps> = ({ sort, onSort }) => (
           colIndex === 5 ? "-ml-16" :
           colIndex === 6 ? "-ml-16" : "";
 
-        const thClass = [
+        const thClass = cn(
           CLS_TH_BASE,
-          isActive ? "font-bold" : "",
-          currentDirection === "asc" ? "text-sort-asc" : "",
-          currentDirection === "desc" ? "text-sort-desc" : "",
           negMargin,
-        ]
-          .filter(Boolean)
-          .join(" ");
+          isActive && "font-bold",
+          !isActive && "text-text-muted hover:text-text-secondary",
+        );
+
+        const labelClass = cn(
+          "overflow-hidden text-ellipsis whitespace-nowrap text-[12px]",
+          currentDirection === "asc" && "text-sort-asc",
+          currentDirection === "desc" && "text-sort-desc",
+        );
 
         return (
           <button
@@ -204,7 +208,7 @@ const ResultsHeader: FC<SortHeaderProps> = ({ sort, onSort }) => (
               }
             }}
           >
-            <span className="overflow-hidden text-ellipsis whitespace-nowrap text-[12px]">{col.label}</span>
+            <span className={labelClass}>{col.label}</span>
             <ChevronIcon direction={currentDirection} />
           </button>
         );
