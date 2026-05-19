@@ -65,7 +65,7 @@ const CLS_COLS_GRID = "grid grid-cols-[20%_23%_28%_5%_5%_3%_8%] gap-x-8 items-ce
 const CLS_TH_BASE =
   "inline-flex items-center gap-1 bg-transparent border-none px-[0.2rem] py-[0.24rem] cursor-pointer font-sans text-[10px] font-semibold tracking-[0.06em] uppercase text-text-muted rounded-sm transition-[color,background] duration-150 whitespace-nowrap overflow-hidden text-ellipsis min-w-0 hover:text-text-secondary hover:bg-surface-hover focus-visible:outline-2 focus-visible:outline-accent focus-visible:outline-offset-1";
 
-const CLS_CELL_VALUE_BASE = "block text-[11.5px] text-text-secondary whitespace-nowrap overflow-hidden text-ellipsis leading-[1.3]";
+const CLS_CELL_VALUE_BASE = "block text-[12px] text-text-secondary whitespace-nowrap overflow-hidden text-ellipsis leading-[1.3]";
 
 // ─── Helpers ─────────────────────────────────────────────────────────────────
 
@@ -204,7 +204,7 @@ const ResultsHeader: FC<SortHeaderProps> = ({ sort, onSort }) => (
               }
             }}
           >
-            <span className="overflow-hidden text-ellipsis whitespace-nowrap text-[11.5px]">{col.label}</span>
+            <span className="overflow-hidden text-ellipsis whitespace-nowrap text-[12px]">{col.label}</span>
             <ChevronIcon direction={currentDirection} />
           </button>
         );

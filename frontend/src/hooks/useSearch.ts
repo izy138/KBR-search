@@ -14,6 +14,7 @@ export type UseSearchParams = {
   query: string;
   setQuery: (q: string) => void;
   advancedSearch: AdvancedSearchQuery | null;
+  projectTermFilters: string[];
   selectedPI: string;
   selectedIC: string;
   selectedActivity: string;
@@ -38,8 +39,6 @@ export type UseSearchParams = {
 };
 
 export type UseSearchReturn = {
-  projectTermFilters: string[];
-  setProjectTermFilters: React.Dispatch<React.SetStateAction<string[]>>;
   results: SearchResultRecord[];
   loading: boolean;
   total: number;
@@ -61,6 +60,7 @@ export function useSearch({
   query,
   setQuery,
   advancedSearch,
+  projectTermFilters,
   selectedPI,
   selectedIC,
   selectedActivity,
@@ -75,7 +75,6 @@ export function useSearch({
   semanticSearchCommitted,
   enabled,
 }: UseSearchParams): UseSearchReturn {
-  const [projectTermFilters, setProjectTermFilters] = useState<string[]>([]);
   const [results, setResults] = useState<SearchResultRecord[]>([]);
   const [loading, setLoading] = useState(false);
   const [total, setTotal] = useState(0);
@@ -180,8 +179,6 @@ export function useSearch({
   ]);
 
   return {
-    projectTermFilters,
-    setProjectTermFilters,
     results,
     loading,
     total,

@@ -170,7 +170,7 @@ function Filters({
         </div>
       ) : null}
 
-      <div className="mx-auto flex min-w-0 w-full max-w-full flex-wrap items-end justify-center gap-5">
+      <div className="mx-auto flex min-w-0 w-full max-w-full flex-wrap items-end text-14px justify-center gap-5">
         <FilterField label="Principal Investigator" className={FILTER_FIELD_WIDTH.pi}>
           <input
             className="box-border w-full min-h-[2.5rem] rounded-sm border-2 border-accent-text/65 bg-bg px-[0.7rem] py-[0.48rem] font-sans text-[14px] leading-[1.35] text-text-primary outline-none transition-[border-color] duration-150 hover:border-accent-text/90 focus:border-accent placeholder:text-text-muted"
