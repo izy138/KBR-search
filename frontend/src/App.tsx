@@ -19,7 +19,12 @@ import InvestigatorPage from "./components/investigator/InvestigatorPage";
 import ResultsList, { type SortState as ResultsSortState } from "./components/search/ResultsList";
 import Pagination, { getPageNumbers } from "./components/shared/Pagination";
 import ErrorBoundary from "./components/shared/ErrorBoundary";
-import { type SearchResultRecord, type SearchSortDirection, type SearchSortField } from "./api";
+import {
+  downloadSearchResultsCsv,
+  type SearchResultRecord,
+  type SearchSortDirection,
+  type SearchSortField,
+} from "./api";
 import type { AdvancedSearchQuery } from "./types/advancedSearch";
 import { formatAdvancedSearchQuery, hasAdvancedSearchContent } from "./utils/advancedSearch";
 import { useFilterCatalog } from "./hooks/useFilterCatalog";
@@ -70,6 +75,8 @@ export default function App() {
     direction: "none",
   });
   const [investigatorPage, setInvestigatorPage] = useState(1);
+  const [exportingCsv, setExportingCsv] = useState(false);
+  const [exportCsvError, setExportCsvError] = useState<string | null>(null);
   const [showScrollTop, setShowScrollTop] = useState(false);
   const navigate = useNavigate();
   const location = useLocation();
@@ -248,6 +255,38 @@ export default function App() {
     }
     return searchQuery;
   }, [advancedSearch, searchQuery]);
+
+  const handleDownloadCsv = useCallback(async (): Promise<void> => {
+    setExportingCsv(true);
+    setExportCsvError(null);
+    try {
+      await downloadSearchResultsCsv(searchQuery, {
+        pi: selectedPI,
+        ic: selectedIC,
+        activity: selectedActivity,
+        state: selectedState,
+        fyMin,
+        fyMax,
+        projectTerms: projectTermFilters,
+        advancedSearch:
+          advancedSearch && hasAdvancedSearchContent(advancedSearch) ? advancedSearch : null,
+      });
+    } catch (err) {
+      setExportCsvError(err instanceof Error ? err.message : "Export failed");
+    } finally {
+      setExportingCsv(false);
+    }
+  }, [
+    searchQuery,
+    selectedPI,
+    selectedIC,
+    selectedActivity,
+    selectedState,
+    fyMin,
+    fyMax,
+    projectTermFilters,
+    advancedSearch,
+  ]);
 
   const handleApplyFilters = (filters: FilterValues) => {
     setSelectedPI(filters.pi);
@@ -585,34 +624,50 @@ export default function App() {
                     )}
                   </div>
 
-                  <div className="flex items-center gap-2 pb-[0.15rem] max-[900px]:w-full max-[900px]:justify-between">
-                    <div className="w-[9.5rem] shrink-0">
-                      <FilterSelect
-                        value={sortOption}
-                        onChange={handleSortOptionChange}
-                        options={SORT_SELECT_OPTIONS}
-                        placeholder="Sort results"
-                        includeEmptyOption={false}
-                        compact
-                        ariaLabel="Sort results"
-                        menuMinWidthPx={168}
-                        disabled={semanticSearchMode && semanticSearchCommitted}
-                      />
-                    </div>
-                    <div className="w-[7.25rem] shrink-0">
-                      <FilterSelect
-                        value={String(resultsPerPage)}
-                        onChange={handlePerPageChange}
-                        options={PER_PAGE_SELECT_OPTIONS}
-                        placeholder="Per page"
-                        includeEmptyOption={false}
-                        compact
-                        ariaLabel="Results per page"
-                        menuMinWidthPx={120}
-                      />
-                    </div>
+                  <div className="flex items-center gap-2 pb-[0.15rem] max-[900px]:w-full max-[900px]:justify-between max-[900px]:flex-wrap">
+                    <button
+                      type="button"
+                      className="inline-flex items-center gap-[0.35rem] px-[0.56rem] py-[0.3rem] border border-border rounded-sm bg-surface font-sans text-xs text-text-secondary cursor-pointer outline-none transition-[background,color,border-color] duration-150 hover:bg-surface-hover hover:text-text-primary hover:border-border-strong disabled:opacity-50 disabled:cursor-not-allowed"
+                      onClick={() => void handleDownloadCsv()}
+                      disabled={loading || exportingCsv || visibleTotal === 0}
+                      title="Download up to 10,000 matching rows with all original columns"
+                      aria-label={exportingCsv ? "Preparing CSV download" : "Download search results as CSV"}
+                      aria-busy={exportingCsv}
+                    >
+                      {exportingCsv && (
+                        <span
+                          className="inline-block size-3 border-2 border-current border-t-transparent rounded-full animate-spin shrink-0"
+                          aria-hidden="true"
+                        />
+                      )}
+                      {exportingCsv ? "Preparing CSV…" : "Download CSV"}
+                    </button>
+                    <FilterSelect
+                      compact
+                      includeEmptyOption={false}
+                      value={sortOption}
+                      onChange={handleSortOptionChange}
+                      options={SORT_SELECT_OPTIONS}
+                      placeholder="Sort"
+                      ariaLabel="Sort results"
+                    />
+                    <FilterSelect
+                      compact
+                      includeEmptyOption={false}
+                      value={String(resultsPerPage)}
+                      onChange={handlePerPageChange}
+                      options={PER_PAGE_SELECT_OPTIONS}
+                      placeholder="Per page"
+                      ariaLabel="Results per page"
+                    />
                   </div>
                 </div>
+
+                {exportCsvError && (
+                  <p className="text-[0.78rem] text-text-muted m-0 px-1" role="alert">
+                    {exportCsvError}
+                  </p>
+                )}
 
                 <ResultsList
                   results={results}
