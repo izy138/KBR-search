@@ -34,6 +34,8 @@ import StateMap from "./StateMap";
 import { buildIcProjectsHybridAxisScale } from "../../utils/chartAxis";
 import { formatDollarsCompact } from "../../utils/format";
 import { cn } from "../../utils/cn";
+import HelpTooltip from "../shared/HelpTooltip";
+import { HELP_DASHBOARD } from "../../utils/helpContent";
 
 // ─── Formatting helpers ───────────────────────────────────────────────────────
 
@@ -572,6 +574,9 @@ export default function Dashboard({
 
   return (
     <div className={cn("w-full px-6 py-[1.1rem] flex flex-col", refreshing && "opacity-[0.72] transition-opacity duration-200")}>
+      <div className="mb-1 flex justify-end">
+        <HelpTooltip label={HELP_DASHBOARD.label}>{HELP_DASHBOARD.body}</HelpTooltip>
+      </div>
       <Filters
         applied={appliedFilters}
         catalog={{
