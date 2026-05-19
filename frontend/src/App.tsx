@@ -21,6 +21,12 @@ import InvestigatorPage from "./components/investigator/InvestigatorPage";
 import ResultsList, { type SortState as ResultsSortState } from "./components/search/ResultsList";
 import Pagination, { getPageNumbers } from "./components/shared/Pagination";
 import ErrorBoundary from "./components/shared/ErrorBoundary";
+import {
+  downloadSearchResultsCsv,
+  type SearchResultRecord,
+  type SearchSortDirection,
+  type SearchSortField,
+} from "./api";
 import HelpTooltip from "./components/shared/HelpTooltip";
 import { HELP_SEARCH } from "./utils/helpContent";
 import { type SearchResultRecord, type SearchSortDirection, type SearchSortField } from "./api";
@@ -28,6 +34,7 @@ import type { AdvancedSearchQuery } from "./types/advancedSearch";
 import { formatAdvancedSearchQuery, hasAdvancedSearchContent } from "./utils/advancedSearch";
 import { useFilterCatalog } from "./hooks/useFilterCatalog";
 import type { FilterValues } from "./types/filters";
+import { cn } from "./utils/cn";
 
 const Dashboard = lazy(() => import("./components/dashboard/Dashboard"));
 const ProjectDetailsPage = lazy(() => import("./components/project/ProjectDetailsPage"));
@@ -84,6 +91,8 @@ export default function App() {
     () => initialSearchUrl?.columnSort ?? { column: null, direction: "none" },
   );
   const [investigatorPage, setInvestigatorPage] = useState(1);
+  const [exportingCsv, setExportingCsv] = useState(false);
+  const [exportCsvError, setExportCsvError] = useState<string | null>(null);
   const [showScrollTop, setShowScrollTop] = useState(false);
   const navigate = useNavigate();
   const location = useLocation();
@@ -133,6 +142,7 @@ export default function App() {
   const [projectTermFilters, setProjectTermFilters] = useState<string[]>(
     () => initialSearchUrl?.projectTerms ?? [],
   );
+  const [excludeProjectTermFilters, setExcludeProjectTermFilters] = useState<string[]>([]);
 
   const { navigateToSearch } = useSearchUrlSync({
     enabled: searchEnabled,
@@ -186,6 +196,7 @@ export default function App() {
     advancedSearch:
       advancedSearch && hasAdvancedSearchContent(advancedSearch) ? advancedSearch : null,
     projectTermFilters,
+    excludeProjectTermFilters,
     selectedPI,
     selectedIC,
     selectedActivity,
@@ -273,6 +284,7 @@ export default function App() {
     setSemanticSearchCommitted(semanticSearchMode);
     setSearchQuery(nextQuery);
     setProjectTermFilters([]);
+    setExcludeProjectTermFilters([]);
     setCurrentPage(1);
   };
 
@@ -291,6 +303,7 @@ export default function App() {
     setAdvancedSearch(nextQuery);
     setSearchQuery("");
     setProjectTermFilters([]);
+    setExcludeProjectTermFilters([]);
     setCurrentPage(1);
   }, []);
 
@@ -306,6 +319,38 @@ export default function App() {
     }
     return searchQuery;
   }, [advancedSearch, searchQuery]);
+
+  const handleDownloadCsv = useCallback(async (): Promise<void> => {
+    setExportingCsv(true);
+    setExportCsvError(null);
+    try {
+      await downloadSearchResultsCsv(searchQuery, {
+        pi: selectedPI,
+        ic: selectedIC,
+        activity: selectedActivity,
+        state: selectedState,
+        fyMin,
+        fyMax,
+        projectTerms: projectTermFilters,
+        advancedSearch:
+          advancedSearch && hasAdvancedSearchContent(advancedSearch) ? advancedSearch : null,
+      });
+    } catch (err) {
+      setExportCsvError(err instanceof Error ? err.message : "Export failed");
+    } finally {
+      setExportingCsv(false);
+    }
+  }, [
+    searchQuery,
+    selectedPI,
+    selectedIC,
+    selectedActivity,
+    selectedState,
+    fyMin,
+    fyMax,
+    projectTermFilters,
+    advancedSearch,
+  ]);
 
   const handleApplyFilters = (filters: FilterValues) => {
     setSelectedPI(filters.pi);
@@ -325,6 +370,7 @@ export default function App() {
     setFyMin("");
     setFyMax("");
     setProjectTermFilters([]);
+    setExcludeProjectTermFilters([]);
     setColumnSort({ column: null, direction: "none" });
     setSortOption("relevant");
     setSearchQuery("");
@@ -332,7 +378,7 @@ export default function App() {
     setSemanticSearchMode(false);
     setSemanticSearchCommitted(false);
     setCurrentPage(1);
-  }, [setProjectTermFilters]);
+  }, []);
 
   const handleDashboardQueryUpdate = useCallback((nextQuery: string) => {
     setSearchQuery(nextQuery);
@@ -345,6 +391,7 @@ export default function App() {
       setSemanticSearchCommitted(false);
       setSearchQuery(nextQuery);
       setProjectTermFilters([]);
+      setExcludeProjectTermFilters([]);
       setCurrentPage(1);
       navigateToSearch({
         q: nextQuery,
@@ -361,6 +408,7 @@ export default function App() {
   const handleDashboardTermSearchNavigate = useCallback(
     (terms: string[]) => {
       setProjectTermFilters(terms);
+      setExcludeProjectTermFilters([]);
       setCurrentPage(1);
       navigateToSearch({ projectTerms: terms, page: 1 });
     },
@@ -368,11 +416,12 @@ export default function App() {
   );
 
   const handleSearchFromProjectTerms = useCallback(
-    (payload: { terms: string[]; additionalQuery: string }) => {
+    (payload: { terms: string[]; excludedTerms: string[]; additionalQuery: string }) => {
       setAdvancedSearch(null);
       setSemanticSearchMode(false);
       setSemanticSearchCommitted(false);
       setProjectTermFilters(payload.terms);
+      setExcludeProjectTermFilters(payload.excludedTerms);
       setSearchQuery(payload.additionalQuery.trim());
       setCurrentPage(1);
       navigateToSearch({
@@ -636,11 +685,11 @@ export default function App() {
                         <strong className="text-text-primary font-medium">{visibleTotal.toLocaleString()}</strong> results
                         {total > visibleTotal ? ` out of ${total.toLocaleString()}` : ""}
                         {activeSearchLabel ? ` for "${activeSearchLabel}"` : ""}
-                        {projectTermFilters.length > 0 && (
+                        {(projectTermFilters.length > 0 || excludeProjectTermFilters.length > 0) && (
                           <span className="inline-flex flex-wrap items-center gap-[0.3rem] align-middle">
                             {" — "}
                             {projectTermFilters.map((term) => (
-                              <span key={term} className="inline-flex items-center gap-[0.2rem] px-[0.45rem] py-[0.15rem] rounded-[--radius-sm] bg-accent-light text-accent-text text-[0.78rem] font-medium">
+                              <span key={`include-${term}`} className="inline-flex items-center gap-[0.2rem] px-[0.5rem] py-[0.2rem] rounded-md border border-accent-text/25 bg-accent-light text-accent-text text-[0.78rem] font-medium dark:border-accent/45">
                                 {term}
                                 <button
                                   type="button"
@@ -649,6 +698,21 @@ export default function App() {
                                     setProjectTermFilters((prev) => prev.filter((t) => t !== term))
                                   }
                                   aria-label={`Remove ${term} filter`}
+                                >
+                                  ×
+                                </button>
+                              </span>
+                            ))}
+                            {excludeProjectTermFilters.map((term) => (
+                              <span key={`exclude-${term}`} className="inline-flex items-center gap-[0.2rem] px-[0.5rem] py-[0.2rem] rounded-md border border-red-200/90 bg-red-50 text-red-700 text-[0.78rem] font-medium dark:border-red-900/50 dark:bg-red-950/45 dark:text-red-300">
+                                NOT {term}
+                                <button
+                                  type="button"
+                                  className="bg-transparent border-none text-red-700 dark:text-red-300 cursor-pointer text-[0.85rem] px-[0.15rem] py-0 leading-none opacity-70 hover:opacity-100"
+                                  onClick={() =>
+                                    setExcludeProjectTermFilters((prev) => prev.filter((t) => t !== term))
+                                  }
+                                  aria-label={`Remove NOT ${term} filter`}
                                 >
                                   ×
                                 </button>
@@ -668,34 +732,58 @@ export default function App() {
                     )}
                   </div>
 
-                  <div className="flex items-center gap-2 pb-[0.15rem] max-[900px]:w-full max-[900px]:justify-between">
-                    <div className="w-[9.5rem] shrink-0">
-                      <FilterSelect
-                        value={sortOption}
-                        onChange={handleSortOptionChange}
-                        options={SORT_SELECT_OPTIONS}
-                        placeholder="Sort results"
-                        includeEmptyOption={false}
-                        compact
-                        ariaLabel="Sort results"
-                        menuMinWidthPx={168}
-                        disabled={semanticSearchMode && semanticSearchCommitted}
-                      />
-                    </div>
-                    <div className="w-[7.25rem] shrink-0">
-                      <FilterSelect
-                        value={String(resultsPerPage)}
-                        onChange={handlePerPageChange}
-                        options={PER_PAGE_SELECT_OPTIONS}
-                        placeholder="Per page"
-                        includeEmptyOption={false}
-                        compact
-                        ariaLabel="Results per page"
-                        menuMinWidthPx={120}
-                      />
-                    </div>
+                  <div className="flex items-center gap-4 pb-[0.15rem] max-[900px]:w-full max-[900px]:justify-between max-[900px]:flex-wrap">
+                    <div className="w-full min-w-0">
+                      <button
+                        type="button"
+                        className={cn(
+                          "box-border w-full min-h-[2rem] rounded-sm border-2 border-accent-text/60 bg-bg px-[1rem] py-[0.5rem] font-sans text-[12px] leading-[1.35] text-text-primary outline-none transition-[border-color] duration-150",
+                          "inline-flex items-center justify-center gap-[0.35rem] cursor-pointer hover:border-accent-text/90 focus:border-accent",
+                          "disabled:cursor-not-allowed disabled:opacity-50",
+                        )}
+                        onClick={() => void handleDownloadCsv()}
+                        disabled={loading || exportingCsv || visibleTotal === 0}
+                        title="Download up to 10,000 matching rows with all original columns"
+                        aria-label={exportingCsv ? "Preparing CSV download" : "Download search results as CSV"}
+                        aria-busy={exportingCsv}
+                      >
+                        {exportingCsv && (
+                          <span
+                            className="inline-block size-3 border-2 border-current border-t-transparent rounded-full animate-spin shrink-0"
+                            aria-hidden="true"
+                          />
+                        )}
+                        {exportingCsv ? "Preparing CSV…" : "Download CSV"}
+                      </button>
+                              </div>
+                     <div className="min-w-[19.5rem] w-full flex items-center gap-3">         
+                    <FilterSelect
+                      compact
+                      includeEmptyOption={false}
+                      value={sortOption}
+                      onChange={handleSortOptionChange}
+                      options={SORT_SELECT_OPTIONS}
+                      placeholder="Sort"
+                      ariaLabel="Sort results"
+                    />
+                    <FilterSelect
+                      compact
+                      includeEmptyOption={false}
+                      value={String(resultsPerPage)}
+                      onChange={handlePerPageChange}
+                      options={PER_PAGE_SELECT_OPTIONS}
+                      placeholder="Per page"
+                      ariaLabel="Results per page"
+                                />
+                                </div>
                   </div>
                 </div>
+
+                {exportCsvError && (
+                  <p className="text-[0.78rem] text-text-muted m-0 px-1" role="alert">
+                    {exportCsvError}
+                  </p>
+                )}
 
                 <ResultsList
                   results={results}

@@ -77,6 +77,7 @@ export interface SearchResultRecord {
 export interface SearchResponse {
   query: string;
   project_terms?: string[];
+  exclude_project_terms?: string[];
   limit: number;
   total: number;
   visible_total?: number;
@@ -158,6 +159,7 @@ export type SearchProjectsOptions = {
   fyMin?: string;
   fyMax?: string;
   projectTerms?: string[];
+  excludeProjectTerms?: string[];
   advancedSearch?: AdvancedSearchQuery | null;
   sortBy?: SearchSortField | "";
   sortOrder?: SearchSortDirection;
@@ -178,6 +180,7 @@ export async function searchProjects(
     fyMin = "",
     fyMax = "",
     projectTerms = [],
+    excludeProjectTerms = [],
     advancedSearch = null,
     sortBy = "",
     sortOrder = "asc",
@@ -202,6 +205,10 @@ export async function searchProjects(
     const trimmed = term.trim();
     if (trimmed) url.searchParams.append("project_terms", trimmed);
   }
+  for (const term of excludeProjectTerms) {
+    const trimmed = term.trim();
+    if (trimmed) url.searchParams.append("exclude_project_terms", trimmed);
+  }
   if (sortBy) {
     url.searchParams.set("sort_by", sortBy);
     url.searchParams.set("sort_order", sortOrder);
@@ -211,6 +218,71 @@ export async function searchProjects(
     throw new Error(`Search request failed: ${response.status}`);
   }
   return response.json() as Promise<SearchResponse>;
+}
+
+function parseContentDispositionFilename(header: string | null): string | null {
+  if (!header) return null;
+  const match = /filename="?([^";\n]+)"?/i.exec(header);
+  return match?.[1]?.trim() ?? null;
+}
+
+export async function downloadSearchResultsCsv(
+  query: string,
+  options: SearchProjectsOptions = {},
+): Promise<void> {
+  const {
+    category = "",
+    pi = "",
+    ic = "",
+    activity = "",
+    state = "",
+    fyMin = "",
+    fyMax = "",
+    projectTerms = [],
+    advancedSearch = null,
+  } = options;
+  const url = new URL(`${API_BASE_URL}/search/export`);
+  url.searchParams.set("q", advancedSearch ? "" : query);
+  if (advancedSearch && advancedSearch.clauses.some((clause) => clause.text.trim())) {
+    url.searchParams.set("advanced_q", JSON.stringify(advancedSearch));
+  }
+  if (category) url.searchParams.set("category", category);
+  if (pi) url.searchParams.set("pi", pi);
+  if (ic) url.searchParams.set("ic", ic);
+  if (activity) url.searchParams.set("activity", activity);
+  if (state) url.searchParams.set("state", state);
+  if (fyMin) url.searchParams.set("fy_min", fyMin);
+  if (fyMax) url.searchParams.set("fy_max", fyMax);
+  for (const term of projectTerms) {
+    const trimmed = term.trim();
+    if (trimmed) url.searchParams.append("project_terms", trimmed);
+  }
+
+  const response = await fetch(url.toString());
+  if (!response.ok) {
+    let detail = `Export failed: ${response.status}`;
+    try {
+      const body = (await response.json()) as { detail?: string };
+      if (body.detail) detail = body.detail;
+    } catch {
+      // ignore non-JSON error bodies
+    }
+    throw new Error(detail);
+  }
+
+  const blob = await response.blob();
+  const filename =
+    parseContentDispositionFilename(response.headers.get("Content-Disposition"))
+    ?? "search-results.csv";
+  const objectUrl = URL.createObjectURL(blob);
+  const anchor = document.createElement("a");
+  anchor.href = objectUrl;
+  anchor.download = filename;
+  anchor.rel = "noopener";
+  document.body.appendChild(anchor);
+  anchor.click();
+  anchor.remove();
+  URL.revokeObjectURL(objectUrl);
 }
 
 export async function getAnalyticsSummary(): Promise<AnalyticsSummary> {
