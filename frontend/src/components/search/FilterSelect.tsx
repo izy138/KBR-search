@@ -26,6 +26,10 @@ export type FilterSelectProps = {
   menuMinWidthPx?: number;
   listColumns?: number;
   truncateSelectedLabel?: boolean;
+  /** When false, the empty placeholder row is omitted (toolbar selects). Default true. */
+  includeEmptyOption?: boolean;
+  /** Smaller trigger for compact toolbars. */
+  compact?: boolean;
 };
 
 const FilterSelect: FC<FilterSelectProps> = ({
@@ -37,6 +41,8 @@ const FilterSelect: FC<FilterSelectProps> = ({
   menuMinWidthPx,
   listColumns,
   truncateSelectedLabel = false,
+  includeEmptyOption = true,
+  compact = false,
 }) => {
   const baseId = useId();
   const listboxId = `${baseId}-listbox`;
@@ -47,10 +53,12 @@ const FilterSelect: FC<FilterSelectProps> = ({
   const [open, setOpen] = useState(false);
   const [coords, setCoords] = useState({ top: 0, left: 0, width: 0 });
 
-  const flatOptions = useMemo(
-    (): readonly FilterSelectOption[] => [{ value: "", label: placeholder }, ...options],
-    [placeholder, options],
-  );
+  const flatOptions = useMemo((): readonly FilterSelectOption[] => {
+    if (includeEmptyOption) {
+      return [{ value: "", label: placeholder }, ...options];
+    }
+    return options;
+  }, [includeEmptyOption, placeholder, options]);
 
   const selectedLabel =
     flatOptions.find((o) => o.value === value)?.label ?? placeholder;
@@ -162,7 +170,10 @@ const FilterSelect: FC<FilterSelectProps> = ({
         ref={triggerRef}
         type="button"
         className={cn(
-          "box-border w-full min-h-[2.5rem] rounded-sm border border-border bg-bg px-[0.7rem] py-[0.48rem] font-sans text-[14px] leading-[1.35] text-text-primary outline-none transition-[border-color] duration-150 hover:border-accent/40 focus:border-accent relative flex cursor-pointer appearance-none pr-8 text-left",
+          "box-border w-full rounded-sm border border-border bg-bg font-sans leading-[1.35] text-text-primary outline-none transition-[border-color] duration-150 hover:border-accent/40 focus:border-accent relative flex cursor-pointer appearance-none pr-8 text-left",
+          compact
+            ? "min-h-[2rem] px-[1rem] py-[0.5rem] text-[12px]"
+            : "min-h-[2.5rem] px-[0.7rem] py-[0.48rem] text-[12px]",
           truncateSelectedLabel && "min-w-0 overflow-hidden",
         )}
         aria-haspopup="listbox"

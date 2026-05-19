@@ -94,6 +94,48 @@ def _normalize_project_terms(raw: list[str]) -> list[str]:
     return out
 
 
+SORT_FIELD_MAP: dict[str, str] = {
+    "PROJECT_TITLE": "PROJECT_TITLE.keyword",
+    "PI_NAMEs": "PI_NAMEs.keyword",
+    "ORG_NAME": "ORG_NAME.keyword",
+    "IC_NAME": "IC_NAME.keyword",
+    "ORG_STATE": "ORG_STATE.keyword",
+    "ACTIVITY": "ACTIVITY.keyword",
+    "FY": "FY",
+    "TOTAL_COST": "TOTAL_COST",
+}
+
+NUMERIC_SORT_FIELDS = frozenset({"FY", "TOTAL_COST"})
+
+
+def _must_is_scored(must: list[dict[str, object]]) -> bool:
+    if len(must) == 1 and must[0] == {"match_all": {}}:
+        return False
+    return bool(must)
+
+
+def _build_search_sort(
+    sort_by: str,
+    sort_order: str,
+    *,
+    must: list[dict[str, object]],
+) -> list[dict[str, object]]:
+    """Map API sort params to OpenSearch sort clauses."""
+    normalized_order = "desc" if sort_order.strip().lower() == "desc" else "asc"
+    stripped = sort_by.strip()
+    if not stripped:
+        if _must_is_scored(must):
+            return [{"_score": {"order": "desc"}}]
+        return []
+
+    os_field = SORT_FIELD_MAP.get(stripped)
+    if os_field is None:
+        raise HTTPException(status_code=400, detail=f"Unsupported sort_by field: {stripped}")
+
+    unmapped_type = "long" if stripped in NUMERIC_SORT_FIELDS else "keyword"
+    return [{os_field: {"order": normalized_order, "unmapped_type": unmapped_type}}]
+
+
 def _parse_advanced_q(raw: str) -> tuple[list[dict[str, object]], list[str]] | None:
     stripped = raw.strip()
     if not stripped:
@@ -148,6 +190,8 @@ def search(
         default_factory=list,
         description="Each phrase must match PROJECT_TERMS (AND across phrases); repeat param",
     ),
+    sort_by: str = Query(default="", description="Sort field (e.g. PROJECT_TITLE, FY)"),
+    sort_order: str = Query(default="asc", description="asc or desc"),
 ) -> dict[str, object]:
 
     client = get_client()
@@ -212,16 +256,25 @@ def search(
             detail=f"Requested page exceeds max result window ({MAX_RESULT_WINDOW}).",
         )
     size = min(limit, MAX_RESULT_WINDOW - from_)
-    response = client.search(
-        index=INDEX_NAME,
-        body={"from": from_, "size": size, "query": os_query, "track_total_hits": True},
-    )
+    sort_clause = _build_search_sort(sort_by, sort_order, must=must)
+    search_body: dict[str, object] = {
+        "from": from_,
+        "size": size,
+        "query": os_query,
+        "track_total_hits": True,
+    }
+    if sort_clause:
+        search_body["sort"] = sort_clause
+    response = client.search(index=INDEX_NAME, body=search_body)
 
     hits = response.get("hits", {}).get("hits", [])
     results = []
     for item in hits:
         source = item.get("_source", {})
         source["_id"] = item.get("_id")
+        score = item.get("_score")
+        if score is not None:
+            source["_score"] = score
         results.append(source)
 
     total = response.get("hits", {}).get("total", {})
