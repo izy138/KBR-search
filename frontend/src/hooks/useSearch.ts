@@ -15,6 +15,7 @@ export type UseSearchParams = {
   setQuery: (q: string) => void;
   advancedSearch: AdvancedSearchQuery | null;
   projectTermFilters: string[];
+  excludeProjectTermFilters: string[];
   selectedPI: string;
   selectedIC: string;
   selectedActivity: string;
@@ -61,6 +62,7 @@ export function useSearch({
   setQuery,
   advancedSearch,
   projectTermFilters,
+  excludeProjectTermFilters,
   selectedPI,
   selectedIC,
   selectedActivity,
