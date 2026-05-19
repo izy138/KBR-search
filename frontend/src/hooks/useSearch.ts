@@ -15,6 +15,7 @@ export type UseSearchParams = {
   setQuery: (q: string) => void;
   advancedSearch: AdvancedSearchQuery | null;
   projectTermFilters: string[];
+  excludeProjectTermFilters: string[];
   selectedPI: string;
   selectedIC: string;
   selectedActivity: string;
@@ -61,6 +62,7 @@ export function useSearch({
   setQuery,
   advancedSearch,
   projectTermFilters,
+  excludeProjectTermFilters,
   selectedPI,
   selectedIC,
   selectedActivity,
@@ -90,6 +92,7 @@ export function useSearch({
     fyMin,
     fyMax,
     projectTermFilters,
+    excludeProjectTermFilters,
     advancedSearch,
     sortBy,
     sortOrder,
@@ -104,6 +107,7 @@ export function useSearch({
     fyMin,
     fyMax,
     projectTermFilters,
+    excludeProjectTermFilters,
     advancedSearch,
     sortBy,
     sortOrder,
@@ -142,6 +146,7 @@ export function useSearch({
           fyMin: ctx.fyMin,
           fyMax: ctx.fyMax,
           projectTerms: ctx.projectTermFilters,
+          excludeProjectTerms: ctx.excludeProjectTermFilters,
           advancedSearch: ctx.advancedSearch,
           sortBy: ctx.sortBy,
           sortOrder: ctx.sortOrder,
@@ -165,6 +170,7 @@ export function useSearch({
     advancedSearch,
     semanticSearchCommitted,
     projectTermFilters,
+    excludeProjectTermFilters,
     currentPage,
     resultsPerPage,
     selectedPI,
