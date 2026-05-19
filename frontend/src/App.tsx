@@ -259,7 +259,7 @@ export default function App() {
     setCurrentPage(1);
   };
 
-  const handleClearFilters = () => {
+  const handleClearFilters = useCallback(() => {
     setSelectedPI("");
     setSelectedIC("");
     setSelectedActivity("");
@@ -267,8 +267,14 @@ export default function App() {
     setFyMin("");
     setFyMax("");
     setProjectTermFilters([]);
+    setColumnSort({ column: null, direction: "none" });
+    setSortOption("relevant");
+    setSearchQuery("");
+    setAdvancedSearch(null);
+    setSemanticSearchMode(false);
+    setSemanticSearchCommitted(false);
     setCurrentPage(1);
-  };
+  }, [setProjectTermFilters]);
 
   const handleDashboardQueryUpdate = useCallback((nextQuery: string) => {
     setSearchQuery(nextQuery);
@@ -568,7 +574,7 @@ export default function App() {
                             <button
                               type="button"
                               className="bg-transparent border-none text-accent-text cursor-pointer text-[0.78rem] underline px-[0.25rem] py-[0.15rem]"
-                              onClick={() => setProjectTermFilters([])}
+                              onClick={handleClearFilters}
                             >
                               Clear all
                             </button>
