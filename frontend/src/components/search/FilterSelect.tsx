@@ -162,7 +162,7 @@ const FilterSelect: FC<FilterSelectProps> = ({
         ref={triggerRef}
         type="button"
         className={cn(
-          "box-border w-full min-h-[2.5rem] rounded-sm border border-border bg-bg px-[0.7rem] py-[0.48rem] font-sans text-[14px] leading-[1.35] text-text-primary outline-none transition-[border-color] duration-150 hover:border-accent/40 focus:border-accent relative flex cursor-pointer appearance-none pr-8 text-left",
+          "box-border w-full min-h-[2.5rem] rounded-sm border-2 border-accent-text/60 bg-bg px-[0.7rem] py-[0.48rem] font-sans text-[14px] leading-[1.35] text-text-primary outline-none transition-[border-color] duration-150 hover:border-accent-text/90 focus:border-accent relative flex cursor-pointer appearance-none pr-8 text-left",
           truncateSelectedLabel && "min-w-0 overflow-hidden",
         )}
         aria-haspopup="listbox"

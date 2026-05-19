@@ -1,7 +1,7 @@
 import { type ReactNode, useCallback, useMemo } from "react";
 import { useFilterDraft } from "../../hooks/useFilterDraft";
 import type { FilterValues } from "../../types/filters";
-import { hasActiveFilters, normalizeFiltersOnApply } from "../../types/filters";
+import { normalizeFiltersOnApply } from "../../types/filters";
 import {
   formatAllCapsLabel,
   formatDropdownLabel,
@@ -11,6 +11,7 @@ import FilterField from "./FilterField";
 import FilterSelect from "./FilterSelect";
 import FiscalYearRangeSlider from "./FiscalYearRangeSlider";
 import type { AdvancedSearchQuery } from "../../types/advancedSearch";
+import { cn } from "../../utils/cn";
 import SearchBar from "./SearchBar";
 
 const FILTER_FIELD_WIDTH = {
@@ -82,6 +83,9 @@ type FiltersProps = {
   advancedSearch?: AdvancedSearchQuery | null;
   onExitAdvancedSearch?: () => void;
   showAdvancedToggle?: boolean;
+  semanticMode?: boolean;
+  onSemanticModeChange?: (enabled: boolean) => void;
+  showSemanticToggle?: boolean;
   onUpdateDashboard?: (query: string) => void;
   searchSubmitOnClear?: boolean;
   /** Override built-in SearchBar when a custom search UI is required. */
@@ -99,6 +103,9 @@ function Filters({
   advancedSearch,
   onExitAdvancedSearch,
   showAdvancedToggle = true,
+  semanticMode = false,
+  onSemanticModeChange,
+  showSemanticToggle = false,
   onUpdateDashboard,
   searchSubmitOnClear = true,
   searchSlot,
@@ -123,8 +130,6 @@ function Filters({
     [catalog.icNames, catalog.activityCodes, catalog.states],
   );
 
-  const showClear = hasActiveFilters(draft);
-
   const handleApply = useCallback(() => {
     onApply(normalizeFiltersOnApply(draft, fyChoices));
   }, [draft, fyChoices, onApply]);
@@ -143,6 +148,9 @@ function Filters({
         advancedSearch={advancedSearch}
         onExitAdvancedSearch={onExitAdvancedSearch}
         showAdvancedToggle={showAdvancedToggle}
+        semanticMode={semanticMode}
+        onSemanticModeChange={onSemanticModeChange}
+        showSemanticToggle={showSemanticToggle}
         onUpdateDashboard={onUpdateDashboard}
         initialQuery={searchQuery ?? ""}
         submitOnClear={searchSubmitOnClear}
@@ -151,12 +159,21 @@ function Filters({
 
   return (
     <section className="-mt-1 flex flex-col items-stretch gap-[0.4rem] overflow-x-auto rounded-lg border border-border bg-surface px-3 pt-2.5 pb-3 min-[1101px]:overflow-x-visible">
-      {searchContent ? <div className="min-w-0 w-full max-w-[720px] mx-auto pt-0.5">{searchContent}</div> : null}
+      {searchContent ? (
+        <div
+          className={cn(
+            "min-w-0 w-full mx-auto pt-0.5 pb-1",
+            showSemanticToggle ? "max-w-[860px]" : "max-w-[720px]",
+          )}
+        >
+          {searchContent}
+        </div>
+      ) : null}
 
       <div className="mx-auto flex min-w-0 w-full max-w-full flex-wrap items-end justify-center gap-5">
         <FilterField label="Principal Investigator" className={FILTER_FIELD_WIDTH.pi}>
           <input
-            className="box-border w-full min-h-[2.5rem] rounded-sm border border-border bg-bg px-[0.7rem] py-[0.48rem] font-sans text-[14px] leading-[1.35] text-text-primary outline-none transition-[border-color] duration-150 hover:border-accent/40 focus:border-accent placeholder:text-text-muted"
+            className="box-border w-full min-h-[2.5rem] rounded-sm border-2 border-accent-text/65 bg-bg px-[0.7rem] py-[0.48rem] font-sans text-[14px] leading-[1.35] text-text-primary outline-none transition-[border-color] duration-150 hover:border-accent-text/90 focus:border-accent placeholder:text-text-muted"
             type="text"
             placeholder="Type PI name"
             value={draft.pi}
@@ -204,17 +221,15 @@ function Filters({
           />
         </FilterField>
 
-        {showClear ? (
-          <div className="shrink-0">
-            <button
-              type="button"
-              className="box-border min-h-[2rem] min-w-[4rem] cursor-pointer whitespace-nowrap rounded-sm border border-red-200/90 bg-red-50 px-4 font-sans text-[13px] font-medium text-red-700 transition-all duration-150 hover:border-red-300 hover:bg-red-100 dark:border-red-900/50 dark:bg-red-950/45 dark:text-red-300 dark:hover:border-red-800/70 dark:hover:bg-red-950/70"
-              onClick={handleClear}
-            >
-              Clear All
-            </button>
-          </div>
-        ) : null}
+        <div className="shrink-0">
+          <button
+            type="button"
+            className="box-border min-h-[2rem] min-w-[4rem] cursor-pointer whitespace-nowrap rounded-sm border border-red-200/90 bg-red-50 px-4 font-sans text-[13px] font-medium text-red-700 transition-all duration-150 hover:border-red-300 hover:bg-red-100 dark:border-red-900/50 dark:bg-red-950/45 dark:text-red-300 dark:hover:border-red-800/70 dark:hover:bg-red-950/70"
+            onClick={handleClear}
+          >
+            Clear All
+          </button>
+        </div>
       </div>
     </section>
   );

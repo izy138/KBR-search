@@ -250,4 +250,4 @@ Copy `.env.example` → `.env` when running the backend directly (outside Docker
 5. **Embedding model must match at index and query time.** Indexed vectors are 384-d from `all-MiniLM-L6-v2`. Do not switch to mpnet (768-d) without a full reindex.
 6. **Pre-existing TypeScript errors (5).** Recharts type mismatches on `animationDuration` props, a missing `react-slider` type declaration, and a stale `React.HTMLElement` reference. These do not affect runtime behavior. Run `npx tsc --noEmit` to check.
 7. **`useFilterCatalog` module-level cache** persists for the app's lifetime. In Vite dev mode, editing the file triggers a fresh fetch (correct behavior). The cache resets on fetch failure so the next mount retries.
-8. **`prop-types` removed from package.json.** Run `npm install` in `frontend/` to clean `node_modules` if you see stale references.
+8. **`prop-types` removed from package.json.** Run `npm ci` in `frontend/` for a clean install from the lockfile; use `npm install` only when adding or upgrading dependencies (then commit the updated `package-lock.json`).

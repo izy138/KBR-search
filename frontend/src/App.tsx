@@ -35,6 +35,8 @@ export default function App() {
 
   const [searchQuery, setSearchQuery] = useState("");
   const [advancedSearch, setAdvancedSearch] = useState<AdvancedSearchQuery | null>(null);
+  const [semanticSearchMode, setSemanticSearchMode] = useState(false);
+  const [semanticSearchCommitted, setSemanticSearchCommitted] = useState(false);
   const [selectedPI, setSelectedPI] = useState("");
   const [selectedIC, setSelectedIC] = useState("");
   const [selectedActivity, setSelectedActivity] = useState("");
@@ -124,6 +126,8 @@ export default function App() {
     resultsPerPage,
     sortBy,
     sortOrder,
+    semanticMode: semanticSearchMode,
+    semanticSearchCommitted,
     enabled: searchEnabled,
   });
 
@@ -196,12 +200,24 @@ export default function App() {
 
   const handleSearch = (nextQuery: string) => {
     setAdvancedSearch(null);
+    setSemanticSearchCommitted(semanticSearchMode);
     setSearchQuery(nextQuery);
     setProjectTermFilters([]);
     setCurrentPage(1);
   };
 
+  const handleSemanticModeChange = useCallback((enabled: boolean) => {
+    setSemanticSearchMode(enabled);
+    if (enabled) {
+      setAdvancedSearch(null);
+    } else {
+      setSemanticSearchCommitted(false);
+    }
+  }, []);
+
   const handleAdvancedSearch = useCallback((nextQuery: AdvancedSearchQuery) => {
+    setSemanticSearchMode(false);
+    setSemanticSearchCommitted(false);
     setAdvancedSearch(nextQuery);
     setSearchQuery("");
     setProjectTermFilters([]);
@@ -500,6 +516,9 @@ export default function App() {
                   catalog={filterCatalog}
                   searchQuery={searchQuery}
                   advancedSearch={advancedSearch}
+                  semanticMode={semanticSearchMode}
+                  onSemanticModeChange={handleSemanticModeChange}
+                  showSemanticToggle
                   onSearch={handleSearch}
                   onAdvancedSearch={handleAdvancedSearch}
                   onExitAdvancedSearch={handleExitAdvancedSearch}
@@ -550,10 +569,11 @@ export default function App() {
 
                   <div className="flex items-center gap-2 pb-[0.15rem] max-[900px]:w-full max-[900px]:justify-between">
                     <select
-                      className="px-[0.56rem] py-[0.3rem] border border-border rounded-sm bg-surface font-sans text-xs text-text-secondary cursor-pointer outline-none"
+                      className="px-[0.56rem] py-[0.3rem] border border-border rounded-sm bg-surface font-sans text-xs text-text-secondary cursor-pointer outline-none disabled:cursor-not-allowed disabled:opacity-50"
                       value={sortOption}
                       onChange={handleSortOptionChange}
                       aria-label="Sort results"
+                      disabled={semanticSearchMode && semanticSearchCommitted}
                     >
                       <option value="relevant">Most Relevant</option>
                       <option value="alphaAsc">Title: A to Z</option>
@@ -578,7 +598,11 @@ export default function App() {
                   onOpenDetails={handleOpenDetails}
                   onOpenInvestigator={handleOpenInvestigator}
                   sort={columnSort}
-                  onSortChange={handleColumnSortChange}
+                  onSortChange={
+                    semanticSearchMode && semanticSearchCommitted
+                      ? undefined
+                      : handleColumnSortChange
+                  }
                 />
 
                 {totalPages > 1 && (
