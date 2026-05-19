@@ -10,7 +10,7 @@ from typing import Annotated
 from fastapi import APIRouter, Depends, HTTPException, Query
 
 from .opensearch_client import get_client, get_index_name
-from .query_filters import analytics_filter_params, with_query_filters
+from .query_filters import AnalyticsScope, analytics_scope, with_query_filters
 
 router = APIRouter()
 INDEX_NAME = get_index_name()
@@ -336,7 +336,7 @@ def get_funding_value(source: dict[str, object]) -> float:
 
 @router.get("/summary")
 def analytics_summary(
-  filters: Annotated[list[dict[str, object]], Depends(analytics_filter_params)],
+  scope: Annotated[AnalyticsScope, Depends(analytics_scope)],
 ) -> dict[str, object]:
   client = get_client()
   body = with_query_filters(
@@ -351,7 +351,8 @@ def analytics_summary(
         "unique_activities": {"cardinality": {"field": "ACTIVITY.keyword"}},
       },
     },
-    filters,
+    scope.filters,
+    q=scope.q,
   )
   response = client.search(index=INDEX_NAME, body=body)
 
@@ -372,7 +373,7 @@ def analytics_summary(
 
 @router.get("/by-state")
 def analytics_by_state(
-  filters: Annotated[list[dict[str, object]], Depends(analytics_filter_params)],
+  scope: Annotated[AnalyticsScope, Depends(analytics_scope)],
 ) -> list[dict[str, object]]:
   client = get_client()
   body = with_query_filters(
@@ -387,7 +388,8 @@ def analytics_by_state(
         },
       },
     },
-    filters,
+    scope.filters,
+    q=scope.q,
   )
   response = client.search(index=INDEX_NAME, body=body)
   buckets = response.get("aggregations", {}).get("by_state", {}).get("buckets", [])
@@ -406,7 +408,7 @@ def analytics_by_state(
 
 @router.get("/by-ic")
 def analytics_by_ic(
-  filters: Annotated[list[dict[str, object]], Depends(analytics_filter_params)],
+  scope: Annotated[AnalyticsScope, Depends(analytics_scope)],
   fy: int | None = Query(default=None, ge=2000, le=2100, description="Optional fiscal year filter"),
 ) -> list[dict[str, object]]:
   client = get_client()
@@ -419,7 +421,11 @@ def analytics_by_ic(
   }
 
   if fy is None:
-    body = with_query_filters({"size": 0, "aggs": {"all_ics": all_ics_agg}}, filters)
+    body = with_query_filters(
+      {"size": 0, "aggs": {"all_ics": all_ics_agg}},
+      scope.filters,
+      q=scope.q,
+    )
     response = client.search(index=INDEX_NAME, body=body)
     buckets = response.get("aggregations", {}).get("all_ics", {}).get("buckets", [])
     return [{"label": b["key"], "value": b["doc_count"]} for b in buckets]
@@ -439,7 +445,8 @@ def analytics_by_ic(
         },
       },
     },
-    filters,
+    scope.filters,
+    q=scope.q,
   )
   response = client.search(index=INDEX_NAME, body=body)
   all_buckets = response.get("aggregations", {}).get("all_ics", {}).get("buckets", [])
@@ -458,10 +465,12 @@ def _activity_funding_buckets(
   client: object,
   *,
   bucket_size: int,
-  filters: list[dict[str, object]] | None = None,
+  scope: AnalyticsScope | None = None,
 ) -> tuple[list[dict[str, object]], dict[str, object]]:
   """Return (activity buckets, root aggregations) from a single search."""
   size = max(1, min(bucket_size, 500))
+  filters = scope.filters if scope else []
+  q = scope.q if scope else ""
   body = with_query_filters(
     {
       "size": 0,
@@ -481,7 +490,8 @@ def _activity_funding_buckets(
         },
       },
     },
-    filters or [],
+    filters,
+    q=q,
   )
   response = client.search(index=INDEX_NAME, body=body)
   aggs = response.get("aggregations", {})
@@ -491,11 +501,11 @@ def _activity_funding_buckets(
 
 @router.get("/by-activity")
 def analytics_by_activity(
-  filters: Annotated[list[dict[str, object]], Depends(analytics_filter_params)],
+  scope: Annotated[AnalyticsScope, Depends(analytics_scope)],
   limit: int = Query(default=50, ge=1, le=200, description="Max activity codes to return"),
 ) -> list[dict[str, object]]:
   client = get_client()
-  buckets, _ = _activity_funding_buckets(client, bucket_size=limit, filters=filters)
+  buckets, _ = _activity_funding_buckets(client, bucket_size=limit, scope=scope)
 
   results = [
     {
@@ -510,7 +520,7 @@ def analytics_by_activity(
 
 @router.get("/by-activity-funding-pie")
 def analytics_by_activity_funding_pie(
-  filters: Annotated[list[dict[str, object]], Depends(analytics_filter_params)],
+  scope: Annotated[AnalyticsScope, Depends(analytics_scope)],
   limit: int = Query(
     default=80,
     ge=10,
@@ -533,7 +543,7 @@ def analytics_by_activity_funding_pie(
 ) -> dict[str, object]:
   """JSON for dashboard pie: activity code share of TOTAL_COST (indexed data = export pipeline)."""
   client = get_client()
-  buckets, aggs = _activity_funding_buckets(client, bucket_size=limit, filters=filters)
+  buckets, aggs = _activity_funding_buckets(client, bucket_size=limit, scope=scope)
   global_total = float(aggs.get("total_funding_all", {}).get("value") or 0.0)
 
   rows = [
@@ -650,7 +660,7 @@ def analytics_project_term_theme_cloud() -> dict[str, object]:
 
 @router.get("/by-year")
 def analytics_by_year(
-  filters: Annotated[list[dict[str, object]], Depends(analytics_filter_params)],
+  scope: Annotated[AnalyticsScope, Depends(analytics_scope)],
 ) -> list[dict[str, object]]:
   client = get_client()
   body = with_query_filters(
@@ -669,7 +679,8 @@ def analytics_by_year(
         },
       },
     },
-    filters,
+    scope.filters,
+    q=scope.q,
   )
   response = client.search(index=INDEX_NAME, body=body)
   buckets = response.get("aggregations", {}).get("by_year", {}).get("buckets", [])
@@ -686,7 +697,7 @@ def analytics_by_year(
 
 @router.get("/top-orgs")
 def analytics_top_orgs(
-  filters: Annotated[list[dict[str, object]], Depends(analytics_filter_params)],
+  scope: Annotated[AnalyticsScope, Depends(analytics_scope)],
 ) -> list[dict[str, object]]:
   client = get_client()
   body = with_query_filters(
@@ -705,7 +716,8 @@ def analytics_top_orgs(
         },
       },
     },
-    filters,
+    scope.filters,
+    q=scope.q,
   )
   response = client.search(index=INDEX_NAME, body=body)
   buckets = response.get("aggregations", {}).get("top_orgs", {}).get("buckets", [])
@@ -721,7 +733,7 @@ def analytics_top_orgs(
 
 @router.get("/avg-grant-by-ic")
 def analytics_avg_grant_by_ic(
-  filters: Annotated[list[dict[str, object]], Depends(analytics_filter_params)],
+  scope: Annotated[AnalyticsScope, Depends(analytics_scope)],
 ) -> list[dict[str, object]]:
   client = get_client()
   body = with_query_filters(
@@ -740,7 +752,8 @@ def analytics_avg_grant_by_ic(
         },
       },
     },
-    filters,
+    scope.filters,
+    q=scope.q,
   )
   response = client.search(index=INDEX_NAME, body=body)
   buckets = response.get("aggregations", {}).get("by_ic", {}).get("buckets", [])

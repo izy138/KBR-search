@@ -1,3 +1,5 @@
+import type { AdvancedSearchQuery } from "./types/advancedSearch";
+
 const API_BASE_URL = import.meta.env.VITE_API_BASE_URL ?? "http://localhost:8000";
 
 export interface SearchResultRecord {
@@ -133,6 +135,18 @@ export interface HealthStatus {
   opensearch: string;
 }
 
+export type SearchSortField =
+  | "PI_NAMEs"
+  | "ORG_NAME"
+  | "IC_NAME"
+  | "ORG_STATE"
+  | "ACTIVITY"
+  | "PROJECT_TITLE"
+  | "FY"
+  | "TOTAL_COST";
+
+export type SearchSortDirection = "asc" | "desc";
+
 export type SearchProjectsOptions = {
   limit?: number;
   page?: number;
@@ -144,6 +158,9 @@ export type SearchProjectsOptions = {
   fyMin?: string;
   fyMax?: string;
   projectTerms?: string[];
+  advancedSearch?: AdvancedSearchQuery | null;
+  sortBy?: SearchSortField | "";
+  sortOrder?: SearchSortDirection;
 };
 
 export async function searchProjects(
@@ -161,9 +178,15 @@ export async function searchProjects(
     fyMin = "",
     fyMax = "",
     projectTerms = [],
+    advancedSearch = null,
+    sortBy = "",
+    sortOrder = "asc",
   } = options;
   const url = new URL(`${API_BASE_URL}/search/`);
-  url.searchParams.set("q", query);
+  url.searchParams.set("q", advancedSearch ? "" : query);
+  if (advancedSearch && advancedSearch.clauses.some((clause) => clause.text.trim())) {
+    url.searchParams.set("advanced_q", JSON.stringify(advancedSearch));
+  }
   url.searchParams.set("limit", String(limit));
   url.searchParams.set("page", String(page));
   if (category) {
@@ -178,6 +201,10 @@ export async function searchProjects(
   for (const term of projectTerms) {
     const trimmed = term.trim();
     if (trimmed) url.searchParams.append("project_terms", trimmed);
+  }
+  if (sortBy) {
+    url.searchParams.set("sort_by", sortBy);
+    url.searchParams.set("sort_order", sortOrder);
   }
   const response = await fetch(url.toString());
   if (!response.ok) {
@@ -358,6 +385,7 @@ export interface DashboardSummary {
 // ─── Analytics fetch helpers ──────────────────────────────────────────────────
 
 export type AnalyticsFilterOptions = {
+  q?: string;
   pi?: string;
   ic?: string;
   activity?: string;
@@ -368,6 +396,7 @@ export type AnalyticsFilterOptions = {
 
 function appendAnalyticsFilters(params: URLSearchParams, filters?: AnalyticsFilterOptions): void {
   if (!filters) return;
+  if (filters.q) params.set("q", filters.q);
   if (filters.pi) params.set("pi", filters.pi);
   if (filters.ic) params.set("ic", filters.ic);
   if (filters.activity) params.set("activity", filters.activity);

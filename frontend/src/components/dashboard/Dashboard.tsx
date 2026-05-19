@@ -26,7 +26,7 @@ import ActivityFundingPiePanel from "../charts/ActivityFundingPiePanel";
 import BarChartPanel from "../charts/BarChartPanel";
 import Filters from "../search/Filters";
 import type { FilterValues } from "../../types/filters";
-import { emptyFilterValues } from "../../types/filters";
+import { toAnalyticsFilterOptions } from "../../utils/analyticsFilters";
 import LineChartPanel from "../charts/LineChartPanel";
 import ProjectTermsThemeCloud from "./ProjectTermsThemeCloud";
 import TermCloud from "./TermCloud";
@@ -179,11 +179,14 @@ interface DashboardData {
   avgGrant: AvgGrantDataPoint[];
 }
 
-export type DashboardSearchFilters = FilterValues;
-
 type DashboardProps = {
-  onSearchNavigate: (query: string, filters: DashboardSearchFilters) => void;
-  onTermSearchNavigate: (terms: string[], filters: DashboardSearchFilters) => void;
+  searchQuery: string;
+  onUpdateDashboard: (query: string) => void;
+  onSearchNavigate: (query: string) => void;
+  appliedFilters: FilterValues;
+  onApplyFilters: (filters: FilterValues) => void;
+  onClearFilters: () => void;
+  onTermSearchNavigate: (terms: string[]) => void;
 };
 
 // ─── KPI card subcomponent ────────────────────────────────────────────────────
@@ -208,13 +211,20 @@ function KpiCard({ label, value }: KpiCardProps) {
  * Analytics dashboard that fetches all data in parallel on mount and
  * renders KPI cards, a choropleth map, and multiple chart panels.
  */
-export default function Dashboard({ onSearchNavigate, onTermSearchNavigate }: DashboardProps) {
+export default function Dashboard({
+  searchQuery,
+  onUpdateDashboard,
+  onSearchNavigate,
+  appliedFilters,
+  onApplyFilters,
+  onClearFilters,
+  onTermSearchNavigate,
+}: DashboardProps) {
   const hasLoadedOnceRef = useRef(false);
   const [data, setData] = useState<DashboardData | null>(null);
   const filterCatalog = useFilterCatalog();
   const [error, setError] = useState<string | null>(null);
   const [refreshing, setRefreshing] = useState(false);
-  const [appliedFilters, setAppliedFilters] = useState<FilterValues>(() => emptyFilterValues());
   /** Log (hybrid) vs linear scale for Projects by Institute (IC); defaults log, linear when state/activity filtered. */
   const [icProjectsLogScale, setIcProjectsLogScale] = useState(true);
   const mapMeasureRef = useRef<HTMLDivElement>(null);
@@ -250,17 +260,23 @@ export default function Dashboard({ onSearchNavigate, onTermSearchNavigate }: Da
 
   const mainChartSlotStyle = measuredSlotStyle;
 
+  const analyticsOptions = useMemo(
+    () => toAnalyticsFilterOptions(appliedFilters, searchQuery),
+    [appliedFilters, searchQuery],
+  );
+
   const hasActiveFilters = useMemo(
     () =>
       Boolean(
-        appliedFilters.pi
+        searchQuery.trim()
+        || appliedFilters.pi
         || appliedFilters.ic
         || appliedFilters.activity
         || appliedFilters.state
         || appliedFilters.fyMin
         || appliedFilters.fyMax,
       ),
-    [appliedFilters],
+    [appliedFilters, searchQuery],
   );
 
   const icProjectsDefaultLinear = Boolean(
@@ -277,24 +293,12 @@ export default function Dashboard({ onSearchNavigate, onTermSearchNavigate }: Da
 
   const icProjectsUseLogScale = icProjectsLogScale;
 
-  const handleApplyFilters = useCallback((filters: FilterValues) => {
-    setAppliedFilters(filters);
-  }, []);
-
-  const handleClearFilters = useCallback(() => {
-    setAppliedFilters(emptyFilterValues());
-  }, []);
-
-  const handleDashboardSearch = useCallback((nextQuery: string) => {
-    onSearchNavigate(nextQuery, appliedFilters);
-  }, [appliedFilters, onSearchNavigate]);
-
   const handleTermBrowseSearch = useCallback((terms: string[]) => {
-    onTermSearchNavigate(terms, appliedFilters);
-  }, [appliedFilters, onTermSearchNavigate]);
+    onTermSearchNavigate(terms);
+  }, [onTermSearchNavigate]);
 
   const handleMapStateSelect = (stateAbbrev: string) => {
-    setAppliedFilters((current) => ({ ...current, state: stateAbbrev.toUpperCase() }));
+    onApplyFilters({ ...appliedFilters, state: stateAbbrev.toUpperCase() });
   };
 
   const handleIcBarClick = (row: Record<string, unknown>) => {
@@ -303,13 +307,13 @@ export default function Dashboard({ onSearchNavigate, onTermSearchNavigate }: Da
       || (typeof row.label === "string" && row.label.trim())
       || "";
     if (institute) {
-      setAppliedFilters((current) => ({ ...current, ic: institute }));
+      onApplyFilters({ ...appliedFilters, ic: institute });
     }
   };
 
   const handleActivitySelect = useCallback((activityCode: string) => {
-    setAppliedFilters((current) => ({ ...current, activity: activityCode }));
-  }, []);
+    onApplyFilters({ ...appliedFilters, activity: activityCode });
+  }, [appliedFilters, onApplyFilters]);
 
   const icChartRows = useMemo((): Array<Record<string, unknown>> => {
     const icData = data?.icData ?? [];
@@ -337,7 +341,6 @@ export default function Dashboard({ onSearchNavigate, onTermSearchNavigate }: Da
 
   useEffect(() => {
     let cancelled = false;
-    const filters = appliedFilters;
 
     const load = async () => {
       if (hasLoadedOnceRef.current) {
@@ -355,15 +358,15 @@ export default function Dashboard({ onSearchNavigate, onTermSearchNavigate }: Da
           topOrgs,
           avgGrant,
         ] = await Promise.all([
-          getDashboardSummary(filters),
-          getStateData(filters),
-          getIcData(undefined, filters),
-          getActivityData(80, filters),
-          getActivityFundingPie({ limit: 500, pieSlices: 20 }, filters),
+          getDashboardSummary(analyticsOptions),
+          getStateData(analyticsOptions),
+          getIcData(undefined, analyticsOptions),
+          getActivityData(80, analyticsOptions),
+          getActivityFundingPie({ limit: 500, pieSlices: 20 }, analyticsOptions),
           getProjectTermThemeCloud(),
-          getYearData(filters),
-          getTopOrgs(filters),
-          getAvgGrantByIc(filters),
+          getYearData(analyticsOptions),
+          getTopOrgs(analyticsOptions),
+          getAvgGrantByIc(analyticsOptions),
         ]);
 
         if (!cancelled) {
@@ -397,14 +400,7 @@ export default function Dashboard({ onSearchNavigate, onTermSearchNavigate }: Da
     return () => {
       cancelled = true;
     };
-  }, [
-    appliedFilters.pi,
-    appliedFilters.ic,
-    appliedFilters.activity,
-    appliedFilters.state,
-    appliedFilters.fyMin,
-    appliedFilters.fyMax,
-  ]);
+  }, [analyticsOptions]);
 
   if (error) {
     return (
@@ -532,6 +528,7 @@ export default function Dashboard({ onSearchNavigate, onTermSearchNavigate }: Da
   );
 
   const activityPieFilterKey = [
+    searchQuery,
     appliedFilters.pi,
     appliedFilters.ic,
     appliedFilters.activity,
@@ -548,6 +545,7 @@ export default function Dashboard({ onSearchNavigate, onTermSearchNavigate }: Da
       return "Funding by Activity Code";
     }
     const parts: string[] = [];
+    if (searchQuery.trim()) parts.push(`"${searchQuery.trim()}"`);
     if (appliedFilters.ic) parts.push(appliedFilters.ic);
     if (appliedFilters.state) parts.push(appliedFilters.state);
     if (appliedFilters.pi) parts.push(`PI: ${appliedFilters.pi}`);
@@ -576,17 +574,19 @@ export default function Dashboard({ onSearchNavigate, onTermSearchNavigate }: Da
     <div className={cn("w-full px-6 py-[1.1rem] flex flex-col", refreshing && "opacity-[0.72] transition-opacity duration-200")}>
       <Filters
         applied={appliedFilters}
-        applyOnSelectChange
         catalog={{
           icNames,
           activityCodes,
           states,
           fiscalYearOptions: filterCatalog.fiscalYearOptions,
         }}
-        onSearch={handleDashboardSearch}
-        searchSubmitOnClear={false}
-        onApply={handleApplyFilters}
-        onClear={handleClearFilters}
+        searchQuery={searchQuery}
+        onSearch={onSearchNavigate}
+        showAdvancedToggle={false}
+        onUpdateDashboard={onUpdateDashboard}
+        searchSubmitOnClear
+        onApply={onApplyFilters}
+        onClear={onClearFilters}
       />
 
       {/* KPI cards */}

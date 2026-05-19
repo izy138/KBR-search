@@ -2,18 +2,11 @@ import { type AriaAttributes, type FC, Fragment, useState, useCallback, useMemo 
 import type { SearchResultRecord } from "../../api";
 import { getOrderedPiNames } from "../../utils/piNames";
 import { formatDollarsCompact } from "../../utils/format";
+import { cn } from "../../utils/cn";
 
 // ─── Types ────────────────────────────────────────────────────────────────────
 
-type ResultsListProps = {
-  results: SearchResultRecord[];
-  primarySort: "relevant" | "alphaAsc" | "alphaDesc";
-  loading?: boolean;
-  onOpenDetails?: (item: SearchResultRecord) => void;
-  onOpenInvestigator?: (name: string) => void;
-};
-
-type ColumnKey =
+export type ColumnKey =
   | "PI_NAMEs"
   | "ORG_NAME"
   | "IC_NAME"
@@ -22,16 +15,33 @@ type ColumnKey =
   | "FY"
   | "TOTAL_COST";
 
+export type SortDirection = "asc" | "desc" | "none";
+
+export interface SortState {
+  column: ColumnKey | null;
+  direction: SortDirection;
+}
+
+type ResultsListProps = {
+  results: SearchResultRecord[];
+  primarySort: "relevant" | "alphaAsc" | "alphaDesc";
+  loading?: boolean;
+  onOpenDetails?: (item: SearchResultRecord) => void;
+  onOpenInvestigator?: (name: string) => void;
+  /**
+   * Controlled sort. When provided together with `onSortChange`, the parent
+   * owns the sort state and is expected to fetch already-sorted results from
+   * the API. Without these props, `ResultsList` falls back to its legacy
+   * client-side sort over the rows currently in `results` (used by views
+   * where all results are loaded at once, e.g. the semantic similar page).
+   */
+  sort?: SortState;
+  onSortChange?: (next: SortState) => void;
+};
+
 interface ColumnDef {
   key: ColumnKey;
   label: string;
-}
-
-type SortDirection = "asc" | "desc" | "none";
-
-interface SortState {
-  column: ColumnKey | null;
-  direction: SortDirection;
 }
 
 // ─── Constants ────────────────────────────────────────────────────────────────
@@ -54,7 +64,7 @@ const COLUMNS: ColumnDef[] = [
 const CLS_COLS_GRID = "grid grid-cols-[20%_23%_28%_5%_5%_3%_8%] gap-x-8 items-center";
 
 const CLS_TH_BASE =
-  "inline-flex items-center gap-1 bg-transparent border-none px-[0.2rem] py-[0.24rem] cursor-pointer font-sans text-[10px] font-semibold tracking-[0.06em] uppercase text-text-muted rounded-sm transition-[color,background] duration-150 whitespace-nowrap overflow-hidden text-ellipsis min-w-0 hover:text-text-secondary hover:bg-surface-hover focus-visible:outline-2 focus-visible:outline-accent focus-visible:outline-offset-1";
+  "inline-flex w-fit max-w-full justify-self-start items-center gap-1 bg-transparent border-none px-[0.2rem] py-[0.24rem] cursor-pointer font-sans text-[10px] font-semibold tracking-[0.06em] uppercase rounded-sm transition-[color,background] duration-150 whitespace-nowrap hover:bg-surface-hover focus-visible:outline-2 focus-visible:outline-accent focus-visible:outline-offset-1";
 
 const CLS_CELL_VALUE_BASE = "block text-[11.5px] text-text-secondary whitespace-nowrap overflow-hidden text-ellipsis leading-[1.3]";
 
@@ -170,15 +180,18 @@ const ResultsHeader: FC<SortHeaderProps> = ({ sort, onSort }) => (
           colIndex === 5 ? "-ml-16" :
           colIndex === 6 ? "-ml-16" : "";
 
-        const thClass = [
+        const thClass = cn(
           CLS_TH_BASE,
-          isActive ? "font-bold" : "",
-          currentDirection === "asc" ? "text-sort-asc" : "",
-          currentDirection === "desc" ? "text-sort-desc" : "",
           negMargin,
-        ]
-          .filter(Boolean)
-          .join(" ");
+          isActive && "font-bold",
+          !isActive && "text-text-muted hover:text-text-secondary",
+        );
+
+        const labelClass = cn(
+          "whitespace-nowrap text-[11.5px]",
+          currentDirection === "asc" && "text-sort-asc",
+          currentDirection === "desc" && "text-sort-desc",
+        );
 
         return (
           <button
@@ -195,7 +208,7 @@ const ResultsHeader: FC<SortHeaderProps> = ({ sort, onSort }) => (
               }
             }}
           >
-            <span className="overflow-hidden text-ellipsis whitespace-nowrap text-[11.5px]">{col.label}</span>
+            <span className={labelClass}>{col.label}</span>
             <ChevronIcon direction={currentDirection} />
           </button>
         );
@@ -343,20 +356,44 @@ const ResultsList: FC<ResultsListProps> = ({
   loading,
   onOpenDetails,
   onOpenInvestigator,
+  sort: controlledSort,
+  onSortChange,
 }) => {
-  const [sort, setSort] = useState<SortState>({ column: null, direction: "none" });
+  const isControlled = controlledSort !== undefined && onSortChange !== undefined;
+  const [internalSort, setInternalSort] = useState<SortState>({ column: null, direction: "none" });
+  const sort = isControlled ? controlledSort : internalSort;
 
-  const handleSort = useCallback((column: ColumnKey) => {
-    setSort((prev) => {
-      if (prev.column !== column) {
-        return { column, direction: "asc" };
+  const handleSort = useCallback(
+    (column: ColumnKey) => {
+      const nextSort: SortState = (() => {
+        if (sort.column !== column) {
+          return { column, direction: "asc" };
+        }
+        const nextDirection = cycleSortDirection(sort.direction);
+        return {
+          column: nextDirection === "none" ? null : column,
+          direction: nextDirection,
+        };
+      })();
+
+      if (isControlled) {
+        onSortChange(nextSort);
+      } else {
+        setInternalSort(nextSort);
       }
-      const next = cycleSortDirection(prev.direction);
-      return { column: next === "none" ? null : column, direction: next };
-    });
-  }, []);
+    },
+    [sort, isControlled, onSortChange],
+  );
 
   const sortedResults = useMemo<SearchResultRecord[]>(() => {
+    // Controlled mode: API sorts column clicks; primary dropdown still applies
+    // when no column is active (relevance keeps API score order).
+    if (isControlled) {
+      if (sort.column === null || sort.direction === "none") {
+        return applyPrimarySort(results, primarySort);
+      }
+      return results;
+    }
     const baseResults = applyPrimarySort(results, primarySort);
     if (sort.column === null || sort.direction === "none") return baseResults;
     const col = sort.column;
@@ -368,7 +405,7 @@ const ResultsList: FC<ResultsListProps> = ({
       if (av > bv) return dir === "asc" ? 1 : -1;
       return 0;
     });
-  }, [results, primarySort, sort]);
+  }, [isControlled, results, primarySort, sort]);
 
   if (loading) {
     return (

@@ -1,75 +1,254 @@
-import { type FC, useEffect, useState } from "react";
+import { type FC, useEffect, useMemo, useState } from "react";
+import type { AdvancedSearchQuery } from "../../types/advancedSearch";
+import {
+  createDefaultAdvancedSearchQuery,
+  formatAdvancedSearchQuery,
+  hasAdvancedSearchContent,
+} from "../../utils/advancedSearch";
+import { cn } from "../../utils/cn";
+import AdvancedSearchModal from "./AdvancedSearchModal";
 
 type SearchBarProps = {
   onSearch: (query: string) => void;
+  onAdvancedSearch?: (query: AdvancedSearchQuery) => void;
+  advancedSearch?: AdvancedSearchQuery | null;
+  onExitAdvancedSearch?: () => void;
+  /** When set, shows a green "Update Dashboard" submit button; Search becomes a navigate action. */
+  onUpdateDashboard?: (query: string) => void;
   initialQuery?: string;
-  /** When false, × only clears the input (no onSearch). Default true. */
+  /** When false, × only clears the input (no callback). Default true. */
   submitOnClear?: boolean;
+  /** When false, hides the advanced-search toggle (e.g. dashboard keyword bar). */
+  showAdvancedToggle?: boolean;
+  semanticMode?: boolean;
+  onSemanticModeChange?: (enabled: boolean) => void;
+  /** When false, hides the semantic-search checkbox (e.g. dashboard). */
+  showSemanticToggle?: boolean;
 };
 
 const SearchBar: FC<SearchBarProps> = ({
   onSearch,
+  onAdvancedSearch,
+  advancedSearch = null,
+  onExitAdvancedSearch,
+  onUpdateDashboard,
   initialQuery = "",
   submitOnClear = true,
+  showAdvancedToggle = true,
+  semanticMode = false,
+  onSemanticModeChange,
+  showSemanticToggle = false,
 }) => {
   const [query, setQuery] = useState(initialQuery);
+  const [advancedOpen, setAdvancedOpen] = useState(false);
+  const isDashboardMode = onUpdateDashboard != null;
+  const advancedActive = advancedSearch != null && hasAdvancedSearchContent(advancedSearch);
+  const advancedSummary = useMemo(
+    () => (advancedSearch ? formatAdvancedSearchQuery(advancedSearch) : ""),
+    [advancedSearch],
+  );
 
   useEffect(() => {
-    setQuery(initialQuery);
-  }, [initialQuery]);
+    if (!advancedActive) {
+      setQuery(initialQuery);
+    }
+  }, [initialQuery, advancedActive]);
 
   const handleSubmit = (event: React.FormEvent<HTMLFormElement>) => {
     event.preventDefault();
+    if (advancedActive) {
+      return;
+    }
+    if (isDashboardMode) {
+      onUpdateDashboard(query.trim());
+    } else {
+      onSearch(query.trim());
+    }
+  };
+
+  const handleSearchClick = () => {
+    if (advancedActive) {
+      return;
+    }
     onSearch(query.trim());
   };
 
   const handleClear = () => {
+    if (advancedActive) {
+      onExitAdvancedSearch?.();
+      setQuery("");
+      if (!submitOnClear) return;
+      onSearch("");
+      return;
+    }
     setQuery("");
-    if (submitOnClear) {
+    if (!submitOnClear) return;
+    if (isDashboardMode) {
+      onUpdateDashboard("");
+    } else {
       onSearch("");
     }
   };
 
-  return (
-    <form
-      onSubmit={handleSubmit}
-      className="flex w-full items-center gap-2 rounded-md border border-border bg-bg px-2 py-[0.3rem] transition-[border-color,box-shadow] duration-150 focus-within:border-accent focus-within:shadow-[0_0_0_3px_rgba(26,86,219,0.1)]"
-    >
-      <svg
-        className="h-4 w-4 shrink-0 text-text-muted"
-        viewBox="0 0 16 16"
-        fill="none"
-        stroke="currentColor"
-        strokeWidth="1.5"
-        aria-hidden="true"
-      >
-        <circle cx="7" cy="7" r="4.5" />
-        <path d="M10.5 10.5L13.5 13.5" strokeLinecap="round" />
-      </svg>
-      <input
-        type="text"
-        className="min-w-0 flex-1 border-none bg-transparent py-[0.52rem] font-sans text-[14px] text-text-primary outline-none placeholder:text-text-muted"
-        placeholder="Search NIH projects by title, PI, keywords…"
-        value={query}
-        onChange={(e) => setQuery(e.target.value)}
-      />
-      {query ? (
-        <button
-          type="button"
-          onClick={handleClear}
-          className="cursor-pointer border-none bg-transparent px-0.5 text-[19px] leading-none text-text-muted"
-          aria-label="Clear search"
-        >
-          ×
-        </button>
-      ) : null}
+  const handleAdvancedSubmit = (nextQuery: AdvancedSearchQuery) => {
+    onAdvancedSearch?.(nextQuery);
+  };
+
+  const handleAdvancedToggle = () => {
+    if (advancedActive) {
+      onExitAdvancedSearch?.();
+      return;
+    }
+    setAdvancedOpen(true);
+  };
+
+  const modalInitialQuery = advancedSearch ?? createDefaultAdvancedSearchQuery(query.trim());
+  const useExpandedLayout = showAdvancedToggle || showSemanticToggle;
+  const advancedToggleDisabled = semanticMode;
+  const semanticToggleDisabled = advancedActive;
+
+  const advancedButton =
+    showAdvancedToggle && onAdvancedSearch != null ? (
       <button
-        type="submit"
-        className="cursor-pointer whitespace-nowrap rounded-sm border-none bg-accent px-[0.9rem] py-[0.38rem] font-sans text-sm font-medium text-white transition-colors duration-150 hover:bg-accent-hover"
+        type="button"
+        onClick={handleAdvancedToggle}
+        disabled={advancedToggleDisabled}
+        className={cn(
+          "shrink-0 cursor-pointer whitespace-nowrap rounded-sm border px-[0.65rem] py-[0.48rem] font-sans text-[14px] font-medium transition-colors duration-150",
+          advancedToggleDisabled && "cursor-not-allowed opacity-50",
+          advancedActive
+            ? "border-accent-hover bg-accent-hover text-white hover:bg-accent"
+            : "border-accent bg-accent/30 text-black hover:border-accent-hover hover:bg-accent/40",
+        )}
       >
-        Search
+        {advancedActive ? "Simple" : "Advanced"}
       </button>
-    </form>
+    ) : null;
+
+  const semanticToggle =
+    showSemanticToggle && onSemanticModeChange != null ? (
+      <label
+        className={cn(
+          "flex shrink-0 cursor-pointer select-none items-center gap-[0.35rem] rounded-sm border px-[0.55rem] py-[0.48rem] font-sans text-[14px] font-medium transition-colors duration-150",
+          semanticToggleDisabled && "cursor-not-allowed opacity-50",
+          semanticMode
+            ? "border-accent-hover bg-accent-hover text-white hover:bg-accent"
+            : "border-accent bg-accent/30 text-black hover:border-accent-hover hover:bg-accent/40",
+        )}
+      >
+        <input
+          type="checkbox"
+          className={cn(
+            "h-[0.85rem] w-[0.85rem]",
+            semanticMode ? "accent-white" : "accent-accent",
+          )}
+          checked={semanticMode}
+          disabled={semanticToggleDisabled}
+          onChange={(e) => onSemanticModeChange(e.target.checked)}
+        />
+        Semantic
+      </label>
+    ) : null;
+
+  const searchForm = (
+    <form
+        onSubmit={handleSubmit}
+        className="flex min-w-0 flex-1 items-center gap-2 rounded-md border-2 border-accent-text/60 bg-bg px-2 py-[0.3rem] transition-[border-color,box-shadow] duration-150 hover:border-accent-text/90 focus-within:border-accent focus-within:shadow-[0_0_0_3px_rgba(26,86,219,0.1)]"
+      >
+        <svg
+          className="h-4 w-4 shrink-0 text-text-muted"
+          viewBox="0 0 16 16"
+          fill="none"
+          stroke="currentColor"
+          strokeWidth="1.5"
+          aria-hidden="true"
+        >
+          <circle cx="7" cy="7" r="4.5" />
+          <path d="M10.5 10.5L13.5 13.5" strokeLinecap="round" />
+        </svg>
+        <input
+          type="text"
+          className={cn(
+            "min-w-0 flex-1 border-none bg-transparent py-[0.52rem] font-sans text-[14px] text-text-primary outline-none placeholder:text-text-muted",
+            advancedActive && "cursor-default text-text-secondary",
+          )}
+          placeholder={
+            advancedActive
+              ? "Advanced search active"
+              : semanticMode
+                ? "Describe the research you are looking for…"
+                : "Search NIH projects by title, PI, keywords…"
+          }
+          value={advancedActive ? advancedSummary : query}
+          readOnly={advancedActive}
+          onClick={() => {
+            if (advancedActive) {
+              setAdvancedOpen(true);
+            }
+          }}
+          onChange={(e) => {
+            if (!advancedActive) {
+              setQuery(e.target.value);
+            }
+          }}
+        />
+        {advancedActive || query ? (
+          <button
+            type="button"
+            onClick={handleClear}
+            className="cursor-pointer border-none bg-transparent px-0.5 text-[19px] leading-none text-text-muted"
+            aria-label="Clear search"
+          >
+            ×
+          </button>
+        ) : null}
+        {isDashboardMode ? (
+          <>
+            <button
+              type="submit"
+              className="cursor-pointer whitespace-nowrap rounded-sm border-none bg-green px-[0.75rem] py-[0.38rem] font-sans text-sm font-medium text-white transition-colors duration-150 hover:brightness-110"
+            >
+              Update Dashboard
+            </button>
+            <button
+              type="button"
+              onClick={handleSearchClick}
+              className="cursor-pointer whitespace-nowrap rounded-sm border-none bg-accent px-[0.9rem] py-[0.38rem] font-sans text-sm font-medium text-white transition-colors duration-150 hover:bg-accent-hover"
+            >
+              Search
+            </button>
+          </>
+        ) : (
+          <button
+            type="submit"
+            className="cursor-pointer whitespace-nowrap rounded-sm border-none bg-accent px-[0.9rem] py-[0.38rem] font-sans text-sm font-medium text-white transition-colors duration-150 hover:bg-accent-hover"
+          >
+            Search
+          </button>
+        )}
+      </form>
+  );
+
+  return (
+    <>
+      {useExpandedLayout ? (
+        <div className="flex w-full min-w-0 items-center gap-2">
+          {advancedButton}
+          {searchForm}
+          {semanticToggle}
+        </div>
+      ) : (
+        searchForm
+      )}
+      {showAdvancedToggle && onAdvancedSearch != null ? (
+        <AdvancedSearchModal
+          open={advancedOpen}
+          initialQuery={modalInitialQuery}
+          onClose={() => setAdvancedOpen(false)}
+          onSubmit={handleAdvancedSubmit}
+        />
+      ) : null}
+    </>
   );
 };
 
