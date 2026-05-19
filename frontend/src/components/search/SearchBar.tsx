@@ -20,6 +20,10 @@ type SearchBarProps = {
   submitOnClear?: boolean;
   /** When false, hides the advanced-search toggle (e.g. dashboard keyword bar). */
   showAdvancedToggle?: boolean;
+  semanticMode?: boolean;
+  onSemanticModeChange?: (enabled: boolean) => void;
+  /** When false, hides the semantic-search checkbox (e.g. dashboard). */
+  showSemanticToggle?: boolean;
 };
 
 const SearchBar: FC<SearchBarProps> = ({
@@ -31,6 +35,9 @@ const SearchBar: FC<SearchBarProps> = ({
   initialQuery = "",
   submitOnClear = true,
   showAdvancedToggle = true,
+  semanticMode = false,
+  onSemanticModeChange,
+  showSemanticToggle = false,
 }) => {
   const [query, setQuery] = useState(initialQuery);
   const [advancedOpen, setAdvancedOpen] = useState(false);
@@ -96,12 +103,57 @@ const SearchBar: FC<SearchBarProps> = ({
   };
 
   const modalInitialQuery = advancedSearch ?? createDefaultAdvancedSearchQuery(query.trim());
+  const useExpandedLayout = showAdvancedToggle || showSemanticToggle;
+  const advancedToggleDisabled = semanticMode;
+  const semanticToggleDisabled = advancedActive;
 
-  return (
-    <>
-      <form
+  const advancedButton =
+    showAdvancedToggle && onAdvancedSearch != null ? (
+      <button
+        type="button"
+        onClick={handleAdvancedToggle}
+        disabled={advancedToggleDisabled}
+        className={cn(
+          "shrink-0 cursor-pointer whitespace-nowrap rounded-sm border px-[0.65rem] py-[0.48rem] font-sans text-[14px] font-medium transition-colors duration-150",
+          advancedToggleDisabled && "cursor-not-allowed opacity-50",
+          advancedActive
+            ? "border-accent-hover bg-accent-hover text-white hover:bg-accent"
+            : "border-accent bg-accent/30 text-black hover:border-accent-hover hover:bg-accent/40",
+        )}
+      >
+        {advancedActive ? "Simple" : "Advanced"}
+      </button>
+    ) : null;
+
+  const semanticToggle =
+    showSemanticToggle && onSemanticModeChange != null ? (
+      <label
+        className={cn(
+          "flex shrink-0 cursor-pointer select-none items-center gap-[0.35rem] rounded-sm border px-[0.55rem] py-[0.48rem] font-sans text-[14px] font-medium transition-colors duration-150",
+          semanticToggleDisabled && "cursor-not-allowed opacity-50",
+          semanticMode
+            ? "border-accent-hover bg-accent-hover text-white hover:bg-accent"
+            : "border-accent bg-accent/30 text-black hover:border-accent-hover hover:bg-accent/40",
+        )}
+      >
+        <input
+          type="checkbox"
+          className={cn(
+            "h-[0.85rem] w-[0.85rem]",
+            semanticMode ? "accent-white" : "accent-accent",
+          )}
+          checked={semanticMode}
+          disabled={semanticToggleDisabled}
+          onChange={(e) => onSemanticModeChange(e.target.checked)}
+        />
+        Semantic
+      </label>
+    ) : null;
+
+  const searchForm = (
+    <form
         onSubmit={handleSubmit}
-        className="flex w-full items-center gap-2 rounded-md border border-border bg-bg px-2 py-[0.3rem] transition-[border-color,box-shadow] duration-150 focus-within:border-accent focus-within:shadow-[0_0_0_3px_rgba(26,86,219,0.1)]"
+        className="flex min-w-0 flex-1 items-center gap-2 rounded-md border-2 border-accent-text/60 bg-bg px-2 py-[0.3rem] transition-[border-color,box-shadow] duration-150 hover:border-accent-text/90 focus-within:border-accent focus-within:shadow-[0_0_0_3px_rgba(26,86,219,0.1)]"
       >
         <svg
           className="h-4 w-4 shrink-0 text-text-muted"
@@ -123,7 +175,9 @@ const SearchBar: FC<SearchBarProps> = ({
           placeholder={
             advancedActive
               ? "Advanced search active"
-              : "Search NIH projects by title, PI, keywords…"
+              : semanticMode
+                ? "Describe the research you are looking for…"
+                : "Search NIH projects by title, PI, keywords…"
           }
           value={advancedActive ? advancedSummary : query}
           readOnly={advancedActive}
@@ -146,20 +200,6 @@ const SearchBar: FC<SearchBarProps> = ({
             aria-label="Clear search"
           >
             ×
-          </button>
-        ) : null}
-        {showAdvancedToggle && onAdvancedSearch != null ? (
-          <button
-            type="button"
-            onClick={handleAdvancedToggle}
-            className={cn(
-              "cursor-pointer whitespace-nowrap rounded-sm border px-[0.65rem] py-[0.38rem] font-sans text-[12px] font-medium transition-colors duration-150",
-              advancedActive
-                ? "border-accent bg-accent-light text-accent-text hover:bg-accent-light"
-                : "border-border bg-bg text-text-secondary hover:border-border-strong hover:text-text-primary",
-            )}
-          >
-            {advancedActive ? "Simple" : "Advanced"}
           </button>
         ) : null}
         {isDashboardMode ? (
@@ -187,6 +227,19 @@ const SearchBar: FC<SearchBarProps> = ({
           </button>
         )}
       </form>
+  );
+
+  return (
+    <>
+      {useExpandedLayout ? (
+        <div className="flex w-full min-w-0 items-center gap-2">
+          {advancedButton}
+          {searchForm}
+          {semanticToggle}
+        </div>
+      ) : (
+        searchForm
+      )}
       {showAdvancedToggle && onAdvancedSearch != null ? (
         <AdvancedSearchModal
           open={advancedOpen}

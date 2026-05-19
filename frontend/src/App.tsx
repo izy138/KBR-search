@@ -47,6 +47,8 @@ export default function App() {
 
   const [searchQuery, setSearchQuery] = useState("");
   const [advancedSearch, setAdvancedSearch] = useState<AdvancedSearchQuery | null>(null);
+  const [semanticSearchMode, setSemanticSearchMode] = useState(false);
+  const [semanticSearchCommitted, setSemanticSearchCommitted] = useState(false);
   const [selectedPI, setSelectedPI] = useState("");
   const [selectedIC, setSelectedIC] = useState("");
   const [selectedActivity, setSelectedActivity] = useState("");
@@ -136,6 +138,8 @@ export default function App() {
     resultsPerPage,
     sortBy,
     sortOrder,
+    semanticMode: semanticSearchMode,
+    semanticSearchCommitted,
     enabled: searchEnabled,
   });
 
@@ -208,12 +212,24 @@ export default function App() {
 
   const handleSearch = (nextQuery: string) => {
     setAdvancedSearch(null);
+    setSemanticSearchCommitted(semanticSearchMode);
     setSearchQuery(nextQuery);
     setProjectTermFilters([]);
     setCurrentPage(1);
   };
 
+  const handleSemanticModeChange = useCallback((enabled: boolean) => {
+    setSemanticSearchMode(enabled);
+    if (enabled) {
+      setAdvancedSearch(null);
+    } else {
+      setSemanticSearchCommitted(false);
+    }
+  }, []);
+
   const handleAdvancedSearch = useCallback((nextQuery: AdvancedSearchQuery) => {
+    setSemanticSearchMode(false);
+    setSemanticSearchCommitted(false);
     setAdvancedSearch(nextQuery);
     setSearchQuery("");
     setProjectTermFilters([]);
@@ -512,6 +528,9 @@ export default function App() {
                   catalog={filterCatalog}
                   searchQuery={searchQuery}
                   advancedSearch={advancedSearch}
+                  semanticMode={semanticSearchMode}
+                  onSemanticModeChange={handleSemanticModeChange}
+                  showSemanticToggle
                   onSearch={handleSearch}
                   onAdvancedSearch={handleAdvancedSearch}
                   onExitAdvancedSearch={handleExitAdvancedSearch}
@@ -571,6 +590,7 @@ export default function App() {
                         compact
                         ariaLabel="Sort results"
                         menuMinWidthPx={168}
+                        disabled={semanticSearchMode && semanticSearchCommitted}
                       />
                     </div>
                     <div className="w-[7.25rem] shrink-0">
@@ -595,7 +615,11 @@ export default function App() {
                   onOpenDetails={handleOpenDetails}
                   onOpenInvestigator={handleOpenInvestigator}
                   sort={columnSort}
-                  onSortChange={handleColumnSortChange}
+                  onSortChange={
+                    semanticSearchMode && semanticSearchCommitted
+                      ? undefined
+                      : handleColumnSortChange
+                  }
                 />
 
                 {totalPages > 1 && (
