@@ -1,4 +1,5 @@
 import { useCallback, useEffect, useMemo, useRef, useState, type MouseEvent, type ReactNode } from "react";
+import { useChartCursorTooltip } from "../../hooks/useChartCursorTooltip";
 import { cn } from "../../utils/cn";
 import { CLS_RECHARTS_FOCUS_RESET } from "../../utils/chartStyles";
 import {
@@ -162,6 +163,8 @@ export default function BarChartPanel({
 }: BarChartPanelProps) {
   const chartBodyRef = useRef<HTMLDivElement>(null);
   const [measuredChartHeight, setMeasuredChartHeight] = useState(0);
+  const { chartHoverActive, cursorTooltipPos, handleChartMouseMove, handleChartMouseLeave } =
+    useChartCursorTooltip(chartBodyRef);
 
   useEffect(() => {
     if (!fillHeight) {
@@ -186,7 +189,14 @@ export default function BarChartPanel({
 
   const chartHeight = fillHeight ? Math.max(measuredChartHeight, 1) : height;
   const renderTooltip = (props: TooltipContentProps<ValueType, NameType>) => {
-    if (!props.active || !props.payload?.length) return null;
+    if (
+      !chartHoverActive ||
+      !props.active ||
+      !props.payload?.length ||
+      cursorTooltipPos == null
+    ) {
+      return null;
+    }
     const entry = props.payload[0];
     const rawPayload = entry.payload as Record<string, unknown> | undefined;
     const rawFromPayload = rawPayload?.[`${dataKey}__raw`];
@@ -203,8 +213,13 @@ export default function BarChartPanel({
         ? formatter(numericValue)
       : numericValue.toLocaleString();
 
+    const tooltipPos = cursorTooltipPos;
+
     return (
-      <div className="bg-surface border border-border rounded-[--radius-md] shadow-md text-[0.8125rem] px-[0.875rem] py-[0.625rem] pointer-events-none min-w-[160px] z-10">
+      <div
+        className="bg-surface border border-border rounded-[--radius-md] shadow-md text-[0.8125rem] px-[0.875rem] py-[0.625rem] pointer-events-none min-w-[160px] fixed z-[1000]"
+        style={{ left: tooltipPos.x, top: tooltipPos.y }}
+      >
         <div className="text-text-primary font-semibold mb-1 text-[0.82rem]">{label}</div>
         <div className="text-text-secondary">{displayValue}</div>
       </div>
@@ -313,9 +328,11 @@ export default function BarChartPanel({
         <div className="text-text-primary text-[0.9rem] font-semibold mb-[0.65rem]">{title}</div>
       )}
       <div
-        ref={fillHeight ? chartBodyRef : undefined}
+        ref={chartBodyRef}
         className={cn(fillHeight && "flex-1 min-h-0")}
         onMouseDownCapture={handleChartMouseDownCapture}
+        onMouseMove={handleChartMouseMove}
+        onMouseLeave={handleChartMouseLeave}
       >
         <ResponsiveContainer width="100%" height={chartHeight}>
         {isVertical ? (
@@ -337,9 +354,9 @@ export default function BarChartPanel({
               tickLine={false}
             />
             <Tooltip
+              active={chartHoverActive ? undefined : false}
               content={renderTooltip}
-              cursor={{ fill: "var(--accent-light)" }}
-              position={{ x: 16, y: 16 }}
+              cursor={chartHoverActive ? { fill: "var(--accent-light)" } : false}
             />
             <Bar
               dataKey={barDataKey}
@@ -383,9 +400,9 @@ export default function BarChartPanel({
               {...valueAxisProps}
             />
             <Tooltip
+              active={chartHoverActive ? undefined : false}
               content={renderTooltip}
-              cursor={{ fill: "var(--accent-light)" }}
-              position={{ x: 16, y: 16 }}
+              cursor={chartHoverActive ? { fill: "var(--accent-light)" } : false}
             />
             <Bar
               dataKey={barDataKey}

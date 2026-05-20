@@ -55,7 +55,7 @@ export const HELP_PROJECT_KEYWORDS: HelpTooltipContent = {
   body: (
     <>
       <p className="mb-2">
-        Click tags to select NIH project terms. Selected tags are combined when you search—other grants must match those terms.
+        Click a tag to include it in search, click again to exclude it (NOT), and once more to clear. Included tags must match; excluded tags must not appear in project keywords.
       </p>
       <p>
         Optionally add extra words, then click <strong className="font-medium text-text-primary">Search Projects</strong> to open Search with your tag filters and text query applied.

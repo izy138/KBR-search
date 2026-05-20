@@ -29,7 +29,6 @@ import {
 } from "./api";
 import HelpTooltip from "./components/shared/HelpTooltip";
 import { HELP_SEARCH } from "./utils/helpContent";
-import { type SearchResultRecord, type SearchSortDirection, type SearchSortField } from "./api";
 import type { AdvancedSearchQuery } from "./types/advancedSearch";
 import { formatAdvancedSearchQuery, hasAdvancedSearchContent } from "./utils/advancedSearch";
 import { useFilterCatalog } from "./hooks/useFilterCatalog";
