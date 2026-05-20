@@ -314,7 +314,7 @@ def search(
     ),
     exclude_project_terms: list[str] = Query(
         default_factory=list,
-        description="Each phrase must not match PROJECT_TERMS; repeat param",
+        description="Exclude projects whose PROJECT_TERMS match each phrase; repeat param",
     ),
     sort_by: str = Query(default="", description="Sort field (e.g. PROJECT_TITLE, FY)"),
     sort_order: str = Query(default="asc", description="asc or desc"),

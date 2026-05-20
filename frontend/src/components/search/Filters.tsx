@@ -12,7 +12,11 @@ import FilterSelect from "./FilterSelect";
 import FiscalYearRangeSlider from "./FiscalYearRangeSlider";
 import type { AdvancedSearchQuery } from "../../types/advancedSearch";
 import { cn } from "../../utils/cn";
+import type { HelpTooltipContent } from "../../utils/helpContent";
 import SearchBar from "./SearchBar";
+
+export type FilterFieldHelpKey = "pi" | "ic" | "activity" | "fy";
+export type FilterFieldHelp = Partial<Record<FilterFieldHelpKey, HelpTooltipContent>>;
 
 const FILTER_FIELD_WIDTH = {
   pi: "w-[280px] max-[1100px]:flex-1 max-[1100px]:min-w-[140px]",
@@ -88,7 +92,7 @@ type FiltersProps = {
   showSemanticToggle?: boolean;
   onUpdateDashboard?: (query: string) => void;
   searchSubmitOnClear?: boolean;
-  /** Override built-in SearchBar when a custom search UI is required. */
+  fieldHelp?: FilterFieldHelp;
   searchSlot?: ReactNode;
 };
 
@@ -108,6 +112,7 @@ function Filters({
   showSemanticToggle = false,
   onUpdateDashboard,
   searchSubmitOnClear = true,
+  fieldHelp,
   searchSlot,
 }: FiltersProps) {
   const { draft, patch, resetDraft } = useFilterDraft(applied);
@@ -171,7 +176,11 @@ function Filters({
       ) : null}
 
       <div className="mx-auto flex min-w-0 w-full max-w-full flex-wrap items-end justify-center gap-5">
-        <FilterField label="Principal Investigator" className={FILTER_FIELD_WIDTH.pi}>
+        <FilterField
+          label="Principal Investigator"
+          help={fieldHelp?.pi}
+          className={FILTER_FIELD_WIDTH.pi}
+        >
           <input
             className="box-border w-full min-h-[2.5rem] rounded-sm border-2 border-accent-text/65 bg-bg px-[0.7rem] py-[0.48rem] font-sans text-[14px] leading-[1.35] text-text-primary outline-none transition-[border-color] duration-150 hover:border-accent-text/90 focus:border-accent placeholder:text-text-muted"
             type="text"
@@ -189,7 +198,12 @@ function Filters({
         </FilterField>
 
         {SELECT_FIELDS.map((field) => (
-          <FilterField key={field.key} label={field.label} className={field.width}>
+          <FilterField
+            key={field.key}
+            label={field.label}
+            help={fieldHelp?.[field.key]}
+            className={field.width}
+          >
             <FilterSelect
               value={draft[field.key]}
               onChange={(value) => {
@@ -207,7 +221,11 @@ function Filters({
           </FilterField>
         ))}
 
-        <FilterField label="Fiscal Year" className={FILTER_FIELD_WIDTH.fiscalYear}>
+        <FilterField
+          label="Fiscal Year"
+          help={fieldHelp?.fy}
+          className={FILTER_FIELD_WIDTH.fiscalYear}
+        >
           <FiscalYearRangeSlider
             choices={fyChoices}
             fyMin={draft.fyMin}
