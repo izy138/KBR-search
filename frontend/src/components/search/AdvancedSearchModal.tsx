@@ -113,9 +113,7 @@ const AdvancedSearchModal: FC<AdvancedSearchModalProps> = ({
               <h2 id="advanced-search-title" className="font-sans text-[17px] font-semibold text-text-primary">
                 Advanced search
               </h2>
-              <p className="mt-1 text-sm text-text-secondary">
-                Combine multiple terms with AND, OR, and NOT. Terms match title, PI, keywords, and organization fields.
-              </p>
+              
             </div>
             <button
               type="button"

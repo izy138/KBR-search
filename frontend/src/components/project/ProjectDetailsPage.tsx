@@ -15,7 +15,7 @@ import SimilarProjectYearTags from "./SimilarProjectYearTags";
 import HelpTooltip from "../shared/HelpTooltip";
 import { HELP_PROJECT_KEYWORDS, HELP_PROJECT_SIMILAR } from "../../utils/helpContent";
 
-type TermSelectionMode = "include" | "exclude";
+type TermFilterMode = "include" | "exclude";
 
 type ProjectSearchTermsPayload = {
   terms: string[];
@@ -37,7 +37,7 @@ const SIMILAR_PANEL_K = 10;
 const CLS_SECTION_H2 = "text-[0.86rem] uppercase tracking-[0.05em] text-text-muted mb-[0.35rem]";
 
 function KeywordTag({ mode, onClick, children }: {
-  mode: TermSelectionMode | null;
+  mode: TermFilterMode | null;
   onClick: () => void;
   children: ReactNode;
 }) {
@@ -47,13 +47,12 @@ function KeywordTag({ mode, onClick, children }: {
       aria-pressed={mode != null}
       onClick={onClick}
       className={cn(
-        "inline-flex items-center px-[0.55rem] py-[0.2rem] rounded-full border text-[0.82rem] leading-[1.2] cursor-pointer font-[inherit] transition-[background,border-color,color] duration-[120ms] focus-visible:outline-2 focus-visible:outline-offset-2",
-        mode === "include" &&
-          "border-accent bg-accent-light text-accent-text focus-visible:outline-accent",
+        "inline-flex items-center px-[0.55rem] py-[0.2rem] rounded-full border text-[0.82rem] leading-[1.2] cursor-pointer font-[inherit] transition-[background,border-color,color] duration-[120ms] focus-visible:outline-2 focus-visible:outline-accent focus-visible:outline-offset-2",
+        mode === "include" && "border-accent bg-accent-light text-accent-text",
         mode === "exclude" &&
-          "border-red-300 bg-red-50 text-red-700 focus-visible:outline-red-400 dark:border-red-800/70 dark:bg-red-950/45 dark:text-red-300 dark:focus-visible:outline-red-500",
+          "border-red-200/90 bg-red-50 text-red-700 dark:border-red-900/50 dark:bg-red-950/45 dark:text-red-300",
         mode == null &&
-          "border-border bg-bg text-text-secondary hover:border-text-muted hover:text-text-primary focus-visible:outline-accent",
+          "border-border bg-bg text-text-secondary hover:border-text-muted hover:text-text-primary",
       )}
     >
       {children}
@@ -61,30 +60,55 @@ function KeywordTag({ mode, onClick, children }: {
   );
 }
 
-function KeywordChip({ mode, onRemove, label, children }: {
-  mode: TermSelectionMode;
+function KeywordChip({
+  onRemove,
+  label,
+  excluded = false,
+  children,
+}: {
   onRemove: () => void;
   label: string;
+  excluded?: boolean;
   children: ReactNode;
 }) {
   return (
     <button
       type="button"
       onClick={onRemove}
-      aria-label={mode === "exclude" ? `Remove NOT ${label}` : `Remove ${label}`}
+      aria-label={excluded ? `Remove NOT ${label}` : `Remove ${label}`}
       className={cn(
         "inline-flex items-center gap-1 pl-[0.55rem] pr-[0.45rem] py-[0.2rem] rounded-full border text-[0.8rem] leading-[1.2] cursor-pointer font-[inherit] transition-[background,border-color] duration-[120ms] hover:brightness-[0.97] focus-visible:outline-2 focus-visible:outline-offset-2",
-        mode === "include" &&
-          "border-accent bg-accent-light text-accent-text focus-visible:outline-accent",
-        mode === "exclude" &&
-          "border-red-300 bg-red-50 text-red-700 focus-visible:outline-red-400 dark:border-red-800/70 dark:bg-red-950/45 dark:text-red-300 dark:focus-visible:outline-red-500",
+        excluded
+          ? "border-red-200/90 bg-red-50 text-red-700 dark:border-red-900/50 dark:bg-red-950/45 dark:text-red-300 focus-visible:outline-red-400"
+          : "border-accent bg-accent-light text-accent-text",
       )}
     >
-      {mode === "exclude" ? <span className="font-semibold">NOT</span> : null}
-      {children}
+      {excluded ? (
+        <>
+          <span className="font-semibold">NOT</span> {children}
+        </>
+      ) : (
+        children
+      )}
       <span className="text-[1rem] leading-none opacity-75" aria-hidden="true">×</span>
     </button>
   );
+}
+
+function cycleTermFilterMode(
+  prev: Map<string, TermFilterMode>,
+  term: string,
+): Map<string, TermFilterMode> {
+  const next = new Map(prev);
+  const current = next.get(term);
+  if (current === "include") {
+    next.set(term, "exclude");
+  } else if (current === "exclude") {
+    next.delete(term);
+  } else {
+    next.set(term, "include");
+  }
+  return next;
 }
 
 function parseSemicolonTerms(rawTerms: string | undefined): string[] {
@@ -276,10 +300,16 @@ export default function ProjectDetailsPage({
     () => dedupeTermsPreserveOrder(projectTerms),
     [projectTerms],
   );
-  const [termSelections, setTermSelections] = useState<Map<string, TermSelectionMode>>(
-    () => new Map(),
-  );
+  const [termFilters, setTermFilters] = useState<Map<string, TermFilterMode>>(() => new Map());
   const [keywordExtra, setKeywordExtra] = useState<string>("");
+  const includedTerms = useMemo(
+    () => [...termFilters.entries()].filter(([, mode]) => mode === "include").map(([term]) => term),
+    [termFilters],
+  );
+  const excludedTerms = useMemo(
+    () => [...termFilters.entries()].filter(([, mode]) => mode === "exclude").map(([term]) => term),
+    [termFilters],
+  );
   const projectAbstract = getProjectAbstract(item);
   const [isAbstractExpanded, setIsAbstractExpanded] = useState<boolean>(false);
   const fiscalYears = item.FY != null ? String(item.FY) : "—";
@@ -311,22 +341,9 @@ export default function ProjectDetailsPage({
   }, [item._id, item.APPLICATION_ID, item.PROJECT_TITLE]);
 
   useEffect(() => {
-    setTermSelections(new Map());
+    setTermFilters(new Map());
     setKeywordExtra("");
   }, [item._id, item.APPLICATION_ID]);
-
-  const includedTerms = useMemo(
-    () => [...termSelections.entries()].filter(([, mode]) => mode === "include").map(([term]) => term),
-    [termSelections],
-  );
-  const excludedTerms = useMemo(
-    () => [...termSelections.entries()].filter(([, mode]) => mode === "exclude").map(([term]) => term),
-    [termSelections],
-  );
-  const selectedTermEntries = useMemo(
-    () => [...termSelections.entries()],
-    [termSelections],
-  );
 
   useEffect(() => {
     if (!projectId) {
@@ -440,25 +457,12 @@ export default function ProjectDetailsPage({
     navigate(`/projects/${encodeURIComponent(variant.project_id)}`);
   };
 
-  const getTermMode = (term: string): TermSelectionMode | null => termSelections.get(term) ?? null;
-
   const cycleTermSelection = (term: string): void => {
-    setTermSelections((prev) => {
-      const next = new Map(prev);
-      const current = next.get(term);
-      if (current === "include") {
-        next.set(term, "exclude");
-      } else if (current === "exclude") {
-        next.delete(term);
-      } else {
-        next.set(term, "include");
-      }
-      return next;
-    });
+    setTermFilters((prev) => cycleTermFilterMode(prev, term));
   };
 
-  const clearTermSelection = (term: string): void => {
-    setTermSelections((prev) => {
+  const clearTermFilter = (term: string): void => {
+    setTermFilters((prev) => {
       const next = new Map(prev);
       next.delete(term);
       return next;
@@ -466,7 +470,7 @@ export default function ProjectDetailsPage({
   };
 
   const clearKeywordPanel = (): void => {
-    setTermSelections(new Map());
+    setTermFilters(new Map());
     setKeywordExtra("");
   };
 
@@ -608,7 +612,7 @@ export default function ProjectDetailsPage({
                 {dedupedProjectTerms.map((term) => (
                   <KeywordTag
                     key={term}
-                    mode={getTermMode(term)}
+                    mode={termFilters.get(term) ?? null}
                     onClick={() => cycleTermSelection(term)}
                   >
                     {term}
@@ -617,19 +621,17 @@ export default function ProjectDetailsPage({
               </div>
               {onSearchWithProjectTerms ? (
                 <div className="mt-[0.85rem] pt-[0.85rem] border-t border-border">
-                  <p className="mb-[0.45rem] text-[0.85rem] text-text-secondary">
-                    Click a tag once to require it (AND), twice to exclude it (NOT). Click again to clear.
-                  </p>
+                  
                   <ul className="flex flex-wrap gap-[0.35rem] items-center list-none m-0 mb-[0.65rem] p-0 min-h-[1.6rem]" aria-label="Selected keywords for search">
-                    {selectedTermEntries.length === 0 ? (
+                    {termFilters.size === 0 ? (
                       <li className="m-0 p-0 text-[0.82rem] text-text-muted italic">No tags selected yet</li>
                     ) : (
-                      selectedTermEntries.map(([term, mode]) => (
-                        <li key={term}>
+                      [...termFilters.entries()].map(([term, mode]) => (
+                        <li key={`${mode}-${term}`}>
                           <KeywordChip
-                            mode={mode}
                             label={term}
-                            onRemove={() => clearTermSelection(term)}
+                            excluded={mode === "exclude"}
+                            onRemove={() => clearTermFilter(term)}
                           >
                             {term}
                           </KeywordChip>
@@ -656,15 +658,13 @@ export default function ProjectDetailsPage({
                       type="button"
                       className="px-4 py-[0.45rem] rounded-sm border-none bg-accent text-white font-sans text-[0.88rem] font-medium cursor-pointer transition-[background] duration-150 disabled:opacity-45 disabled:cursor-not-allowed"
                       disabled={
-                        includedTerms.length === 0
-                        && excludedTerms.length === 0
-                        && keywordExtra.trim() === ""
+                        termFilters.size === 0 && keywordExtra.trim() === ""
                       }
                       onClick={handleProjectKeywordSearch}
                     >
                       Search Projects
                     </button>
-                    {(selectedTermEntries.length > 0 || keywordExtra.trim() !== "") ? (
+                    {(termFilters.size > 0 || keywordExtra.trim() !== "") ? (
                       <button
                         type="button"
                         className="px-[0.75rem] py-[0.45rem] rounded-sm border border-border bg-surface text-text-secondary font-sans text-[0.85rem] cursor-pointer hover:border-text-muted hover:text-text-primary"
