@@ -1,17 +1,21 @@
-"""Load full-project rows from OGdata CSVs for search export."""
+"""Load full-project rows from OGdata CSVs for search CSV export."""
 
 from __future__ import annotations
 
 import csv
 import io
+import os
+from concurrent.futures import ThreadPoolExecutor, as_completed
 from pathlib import Path
-from typing import Any, Iterator
+from typing import Any
 
 import pandas as pd
 
 OGDATA_DIR = Path(__file__).resolve().parent.parent / "indexer" / "OGdata"
 FY_FILE_PATTERN = "{year}_PROJECT.csv"
 MAX_EXPORT_ROWS = 10_000
+OG_SCAN_CHUNK_SIZE = 20_000
+OG_EXPORT_MAX_WORKERS = 4
 
 
 def og_file_for_fy(fy: int) -> Path:
@@ -63,34 +67,126 @@ def _row_to_dict(row: pd.Series) -> dict[str, object]:
   return out
 
 
-def _scan_file_for_ids(
+def _records_to_og_map(records: list[dict[str, object]]) -> dict[tuple[int, int | None], dict[str, object]]:
+  found: dict[tuple[int, int | None], dict[str, object]] = {}
+  for record in records:
+    app_id = normalize_application_id(record.get("APPLICATION_ID"))
+    if app_id is None:
+      continue
+    fy = normalize_fy(record.get("FY")) if "FY" in record else None
+    key = (app_id, fy)
+    if key not in found:
+      found[key] = _row_to_dict(pd.Series(record))
+  return found
+
+
+def _scan_file_for_ids_pandas(
   path: Path,
   application_ids: set[int],
-  found: dict[tuple[int, int | None], dict[str, object]],
-) -> None:
-  if not application_ids:
-    return
+) -> dict[tuple[int, int | None], dict[str, object]]:
+  if not application_ids or not path.is_file():
+    return {}
   remaining = set(application_ids)
-  for chunk in pd.read_csv(path, chunksize=5_000, low_memory=False):
+  records: list[dict[str, object]] = []
+  for chunk in pd.read_csv(path, chunksize=OG_SCAN_CHUNK_SIZE, low_memory=False):
     if "APPLICATION_ID" not in chunk.columns:
-      return
+      return {}
     chunk_ids = pd.to_numeric(chunk["APPLICATION_ID"], errors="coerce")
     mask = chunk_ids.isin(remaining)
     if not mask.any():
       continue
     matched = chunk.loc[mask]
-    for _, row in matched.iterrows():
-      app_id = normalize_application_id(row.get("APPLICATION_ID"))
-      if app_id is None:
-        continue
-      fy = normalize_fy(row.get("FY")) if "FY" in row.index else None
-      key = (app_id, fy)
-      if key in found:
-        continue
-      found[key] = _row_to_dict(row)
-      remaining.discard(app_id)
+    batch = matched.to_dict(orient="records")
+    records.extend(batch)
+    for record in batch:
+      app_id = normalize_application_id(record.get("APPLICATION_ID"))
+      if app_id is not None:
+        remaining.discard(app_id)
     if not remaining:
-      return
+      break
+  return _records_to_og_map(records)
+
+
+def _load_ids_from_csv_duckdb(
+  path: Path,
+  application_ids: set[int],
+) -> dict[tuple[int, int | None], dict[str, object]]:
+  import duckdb
+
+  if not application_ids or not path.is_file():
+    return {}
+
+  conn = duckdb.connect()
+  conn.register("wanted_ids", pd.DataFrame({"APPLICATION_ID": list(application_ids)}))
+  try:
+    frame = conn.execute(
+      """
+      SELECT og.*
+      FROM read_csv(?, auto_detect=true, ignore_errors=true) AS og
+      INNER JOIN wanted_ids AS w
+        ON TRY_CAST(og.APPLICATION_ID AS BIGINT) = w.APPLICATION_ID
+      """,
+      [str(path)],
+    ).fetchdf()
+  finally:
+    conn.close()
+
+  return _records_to_og_map(frame.to_dict(orient="records"))
+
+
+def _use_duckdb_for_export() -> bool:
+  if os.getenv("OG_EXPORT_USE_DUCKDB", "true").strip().lower() in {"0", "false", "no"}:
+    return False
+  try:
+    import duckdb  # noqa: F401
+  except ImportError:
+    return False
+  return True
+
+
+def _load_ids_from_csv(
+  path: Path,
+  application_ids: set[int],
+) -> dict[tuple[int, int | None], dict[str, object]]:
+  if _use_duckdb_for_export():
+    try:
+      return _load_ids_from_csv_duckdb(path, application_ids)
+    except Exception:
+      pass
+  return _scan_file_for_ids_pandas(path, application_ids)
+
+
+def _merge_found(
+  found: dict[tuple[int, int | None], dict[str, object]],
+  batch: dict[tuple[int, int | None], dict[str, object]],
+) -> None:
+  for key, row in batch.items():
+    if key not in found:
+      found[key] = row
+
+
+def _ids_still_missing(
+  ids: set[int],
+  found: dict[tuple[int, int | None], dict[str, object]],
+) -> set[int]:
+  return {app_id for app_id in ids if not any(key[0] == app_id for key in found)}
+
+
+def _scan_paths_parallel(
+  paths: list[Path],
+  application_ids: set[int],
+  found: dict[tuple[int, int | None], dict[str, object]],
+) -> None:
+  if not paths or not application_ids:
+    return
+  workers = min(OG_EXPORT_MAX_WORKERS, len(paths))
+  with ThreadPoolExecutor(max_workers=workers) as pool:
+    futures = {
+      pool.submit(_load_ids_from_csv, path, application_ids): path
+      for path in paths
+    }
+    for future in as_completed(futures):
+      _merge_found(found, future.result())
 
 
 def load_og_rows(
@@ -104,19 +200,19 @@ def load_og_rows(
     wanted_by_fy.setdefault(fy, set()).add(app_id)
 
   found: dict[tuple[int, int | None], dict[str, object]] = {}
+  all_files = list_og_files()
 
   for fy, app_ids in wanted_by_fy.items():
+    remaining = set(app_ids)
     if fy is not None:
       path = og_file_for_fy(fy)
       if path.is_file():
-        _scan_file_for_ids(path, app_ids, found)
-      continue
+        _merge_found(found, _load_ids_from_csv(path, remaining))
+      remaining = _ids_still_missing(remaining, found)
 
-    for path in list_og_files():
-      still_need = app_ids - {key[0] for key in found if key[0] in app_ids}
-      if not still_need:
-        break
-      _scan_file_for_ids(path, still_need, found)
+    if remaining:
+      other_paths = [p for p in all_files if fy is None or p != og_file_for_fy(fy)]
+      _scan_paths_parallel(other_paths, remaining, found)
 
   return found
 

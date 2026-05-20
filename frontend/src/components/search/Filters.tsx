@@ -200,7 +200,13 @@ function Filters({
           <FilterField
             key={field.key}
             label={field.label}
-            help={fieldHelp?.[field.key]}
+            help={
+              field.key === "ic"
+                ? fieldHelp?.ic
+                : field.key === "activity"
+                  ? fieldHelp?.activity
+                  : undefined
+            }
             className={field.width}
           >
             <FilterSelect

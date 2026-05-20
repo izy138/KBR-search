@@ -7,7 +7,9 @@ import {
   normalizeUnifiedSearch,
   parseUnifiedSearch,
 } from "../../utils/advancedSearch";
+import HelpTooltip from "../shared/HelpTooltip";
 import { cn } from "../../utils/cn";
+import { HELP_SEARCH_ADVANCED, HELP_SEARCH_SEMANTIC } from "../../utils/helpContent";
 import AdvancedSearchModal from "./AdvancedSearchModal";
 
 type SearchBarProps = {
@@ -99,15 +101,15 @@ const SearchBar: FC<SearchBarProps> = ({
   const useExpandedLayout = showAdvancedToggle || showSemanticToggle;
   const advancedToggleDisabled = semanticMode;
   const semanticToggleDisabled = hasAdvancedInBar;
-  const advancedCheckboxChecked = hasAdvancedInBar || advancedOpen;
+  const advancedActive = hasAdvancedInBar || advancedOpen;
 
-  const advancedToggle =
-    showAdvancedToggle ? (
+  const advancedControl = showAdvancedToggle ? (
+    <div className="flex shrink-0 items-center gap-1">
       <label
         className={cn(
-          "flex shrink-0 cursor-pointer select-none items-center gap-[0.35rem] rounded-sm border px-[0.55rem] py-[0.48rem] font-sans text-[14px] font-medium transition-colors duration-150",
+          "flex cursor-pointer select-none items-center gap-[0.35rem] rounded-sm border px-[0.55rem] py-[0.48rem] font-sans text-[14px] font-medium transition-colors duration-150",
           advancedToggleDisabled && "cursor-not-allowed opacity-50",
-          advancedCheckboxChecked
+          advancedActive
             ? "border-accent-hover bg-accent-hover text-white hover:bg-accent"
             : "border-accent bg-accent/30 text-black hover:border-accent-hover hover:bg-accent/40",
         )}
@@ -116,39 +118,48 @@ const SearchBar: FC<SearchBarProps> = ({
           type="checkbox"
           className={cn(
             "h-[0.85rem] w-[0.85rem]",
-            advancedCheckboxChecked ? "accent-white" : "accent-accent",
+            advancedActive ? "accent-white" : "accent-accent",
           )}
-          checked={advancedCheckboxChecked}
+          checked={advancedActive}
           disabled={advancedToggleDisabled}
           onChange={(e) => handleAdvancedCheckboxChange(e.target.checked)}
         />
         Advanced
       </label>
-    ) : null;
+      <HelpTooltip label={HELP_SEARCH_ADVANCED.label} placement="after">
+        {HELP_SEARCH_ADVANCED.body}
+      </HelpTooltip>
+    </div>
+  ) : null;
 
-  const semanticToggle =
+  const semanticControl =
     showSemanticToggle && onSemanticModeChange != null ? (
-      <label
-        className={cn(
-          "flex shrink-0 cursor-pointer select-none items-center gap-[0.35rem] rounded-sm border px-[0.55rem] py-[0.48rem] font-sans text-[14px] font-medium transition-colors duration-150",
-          semanticToggleDisabled && "cursor-not-allowed opacity-50",
-          semanticMode
-            ? "border-accent-hover bg-accent-hover text-white hover:bg-accent"
-            : "border-accent bg-accent/30 text-black hover:border-accent-hover hover:bg-accent/40",
-        )}
-      >
-        <input
-          type="checkbox"
+      <div className="flex shrink-0 items-center gap-1">
+        <label
           className={cn(
-            "h-[0.85rem] w-[0.85rem]",
-            semanticMode ? "accent-white" : "accent-accent",
+            "flex cursor-pointer select-none items-center gap-[0.35rem] rounded-sm border px-[0.55rem] py-[0.48rem] font-sans text-[14px] font-medium transition-colors duration-150",
+            semanticToggleDisabled && "cursor-not-allowed opacity-50",
+            semanticMode
+              ? "border-accent-hover bg-accent-hover text-white hover:bg-accent"
+              : "border-accent bg-accent/30 text-black hover:border-accent-hover hover:bg-accent/40",
           )}
-          checked={semanticMode}
-          disabled={semanticToggleDisabled}
-          onChange={(e) => onSemanticModeChange(e.target.checked)}
-        />
-        Semantic
-      </label>
+        >
+          <input
+            type="checkbox"
+            className={cn(
+              "h-[0.85rem] w-[0.85rem]",
+              semanticMode ? "accent-white" : "accent-accent",
+            )}
+            checked={semanticMode}
+            disabled={semanticToggleDisabled}
+            onChange={(e) => onSemanticModeChange(e.target.checked)}
+          />
+          Semantic
+        </label>
+        <HelpTooltip label={HELP_SEARCH_SEMANTIC.label} placement="after">
+          {HELP_SEARCH_SEMANTIC.body}
+        </HelpTooltip>
+      </div>
     ) : null;
 
   const searchForm = (
@@ -228,8 +239,8 @@ const SearchBar: FC<SearchBarProps> = ({
     <>
       {useExpandedLayout ? (
         <div className="flex w-full min-w-0 items-center gap-2">
-          {semanticToggle}
-          {advancedToggle}
+          {semanticControl}
+          {advancedControl}
           {searchForm}
         </div>
       ) : (
