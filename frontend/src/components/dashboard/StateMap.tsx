@@ -412,7 +412,7 @@ export default function StateMap({
     ));
 
   return (
-    <div className="bg-surface border border-border rounded-[--radius-lg] w-full px-4 py-[0.9rem] min-h-[310px] relative">
+    <div className="bg-surface border border-border rounded-[--radius-lg] w-full h-full min-h-[310px] relative flex flex-col px-4 py-[0.9rem]">
       <div className="text-text-primary text-[0.9rem] font-semibold mb-1">Projects by State</div>
       <div ref={mapCanvasRef} className="-mt-[0.2rem] relative" data-map-canvas onMouseLeave={clearHover}>
         <ComposableMap

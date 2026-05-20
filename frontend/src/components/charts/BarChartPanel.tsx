@@ -184,7 +184,7 @@ export default function BarChartPanel({
     if (!chartBody) return;
 
     const updateHeight = (): void => {
-      setMeasuredChartHeight(chartBody.getBoundingClientRect().height);
+      setMeasuredChartHeight(chartBody.offsetHeight);
     };
 
     updateHeight();
