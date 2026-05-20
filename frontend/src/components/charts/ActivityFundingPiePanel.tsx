@@ -13,6 +13,7 @@ import type { TooltipContentProps } from "recharts/types/component/Tooltip";
 import type { NameType, ValueType } from "recharts/types/component/DefaultTooltipContent";
 import type { ActivityFundingPieResponse, ActivityPieSlice } from "../../api";
 import { cn } from "../../utils/cn";
+import { getActivityCodeTitle } from "../../utils/activityCodeTitles";
 import { CLS_RECHARTS_FOCUS_RESET } from "../../utils/chartStyles";
 
 const DEFAULT_CHART_HEIGHT_PX = 360;
@@ -423,13 +424,19 @@ export default function ActivityFundingPiePanel({
       return null;
     }
     const codeLabel = row.isOther ? "Other" : row.name;
+    const codeMeaning = row.isOther ? undefined : getActivityCodeTitle(row.name);
     return (
-      <div className="bg-surface border border-border rounded-[--radius-md] shadow-md min-w-0 px-[0.68rem] py-[0.45rem] text-[14px] leading-[1.25] pointer-events-none z-10">
+      <div className="bg-surface border border-border rounded-[--radius-md] shadow-md min-w-0 max-w-[min(20rem,calc(100vw-2rem))] px-[0.68rem] py-[0.45rem] text-[14px] leading-[1.25] pointer-events-none z-10">
         <div className="flex flex-wrap items-baseline gap-x-[0.45rem] gap-y-[0.3rem] whitespace-nowrap">
           <span className="font-bold text-text-primary">{codeLabel}</span>
           <span className="text-text-muted select-none">·</span>
           <span>{formatDollars(row.value)}</span>
         </div>
+        {codeMeaning ? (
+          <p className="m-0 mt-[0.2rem] text-text-secondary leading-[1.35] whitespace-normal">
+            {codeMeaning}
+          </p>
+        ) : null}
         <div className="flex flex-wrap items-baseline gap-x-[0.45rem] gap-y-[0.3rem] whitespace-nowrap text-text-muted mt-[0.15rem]">
           {row.count.toLocaleString()} projects
         </div>

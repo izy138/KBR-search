@@ -249,7 +249,10 @@ export async function downloadSearchResultsCsv(
     advancedSearch = null,
   } = options;
   const url = new URL(`${API_BASE_URL}/search/export`);
-  url.searchParams.set("q", advancedSearch ? "" : query);
+  const trimmedQ = query.trim();
+  if (trimmedQ) {
+    url.searchParams.set("q", trimmedQ);
+  }
   if (advancedSearch && advancedSearch.clauses.some((clause) => clause.text.trim())) {
     url.searchParams.set("advanced_q", JSON.stringify(normalizeAdvancedSearchQuery(advancedSearch)));
   }

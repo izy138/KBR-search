@@ -21,6 +21,8 @@ import {
 
 let lastBarAnimationSnapKey: string | undefined;
 
+const COLUMN_CLICK_BACKGROUND = { fill: "transparent" } as const;
+
 type ColoredBarShapeProps = {
   x?: number;
   y?: number;
@@ -278,7 +280,8 @@ export default function BarChartPanel({
     panelClassName,
     fillHeight && "flex flex-col min-h-0 h-full",
     CLS_RECHARTS_FOCUS_RESET,
-    onBarClick && "[&_.recharts-bar-rectangle]:cursor-pointer",
+    onBarClick &&
+      "[&_.recharts-bar-background-rectangle]:cursor-pointer [&_.recharts-bar-rectangle]:cursor-pointer",
   );
 
   const handleBarClick = (barEntry: { payload?: Record<string, unknown> }): void => {
@@ -364,6 +367,7 @@ export default function BarChartPanel({
               radius={[0, 3, 3, 0]}
               maxBarSize={24}
               shape={barShape}
+              background={onBarClick ? COLUMN_CLICK_BACKGROUND : false}
               onClick={onBarClick ? handleBarClick : undefined}
             />
           </BarChart>
@@ -410,6 +414,7 @@ export default function BarChartPanel({
               radius={[3, 3, 0, 0]}
               isAnimationActive={!useVerticalBarAnimation && animateBars}
               shape={barShape}
+              background={onBarClick ? COLUMN_CLICK_BACKGROUND : false}
               onClick={onBarClick ? handleBarClick : undefined}
               {...(resolvedBarSize != null
                 ? { barSize: resolvedBarSize }

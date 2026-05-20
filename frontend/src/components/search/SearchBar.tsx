@@ -75,8 +75,10 @@ const SearchBar: FC<SearchBarProps> = ({
 
   const handleAdvancedSubmit = (nextAdvanced: AdvancedSearchQuery) => {
     const { plainQ } = parseUnifiedSearch(query);
-    setQuery(composeUnifiedSearch(nextAdvanced, plainQ));
+    const unified = composeUnifiedSearch(nextAdvanced, plainQ);
+    setQuery(unified);
     setAdvancedOpen(false);
+    commitQuery(unified);
   };
 
   const handleAdvancedCheckboxChange = (checked: boolean) => {

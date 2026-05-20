@@ -24,8 +24,7 @@ from .og_export import (
 )
 from .opensearch_client import get_client, get_index_name
 from .query_filters import (
-  build_advanced_keyword_must,
-  build_keyword_must,
+  build_keyword_must_clauses,
   parse_advanced_q_param,
 )
 
@@ -171,9 +170,15 @@ def _build_search_bool_query(
     filters: list[dict[str, object]] = []
     if parsed_advanced is not None:
         adv_clauses, adv_operators = parsed_advanced
-        must.extend(build_advanced_keyword_must(adv_clauses, adv_operators))
-    elif q:
-        must.extend(build_keyword_must(q))
+        must.extend(
+            build_keyword_must_clauses(
+                q,
+                advanced_clauses=adv_clauses,
+                advanced_operators=adv_operators,
+            ),
+        )
+    else:
+        must.extend(build_keyword_must_clauses(q))
     for term in normalized_terms:
         must.append(
             {"match": {"PROJECT_TERMS": {"query": term, "operator": "and"}}},
