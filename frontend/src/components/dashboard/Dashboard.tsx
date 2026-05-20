@@ -35,7 +35,13 @@ import { buildIcProjectsHybridAxisScale } from "../../utils/chartAxis";
 import { formatDollarsCompact } from "../../utils/format";
 import { cn } from "../../utils/cn";
 import HelpTooltip from "../shared/HelpTooltip";
-import { HELP_DASHBOARD } from "../../utils/helpContent";
+import {
+  HELP_DASHBOARD,
+  HELP_DASHBOARD_FILTER_ACTIVITY,
+  HELP_DASHBOARD_FILTER_FY,
+  HELP_DASHBOARD_FILTER_IC,
+  HELP_DASHBOARD_FILTER_PI,
+} from "../../utils/helpContent";
 
 // ─── Formatting helpers ───────────────────────────────────────────────────────
 
@@ -575,7 +581,9 @@ export default function Dashboard({
   return (
     <div className={cn("w-full px-6 py-[1.1rem] flex flex-col", refreshing && "opacity-[0.72] transition-opacity duration-200")}>
       <div className="mb-1 flex justify-end">
-        <HelpTooltip label={HELP_DASHBOARD.label}>{HELP_DASHBOARD.body}</HelpTooltip>
+        <HelpTooltip label={HELP_DASHBOARD.label} placement="before">
+          {HELP_DASHBOARD.body}
+        </HelpTooltip>
       </div>
       <Filters
         applied={appliedFilters}
@@ -584,6 +592,12 @@ export default function Dashboard({
           activityCodes,
           states,
           fiscalYearOptions: filterCatalog.fiscalYearOptions,
+        }}
+        fieldHelp={{
+          pi: HELP_DASHBOARD_FILTER_PI,
+          ic: HELP_DASHBOARD_FILTER_IC,
+          activity: HELP_DASHBOARD_FILTER_ACTIVITY,
+          fy: HELP_DASHBOARD_FILTER_FY,
         }}
         searchQuery={searchQuery}
         onSearch={onSearchNavigate}
