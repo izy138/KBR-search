@@ -10,7 +10,6 @@ import {
 import FilterField from "./FilterField";
 import FilterSelect from "./FilterSelect";
 import FiscalYearRangeSlider from "./FiscalYearRangeSlider";
-import type { AdvancedSearchQuery } from "../../types/advancedSearch";
 import { cn } from "../../utils/cn";
 import type { HelpTooltipContent } from "../../utils/helpContent";
 import SearchBar from "./SearchBar";
@@ -83,9 +82,6 @@ type FiltersProps = {
   onClear: () => void;
   searchQuery?: string;
   onSearch?: (query: string) => void;
-  onAdvancedSearch?: (query: AdvancedSearchQuery) => void;
-  advancedSearch?: AdvancedSearchQuery | null;
-  onExitAdvancedSearch?: () => void;
   showAdvancedToggle?: boolean;
   semanticMode?: boolean;
   onSemanticModeChange?: (enabled: boolean) => void;
@@ -94,6 +90,8 @@ type FiltersProps = {
   searchSubmitOnClear?: boolean;
   fieldHelp?: FilterFieldHelp;
   searchSlot?: ReactNode;
+  /** Optional help control shown at the top-right of the filter panel. */
+  helpTooltip?: ReactNode;
 };
 
 function Filters({
@@ -103,9 +101,6 @@ function Filters({
   onClear,
   searchQuery,
   onSearch,
-  onAdvancedSearch,
-  advancedSearch,
-  onExitAdvancedSearch,
   showAdvancedToggle = true,
   semanticMode = false,
   onSemanticModeChange,
@@ -114,6 +109,7 @@ function Filters({
   searchSubmitOnClear = true,
   fieldHelp,
   searchSlot,
+  helpTooltip,
 }: FiltersProps) {
   const { draft, patch, resetDraft } = useFilterDraft(applied);
 
@@ -149,9 +145,6 @@ function Filters({
     (onSearch != null ? (
       <SearchBar
         onSearch={onSearch}
-        onAdvancedSearch={onAdvancedSearch}
-        advancedSearch={advancedSearch}
-        onExitAdvancedSearch={onExitAdvancedSearch}
         showAdvancedToggle={showAdvancedToggle}
         semanticMode={semanticMode}
         onSemanticModeChange={onSemanticModeChange}
@@ -163,7 +156,10 @@ function Filters({
     ) : null);
 
   return (
-    <section className="-mt-1 flex flex-col items-stretch gap-[0.4rem] overflow-x-auto rounded-lg border border-border bg-surface px-3 pt-2.5 pb-3 min-[1101px]:overflow-x-visible">
+    <section className="relative -mt-1 flex flex-col items-stretch gap-[0.4rem] overflow-x-auto rounded-lg border border-border bg-surface px-3 pt-2.5 pb-3 min-[1101px]:overflow-x-visible">
+      {helpTooltip ? (
+        <div className="absolute top-2.5 right-3 z-10">{helpTooltip}</div>
+      ) : null}
       {searchContent ? (
         <div
           className={cn(

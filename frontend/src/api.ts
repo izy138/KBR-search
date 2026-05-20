@@ -1,4 +1,5 @@
 import type { AdvancedSearchQuery } from "./types/advancedSearch";
+import { normalizeAdvancedSearchQuery } from "./utils/advancedSearch";
 
 const API_BASE_URL = import.meta.env.VITE_API_BASE_URL ?? "http://localhost:8000";
 
@@ -185,9 +186,15 @@ export async function searchProjects(
     sortOrder = "asc",
   } = options;
   const url = new URL(`${API_BASE_URL}/search/`);
-  url.searchParams.set("q", advancedSearch ? "" : query);
+  const trimmedQ = query.trim();
+  if (trimmedQ) {
+    url.searchParams.set("q", trimmedQ);
+  }
   if (advancedSearch && advancedSearch.clauses.some((clause) => clause.text.trim())) {
-    url.searchParams.set("advanced_q", JSON.stringify(advancedSearch));
+    url.searchParams.set(
+      "advanced_q",
+      JSON.stringify(normalizeAdvancedSearchQuery(advancedSearch)),
+    );
   }
   url.searchParams.set("limit", String(limit));
   url.searchParams.set("page", String(page));
@@ -238,12 +245,13 @@ export async function downloadSearchResultsCsv(
     fyMin = "",
     fyMax = "",
     projectTerms = [],
+    excludeProjectTerms = [],
     advancedSearch = null,
   } = options;
   const url = new URL(`${API_BASE_URL}/search/export`);
   url.searchParams.set("q", advancedSearch ? "" : query);
   if (advancedSearch && advancedSearch.clauses.some((clause) => clause.text.trim())) {
-    url.searchParams.set("advanced_q", JSON.stringify(advancedSearch));
+    url.searchParams.set("advanced_q", JSON.stringify(normalizeAdvancedSearchQuery(advancedSearch)));
   }
   if (category) url.searchParams.set("category", category);
   if (pi) url.searchParams.set("pi", pi);
@@ -255,6 +263,10 @@ export async function downloadSearchResultsCsv(
   for (const term of projectTerms) {
     const trimmed = term.trim();
     if (trimmed) url.searchParams.append("project_terms", trimmed);
+  }
+  for (const term of excludeProjectTerms) {
+    const trimmed = term.trim();
+    if (trimmed) url.searchParams.append("exclude_project_terms", trimmed);
   }
 
   const response = await fetch(url.toString());
@@ -457,6 +469,7 @@ export interface DashboardSummary {
 
 export type AnalyticsFilterOptions = {
   q?: string;
+  advancedSearch?: AdvancedSearchQuery | null;
   pi?: string;
   ic?: string;
   activity?: string;
@@ -468,6 +481,12 @@ export type AnalyticsFilterOptions = {
 function appendAnalyticsFilters(params: URLSearchParams, filters?: AnalyticsFilterOptions): void {
   if (!filters) return;
   if (filters.q) params.set("q", filters.q);
+  if (
+    filters.advancedSearch
+    && filters.advancedSearch.clauses.some((clause) => clause.text.trim())
+  ) {
+    params.set("advanced_q", JSON.stringify(filters.advancedSearch));
+  }
   if (filters.pi) params.set("pi", filters.pi);
   if (filters.ic) params.set("ic", filters.ic);
   if (filters.activity) params.set("activity", filters.activity);
