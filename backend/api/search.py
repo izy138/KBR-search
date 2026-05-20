@@ -188,6 +188,7 @@ def _build_search_bool_query(
     q: str,
     parsed_advanced: tuple[list[dict[str, object]], list[str]] | None,
     normalized_terms: list[str],
+    normalized_exclude_terms: list[str],
     category: str,
     pi: str,
     ic: str,
@@ -196,38 +197,6 @@ def _build_search_bool_query(
     fy_min: int | None,
     fy_max: int | None,
 ) -> tuple[dict[str, object], list[dict[str, object]]]:
-@router.get("/")
-def search(
-    q: str = Query(default="", description="Search query"),
-    advanced_q: str = Query(
-        default="",
-        description="JSON advanced query: { clauses: [{text, negated}], operators: [and|or] }",
-    ),
-    limit: int = Query(default=10, ge=1, le=100),
-    page: int = Query(default=1, ge=1, description="1-based page index"),
-    category: str = Query(default="", description="Filter by category (category.keyword)"),
-    pi: str = Query(default="", description="Filter by PI_NAMEs"),
-    ic: str = Query(default="", description="Filter by IC_NAME"),
-    activity: str = Query(default="", description="Filter by ACTIVITY"),
-    state: str = Query(default="", description="Filter by ORG_STATE"),
-    fy_min: int | None = Query(default=None, description="Minimum fiscal year"),
-    fy_max: int | None = Query(default=None, description="Maximum fiscal year"),
-    project_terms: list[str] = Query(
-        default_factory=list,
-        description="Each phrase must match PROJECT_TERMS (AND across phrases); repeat param",
-    ),
-    exclude_project_terms: list[str] = Query(
-        default_factory=list,
-        description="Each phrase must not match PROJECT_TERMS; repeat param",
-    ),
-    sort_by: str = Query(default="", description="Sort field (e.g. PROJECT_TITLE, FY)"),
-    sort_order: str = Query(default="asc", description="asc or desc"),
-) -> dict[str, object]:
-
-    client = get_client()
-    normalized_terms = _normalize_project_terms(project_terms)
-    normalized_exclude_terms = _normalize_project_terms(exclude_project_terms)
-    parsed_advanced = _parse_advanced_q(advanced_q) if advanced_q.strip() else None
     must: list[dict[str, object]] = []
     must_not: list[dict[str, object]] = []
     filters: list[dict[str, object]] = []
@@ -273,11 +242,13 @@ def search(
         if fy_max is not None:
             range_clause["lte"] = fy_max
         filters.append({"range": {"FY": range_clause}})
-    if len(must) == 1 and not filters:
+    if len(must) == 1 and not filters and not must_not:
         return must[0], must
     bool_query: dict[str, object] = {"must": must}
     if filters:
         bool_query["filter"] = filters
+    if must_not:
+        bool_query["must_not"] = must_not
     return {"bool": bool_query}, must
 
 
@@ -341,17 +312,23 @@ def search(
         default_factory=list,
         description="Each phrase must match PROJECT_TERMS (AND across phrases); repeat param",
     ),
+    exclude_project_terms: list[str] = Query(
+        default_factory=list,
+        description="Each phrase must not match PROJECT_TERMS; repeat param",
+    ),
     sort_by: str = Query(default="", description="Sort field (e.g. PROJECT_TITLE, FY)"),
     sort_order: str = Query(default="asc", description="asc or desc"),
 ) -> dict[str, object]:
 
     client = get_client()
     normalized_terms = _normalize_project_terms(project_terms)
+    normalized_exclude_terms = _normalize_project_terms(exclude_project_terms)
     parsed_advanced = _parse_advanced_q(advanced_q) if advanced_q.strip() else None
     os_query, must = _build_search_bool_query(
         q=q,
         parsed_advanced=parsed_advanced,
         normalized_terms=normalized_terms,
+        normalized_exclude_terms=normalized_exclude_terms,
         category=category,
         pi=pi,
         ic=ic,
@@ -360,15 +337,6 @@ def search(
         fy_min=fy_min,
         fy_max=fy_max,
     )
-    if len(must) == 1 and not filters and not must_not:
-        os_query: dict[str, object] = must[0]
-    else:
-        bool_query: dict[str, object] = {"must": must}
-        if filters:
-            bool_query["filter"] = filters
-        if must_not:
-            bool_query["must_not"] = must_not
-        os_query = {"bool": bool_query}
     from_ = (page - 1) * limit
     if from_ >= MAX_RESULT_WINDOW:
         raise HTTPException(
@@ -432,6 +400,10 @@ def export_search_csv(
         default_factory=list,
         description="Each phrase must match PROJECT_TERMS (AND across phrases); repeat param",
     ),
+    exclude_project_terms: list[str] = Query(
+        default_factory=list,
+        description="Exclude projects whose PROJECT_TERMS match each phrase; repeat param",
+    ),
     max_rows: int = Query(
         default=MAX_EXPORT_ROWS,
         ge=1,
@@ -447,11 +419,13 @@ def export_search_csv(
 
     client = get_client()
     normalized_terms = _normalize_project_terms(project_terms)
+    normalized_exclude_terms = _normalize_project_terms(exclude_project_terms)
     parsed_advanced = _parse_advanced_q(advanced_q) if advanced_q.strip() else None
     os_query, _must = _build_search_bool_query(
         q=q,
         parsed_advanced=parsed_advanced,
         normalized_terms=normalized_terms,
+        normalized_exclude_terms=normalized_exclude_terms,
         category=category,
         pi=pi,
         ic=ic,
