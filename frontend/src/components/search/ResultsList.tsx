@@ -3,7 +3,6 @@ import type { SearchResultRecord } from "../../api";
 import { getOrderedPiNames } from "../../utils/piNames";
 import { formatDollarsCompact } from "../../utils/format";
 import { cn } from "../../utils/cn";
-
 // ─── Types ────────────────────────────────────────────────────────────────────
 
 export type ColumnKey =
@@ -193,9 +192,8 @@ const ResultsHeader: FC<SortHeaderProps> = ({ sort, onSort }) => (
           currentDirection === "desc" && "text-sort-desc",
         );
 
-        return (
+        const headerButton = (
           <button
-            key={col.key}
             type="button"
             className={thClass}
             role="columnheader"
@@ -211,6 +209,12 @@ const ResultsHeader: FC<SortHeaderProps> = ({ sort, onSort }) => (
             <span className={labelClass}>{col.label}</span>
             <ChevronIcon direction={currentDirection} />
           </button>
+        );
+
+        return (
+          <Fragment key={col.key}>
+            {headerButton}
+          </Fragment>
         );
       })}
     </div>

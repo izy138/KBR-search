@@ -28,7 +28,13 @@ import {
   type SearchSortField,
 } from "./api";
 import HelpTooltip from "./components/shared/HelpTooltip";
-import { HELP_SEARCH } from "./utils/helpContent";
+import {
+  HELP_SEARCH,
+  HELP_SEARCH_FILTER_ACTIVITY,
+  HELP_SEARCH_FILTER_FY,
+  HELP_SEARCH_FILTER_IC,
+  HELP_SEARCH_FILTER_PI,
+} from "./utils/helpContent";
 import type { AdvancedSearchQuery } from "./types/advancedSearch";
 import { formatAdvancedSearchQuery, hasAdvancedSearchContent } from "./utils/advancedSearch";
 import { useFilterCatalog } from "./hooks/useFilterCatalog";
@@ -658,11 +664,19 @@ export default function App() {
             ) : isSearchRoute ? (
               <>
                 <div className="mb-1 flex justify-end">
-                  <HelpTooltip label={HELP_SEARCH.label}>{HELP_SEARCH.body}</HelpTooltip>
+                  <HelpTooltip label={HELP_SEARCH.label} placement="before">
+                    {HELP_SEARCH.body}
+                  </HelpTooltip>
                 </div>
                 <Filters
                   applied={appliedFilters}
                   catalog={filterCatalog}
+                  fieldHelp={{
+                    pi: HELP_SEARCH_FILTER_PI,
+                    ic: HELP_SEARCH_FILTER_IC,
+                    activity: HELP_SEARCH_FILTER_ACTIVITY,
+                    fy: HELP_SEARCH_FILTER_FY,
+                  }}
                   searchQuery={searchQuery}
                   advancedSearch={advancedSearch}
                   semanticMode={semanticSearchMode}
