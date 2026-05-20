@@ -97,10 +97,38 @@ export const HELP_SEARCH: HelpTooltipContent = {
   body: (
     <>
       <p className="mb-2">
-        <strong className="font-medium text-text-primary">Advanced</strong> opens field-level keyword search with AND/OR operators for more precise matching on titles, PIs, organizations, and other fields.
+        Type keywords and click <strong className="font-medium text-text-primary">Search</strong>, or use the filters below to narrow results. Use the <strong className="font-medium text-text-primary">?</strong> icons next to <strong className="font-medium text-text-primary">Advanced</strong> and <strong className="font-medium text-text-primary">Semantic</strong> for those modes.
       </p>
       <p>
-        <strong className="font-medium text-text-primary">Semantic</strong> finds projects by meaning: describe the research in a sentence instead of exact keywords, then run Search. Results are ranked by similarity, not keyword overlap.
+        Download CSV exports full rows from OGdata for up to 10,000 matching projects.
+      </p>
+    </>
+  ),
+};
+
+export const HELP_SEARCH_ADVANCED: HelpTooltipContent = {
+  label: "Advanced search",
+  body: (
+    <>
+      <p className="mb-2">
+        Opens a builder for field-level keyword search. Combine terms with <strong className="font-medium text-text-primary">AND</strong> or <strong className="font-medium text-text-primary">OR</strong> to match titles, PIs, organizations, and other fields more precisely than a single search box.
+      </p>
+      <p>
+        Click <strong className="font-medium text-text-primary">Advanced</strong>, set your clauses, then apply. While advanced search is active, use <strong className="font-medium text-text-primary">Simple</strong> to return to normal keyword search. Semantic mode is disabled during advanced search.
+      </p>
+    </>
+  ),
+};
+
+export const HELP_SEARCH_SEMANTIC: HelpTooltipContent = {
+  label: "Semantic search",
+  body: (
+    <>
+      <p className="mb-2">
+        Finds projects by <strong className="font-medium text-text-primary">meaning</strong>, not exact keywords. Describe the research in a sentence, enable Semantic, then click <strong className="font-medium text-text-primary">Search</strong>. Results are ranked by vector similarity to your text.
+      </p>
+      <p>
+        Advanced search is disabled while Semantic is on. For field-by-field keyword control, turn off Semantic and use <strong className="font-medium text-text-primary">Advanced</strong> instead.
       </p>
     </>
   ),
