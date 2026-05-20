@@ -954,11 +954,13 @@ def search_similar_to_project(
     }
 
 
-@router.get("/investigator/{pi_name}")
-def get_projects_for_investigator(
-    pi_name: str = Path(..., description="Principal investigator name"),
-    limit: int = Query(default=25, ge=1, le=100),
-    page: int = Query(default=1, ge=1, description="1-based page index"),
+def _paginated_projects_by_field(
+    *,
+    name: str,
+    limit: int,
+    page: int,
+    keyword_field: str,
+    text_field: str,
 ) -> dict[str, object]:
     client = get_client()
     from_ = (page - 1) * limit
@@ -978,9 +980,9 @@ def get_projects_for_investigator(
             "query": {
                 "bool": {
                     "should": [
-                        {"term": {"PI_NAMEs.keyword": pi_name}},
-                        {"match_phrase": {"PI_NAMEs": pi_name}},
-                        {"match": {"PI_NAMEs": {"query": pi_name, "operator": "and"}}},
+                        {"term": {keyword_field: name}},
+                        {"match_phrase": {text_field: name}},
+                        {"match": {text_field: {"query": name, "operator": "and"}}},
                     ],
                     "minimum_should_match": 1,
                 }
@@ -999,12 +1001,59 @@ def get_projects_for_investigator(
     total_value = total.get("value", 0) if isinstance(total, dict) else total
     visible_total = min(total_value, MAX_RESULT_WINDOW)
     return {
-        "investigator_name": pi_name,
         "limit": limit,
         "total": total_value,
         "visible_total": visible_total,
         "results": results,
     }
+
+
+@router.get("/investigator/{pi_name}")
+def get_projects_for_investigator(
+    pi_name: str = Path(..., description="Principal investigator name"),
+    limit: int = Query(default=25, ge=1, le=100),
+    page: int = Query(default=1, ge=1, description="1-based page index"),
+) -> dict[str, object]:
+    payload = _paginated_projects_by_field(
+        name=pi_name,
+        limit=limit,
+        page=page,
+        keyword_field="PI_NAMEs.keyword",
+        text_field="PI_NAMEs",
+    )
+    return {"investigator_name": pi_name, **payload}
+
+
+@router.get("/organization/{org_name}")
+def get_projects_for_organization(
+    org_name: str = Path(..., description="Organization (university) name"),
+    limit: int = Query(default=25, ge=1, le=100),
+    page: int = Query(default=1, ge=1, description="1-based page index"),
+) -> dict[str, object]:
+    payload = _paginated_projects_by_field(
+        name=org_name,
+        limit=limit,
+        page=page,
+        keyword_field="ORG_NAME.keyword",
+        text_field="ORG_NAME",
+    )
+    return {"organization_name": org_name, **payload}
+
+
+@router.get("/institution/{ic_name}")
+def get_projects_for_institution(
+    ic_name: str = Path(..., description="NIH institute/center name"),
+    limit: int = Query(default=25, ge=1, le=100),
+    page: int = Query(default=1, ge=1, description="1-based page index"),
+) -> dict[str, object]:
+    payload = _paginated_projects_by_field(
+        name=ic_name,
+        limit=limit,
+        page=page,
+        keyword_field="IC_NAME.keyword",
+        text_field="IC_NAME",
+    )
+    return {"institution_name": ic_name, **payload}
 
 
 def _build_hybrid_filters(

@@ -667,7 +667,7 @@ export default function ProjectTermsThemeCloud({ payload, onSearch }: Props): Re
     <div className="bg-surface border border-border rounded-[--radius-lg] w-full px-4 py-[0.9rem] min-h-0">
       <div className="flex items-center gap-2 flex-wrap mb-[0.35rem]">
         <h3 className="text-text-primary text-[0.9rem] font-semibold mb-0">Project term themes</h3>
-        <HelpTooltip label={HELP_DASHBOARD_TERM_THEMES.label} placement="after">
+        <HelpTooltip label={HELP_DASHBOARD_TERM_THEMES.label}>
           {HELP_DASHBOARD_TERM_THEMES.body}
         </HelpTooltip>
       </div>

@@ -1,20 +1,8 @@
 import { useEffect, useState } from "react";
-import { getProjectsByInvestigator, type SearchResultRecord } from "../api";
+import { getProjectsByInstitution, type SearchResultRecord } from "../api";
+import { ENTITY_LIST_PER_PAGE } from "./useInvestigatorProjects";
 
-/** Number of entity list results fetched per page (PI, university, institution). */
-export const ENTITY_LIST_PER_PAGE = 25;
-
-/** @deprecated Use ENTITY_LIST_PER_PAGE */
-export const INVESTIGATOR_PER_PAGE = ENTITY_LIST_PER_PAGE;
-
-/**
- * Manages paginated fetch and state for an investigator's project list.
- *
- * - Clears all state when `name` is null.
- * - Re-fetches whenever `name` or `page` changes.
- * - The effect is cancellable to prevent stale state on rapid navigation.
- */
-export function useInvestigatorProjects(
+export function useInstitutionProjects(
   name: string | null,
   page: number,
 ): {
@@ -43,7 +31,7 @@ export function useInvestigatorProjects(
 
     setLoading(true);
     setError("");
-    void getProjectsByInvestigator(name, { limit: ENTITY_LIST_PER_PAGE, page })
+    void getProjectsByInstitution(name, { limit: ENTITY_LIST_PER_PAGE, page })
       .then((payload) => {
         if (isCancelled) return;
         setResults(payload.results ?? []);
@@ -55,7 +43,7 @@ export function useInvestigatorProjects(
         setResults([]);
         setTotal(0);
         setVisibleTotal(0);
-        setError("Unable to load investigator projects right now.");
+        setError("Unable to load institution projects right now.");
       })
       .finally(() => {
         if (isCancelled) return;

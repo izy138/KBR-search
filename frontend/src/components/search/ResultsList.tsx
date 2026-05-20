@@ -27,6 +27,8 @@ type ResultsListProps = {
   loading?: boolean;
   onOpenDetails?: (item: SearchResultRecord) => void;
   onOpenInvestigator?: (name: string) => void;
+  onOpenOrganization?: (name: string) => void;
+  onOpenInstitution?: (name: string) => void;
   /**
    * Controlled sort. When provided together with `onSortChange`, the parent
    * owns the sort state and is expected to fetch already-sorted results from
@@ -66,6 +68,38 @@ const CLS_TH_BASE =
   "inline-flex w-fit max-w-full justify-self-start items-center gap-1 bg-transparent border-none px-[0.2rem] py-[0.24rem] cursor-pointer font-sans text-[10px] font-semibold tracking-[0.06em] uppercase rounded-sm transition-[color,background] duration-150 whitespace-nowrap hover:bg-surface-hover focus-visible:outline-2 focus-visible:outline-accent focus-visible:outline-offset-1";
 
 const CLS_CELL_VALUE_BASE = "block text-[12px] text-text-secondary whitespace-nowrap overflow-hidden text-ellipsis leading-[1.3]";
+
+const CLS_CELL_LINK_BTN =
+  "p-0 border-none bg-transparent text-accent font-[inherit] cursor-pointer hover:underline max-w-full truncate inline-block align-bottom";
+
+function LinkableCellValue({
+  value,
+  onActivate,
+}: {
+  value: string;
+  onActivate?: (value: string) => void;
+}) {
+  if (value === "—" || !onActivate) {
+    return <span className={CLS_CELL_VALUE_BASE}>{value}</span>;
+  }
+  return (
+    <span className={CLS_CELL_VALUE_BASE}>
+      <button
+        type="button"
+        className={CLS_CELL_LINK_BTN}
+        onClick={(event) => {
+          event.stopPropagation();
+          onActivate(value);
+        }}
+        onKeyDown={(event) => {
+          event.stopPropagation();
+        }}
+      >
+        {value}
+      </button>
+    </span>
+  );
+}
 
 // ─── Helpers ─────────────────────────────────────────────────────────────────
 
@@ -248,9 +282,17 @@ interface ResultRowProps {
   item: SearchResultRecord;
   onOpenDetails?: (item: SearchResultRecord) => void;
   onOpenInvestigator?: (name: string) => void;
+  onOpenOrganization?: (name: string) => void;
+  onOpenInstitution?: (name: string) => void;
 }
 
-const ResultRow: FC<ResultRowProps> = ({ item, onOpenDetails, onOpenInvestigator }) => {
+const ResultRow: FC<ResultRowProps> = ({
+  item,
+  onOpenDetails,
+  onOpenInvestigator,
+  onOpenOrganization,
+  onOpenInstitution,
+}) => {
   const title =
     item.PROJECT_TITLE ?? item.title ?? item.project_title ?? "Untitled Project";
   const totalCost = item.TOTAL_COST;
@@ -309,7 +351,7 @@ const ResultRow: FC<ResultRowProps> = ({ item, onOpenDetails, onOpenInvestigator
                         <Fragment key={name}>
                           <button
                             type="button"
-                            className="p-0 border-none bg-transparent text-accent font-[inherit] cursor-pointer hover:underline"
+                            className={CLS_CELL_LINK_BTN}
                             onClick={(event) => {
                               event.stopPropagation();
                               onOpenInvestigator(name);
@@ -330,6 +372,16 @@ const ResultRow: FC<ResultRowProps> = ({ item, onOpenDetails, onOpenInvestigator
                     "—"
                   )}
                 </span>
+              ) : col.key === "ORG_NAME" ? (
+                <LinkableCellValue
+                  value={cellValues[col.key]}
+                  onActivate={onOpenOrganization}
+                />
+              ) : col.key === "IC_NAME" ? (
+                <LinkableCellValue
+                  value={cellValues[col.key]}
+                  onActivate={onOpenInstitution}
+                />
               ) : col.key === "ACTIVITY" ? (
                 <span className="inline-block bg-accent-light text-accent-text rounded-full px-[0.42rem] py-[0.12rem] text-[10px] font-medium tracking-[0.01em]">
                   {cellValues[col.key]}
@@ -360,6 +412,8 @@ const ResultsList: FC<ResultsListProps> = ({
   loading,
   onOpenDetails,
   onOpenInvestigator,
+  onOpenOrganization,
+  onOpenInstitution,
   sort: controlledSort,
   onSortChange,
 }) => {
@@ -462,6 +516,8 @@ const ResultsList: FC<ResultsListProps> = ({
             item={item}
             onOpenDetails={onOpenDetails}
             onOpenInvestigator={onOpenInvestigator}
+            onOpenOrganization={onOpenOrganization}
+            onOpenInstitution={onOpenInstitution}
           />
         ))}
       </div>

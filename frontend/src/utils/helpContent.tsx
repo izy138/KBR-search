@@ -153,7 +153,7 @@ export const HELP_SEARCH_FILTER_PI: HelpTooltipContent = {
   body: (
     <>
       <p className="mb-2">
-        Narrows results to grants where this person appears in <strong className="font-medium text-text-primary">PI_NAMEs</strong>. Use &quot;Last, First&quot; or &quot;First Last&quot; style names.
+        Narrows results to display grants where this person appears in <strong className="font-medium text-text-primary">PI_NAMEs</strong>. Use &quot;Last, First&quot; or &quot;First Last&quot; style names.
       </p>
       <p>
         Applies when you press <strong className="font-medium text-text-primary">Enter</strong> or leave the field. Combine with keywords and other filters, then click <strong className="font-medium text-text-primary">Search</strong>.
