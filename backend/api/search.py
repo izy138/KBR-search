@@ -7,9 +7,22 @@ import json
 import logging
 from typing import Any
 
+import re
+
 from fastapi import APIRouter, HTTPException, Path, Query
+from fastapi.responses import Response
 
 from .embeddings import EMBEDDING_FIELD, embed_query, get_dimension, get_model_name
+from .og_export import (
+    MAX_EXPORT_ROWS,
+    build_export_csv,
+    list_og_files,
+    load_og_rows,
+    normalize_application_id,
+    normalize_fy,
+    ordered_export_rows,
+    resolve_export_columns,
+)
 from .opensearch_client import get_client, get_index_name
 from .query_filters import build_advanced_keyword_must, build_keyword_must
 
@@ -170,6 +183,115 @@ def _parse_advanced_q(raw: str) -> tuple[list[dict[str, object]], list[str]] | N
     return normalized_clauses, normalized_operators
 
 
+def _build_search_bool_query(
+    *,
+    q: str,
+    parsed_advanced: tuple[list[dict[str, object]], list[str]] | None,
+    normalized_terms: list[str],
+    normalized_exclude_terms: list[str],
+    category: str,
+    pi: str,
+    ic: str,
+    activity: str,
+    state: str,
+    fy_min: int | None,
+    fy_max: int | None,
+) -> tuple[dict[str, object], list[dict[str, object]]]:
+    must: list[dict[str, object]] = []
+    must_not: list[dict[str, object]] = []
+    filters: list[dict[str, object]] = []
+    if parsed_advanced is not None:
+        adv_clauses, adv_operators = parsed_advanced
+        must.extend(build_advanced_keyword_must(adv_clauses, adv_operators))
+    elif q:
+        must.extend(build_keyword_must(q))
+    for term in normalized_terms:
+        must.append(
+            {"match": {"PROJECT_TERMS": {"query": term, "operator": "and"}}},
+        )
+    for term in normalized_exclude_terms:
+        must_not.append(
+            {"match": {"PROJECT_TERMS": {"query": term, "operator": "and"}}},
+        )
+    if not must:
+        must.append({"match_all": {}})
+    if category:
+        must.append({"term": {"category.keyword": category}})
+    if pi:
+        filters.append(
+            {
+                "bool": {
+                    "should": [
+                        {"match_phrase": {"PI_NAMEs": pi}},
+                        {"match": {"PI_NAMEs": {"query": pi, "operator": "and"}}},
+                    ],
+                    "minimum_should_match": 1,
+                },
+            },
+        )
+    if ic:
+        filters.append({"term": {"IC_NAME.keyword": ic}})
+    if activity:
+        filters.append({"term": {"ACTIVITY.keyword": activity}})
+    if state:
+        filters.append({"term": {"ORG_STATE.keyword": state}})
+    if fy_min is not None or fy_max is not None:
+        range_clause: dict[str, int] = {}
+        if fy_min is not None:
+            range_clause["gte"] = fy_min
+        if fy_max is not None:
+            range_clause["lte"] = fy_max
+        filters.append({"range": {"FY": range_clause}})
+    if len(must) == 1 and not filters and not must_not:
+        return must[0], must
+    bool_query: dict[str, object] = {"must": must}
+    if filters:
+        bool_query["filter"] = filters
+    if must_not:
+        bool_query["must_not"] = must_not
+    return {"bool": bool_query}, must
+
+
+def _collect_search_hits(
+    client: Any,
+    os_query: dict[str, object],
+    *,
+    max_rows: int,
+    source_includes: list[str] | None = None,
+) -> list[dict[str, object]]:
+    hits: list[dict[str, object]] = []
+    from_ = 0
+    page_size = 1_000
+    while len(hits) < max_rows:
+        size = min(page_size, max_rows - len(hits), MAX_RESULT_WINDOW - from_)
+        if size <= 0:
+            break
+        body: dict[str, object] = {
+            "from": from_,
+            "size": size,
+            "query": os_query,
+            "track_total_hits": len(hits) == 0,
+        }
+        if source_includes is not None:
+            body["_source"] = {"includes": source_includes}
+        response = client.search(index=INDEX_NAME, body=body)
+        batch = response.get("hits", {}).get("hits", [])
+        if not batch:
+            break
+        hits.extend(batch)
+        from_ += len(batch)
+        if len(batch) < size:
+            break
+    return hits
+
+
+def _safe_export_filename(query_label: str) -> str:
+    slug = re.sub(r"[^\w\-]+", "-", query_label.strip().lower()).strip("-")
+    if not slug:
+        slug = "search-results"
+    return f"{slug[:60]}.csv"
+
+
 @router.get("/")
 def search(
     q: str = Query(default="", description="Search query"),
@@ -202,65 +324,19 @@ def search(
     normalized_terms = _normalize_project_terms(project_terms)
     normalized_exclude_terms = _normalize_project_terms(exclude_project_terms)
     parsed_advanced = _parse_advanced_q(advanced_q) if advanced_q.strip() else None
-    must: list[dict[str, object]] = []
-    must_not: list[dict[str, object]] = []
-    filters: list[dict[str, object]] = []
-    if parsed_advanced is not None:
-        adv_clauses, adv_operators = parsed_advanced
-        must.extend(build_advanced_keyword_must(adv_clauses, adv_operators))
-    elif q:
-        must.extend(build_keyword_must(q))
-    for term in normalized_terms:
-        # `match` tokenizes `term` and, with operator="and", requires all tokens
-        # to appear anywhere in PROJECT_TERMS (order-independent, not exact phrase).
-        must.append(
-            {"match": {"PROJECT_TERMS": {"query": term, "operator": "and"}}},
-        )
-    for term in normalized_exclude_terms:
-        must_not.append(
-            {"match": {"PROJECT_TERMS": {"query": term, "operator": "and"}}},
-        )
-    if not must:
-        must.append({"match_all": {}})
-    if category:
-        must.append({"term": {"category.keyword": category}})
-    if pi:
-        # Support both "Last, First" and "First Last" user inputs.
-        # `match` with operator "and" keeps all terms required but does not
-        # force token order, while `match_phrase` preserves exact phrase behavior.
-        filters.append(
-            {
-                "bool": {
-                    "should": [
-                        {"match_phrase": {"PI_NAMEs": pi}},
-                        {"match": {"PI_NAMEs": {"query": pi, "operator": "and"}}},
-                    ],
-                    "minimum_should_match": 1,
-                }
-            }
-        )
-    if ic:
-        filters.append({"term": {"IC_NAME.keyword": ic}})
-    if activity:
-        filters.append({"term": {"ACTIVITY.keyword": activity}})
-    if state:
-        filters.append({"term": {"ORG_STATE.keyword": state}})
-    if fy_min is not None or fy_max is not None:
-        range_clause: dict[str, int] = {}
-        if fy_min is not None:
-            range_clause["gte"] = fy_min
-        if fy_max is not None:
-            range_clause["lte"] = fy_max
-        filters.append({"range": {"FY": range_clause}})
-    if len(must) == 1 and not filters and not must_not:
-        os_query: dict[str, object] = must[0]
-    else:
-        bool_query: dict[str, object] = {"must": must}
-        if filters:
-            bool_query["filter"] = filters
-        if must_not:
-            bool_query["must_not"] = must_not
-        os_query = {"bool": bool_query}
+    os_query, must = _build_search_bool_query(
+        q=q,
+        parsed_advanced=parsed_advanced,
+        normalized_terms=normalized_terms,
+        normalized_exclude_terms=normalized_exclude_terms,
+        category=category,
+        pi=pi,
+        ic=ic,
+        activity=activity,
+        state=state,
+        fy_min=fy_min,
+        fy_max=fy_max,
+    )
     from_ = (page - 1) * limit
     if from_ >= MAX_RESULT_WINDOW:
         raise HTTPException(
@@ -304,6 +380,108 @@ def search(
         "visible_total": visible_total,
         "results": results,
     }
+
+
+@router.get("/export")
+def export_search_csv(
+    q: str = Query(default="", description="Search query"),
+    advanced_q: str = Query(
+        default="",
+        description="JSON advanced query: { clauses: [{text, negated}], operators: [and|or] }",
+    ),
+    category: str = Query(default="", description="Filter by category (category.keyword)"),
+    pi: str = Query(default="", description="Filter by PI_NAMEs"),
+    ic: str = Query(default="", description="Filter by IC_NAME"),
+    activity: str = Query(default="", description="Filter by ACTIVITY"),
+    state: str = Query(default="", description="Filter by ORG_STATE"),
+    fy_min: int | None = Query(default=None, description="Minimum fiscal year"),
+    fy_max: int | None = Query(default=None, description="Maximum fiscal year"),
+    project_terms: list[str] = Query(
+        default_factory=list,
+        description="Each phrase must match PROJECT_TERMS (AND across phrases); repeat param",
+    ),
+    exclude_project_terms: list[str] = Query(
+        default_factory=list,
+        description="Exclude projects whose PROJECT_TERMS match each phrase; repeat param",
+    ),
+    max_rows: int = Query(
+        default=MAX_EXPORT_ROWS,
+        ge=1,
+        le=MAX_EXPORT_ROWS,
+        description="Maximum rows to export (capped at OpenSearch result window)",
+    ),
+) -> Response:
+    if not list_og_files():
+        raise HTTPException(
+            status_code=503,
+            detail="OGdata CSV files not found under backend/indexer/OGdata.",
+        )
+
+    client = get_client()
+    normalized_terms = _normalize_project_terms(project_terms)
+    normalized_exclude_terms = _normalize_project_terms(exclude_project_terms)
+    parsed_advanced = _parse_advanced_q(advanced_q) if advanced_q.strip() else None
+    os_query, _must = _build_search_bool_query(
+        q=q,
+        parsed_advanced=parsed_advanced,
+        normalized_terms=normalized_terms,
+        normalized_exclude_terms=normalized_exclude_terms,
+        category=category,
+        pi=pi,
+        ic=ic,
+        activity=activity,
+        state=state,
+        fy_min=fy_min,
+        fy_max=fy_max,
+    )
+
+    hits = _collect_search_hits(
+        client,
+        os_query,
+        max_rows=max_rows,
+        source_includes=["APPLICATION_ID", "FY"],
+    )
+    if not hits:
+        raise HTTPException(status_code=404, detail="No results to export for this search.")
+
+    keys: list[tuple[int | None, int | None]] = []
+    sample_fy: int | None = None
+    for hit in hits:
+        source = hit.get("_source", {})
+        if not isinstance(source, dict):
+            continue
+        app_id = normalize_application_id(source.get("APPLICATION_ID"))
+        fy = normalize_fy(source.get("FY"))
+        if sample_fy is None and fy is not None:
+            sample_fy = fy
+        keys.append((app_id, fy))
+
+    og_rows = load_og_rows(keys)
+    export_rows = ordered_export_rows(hits, og_rows)
+    fieldnames = resolve_export_columns(sample_fy)
+    if not fieldnames:
+        fieldnames = sorted(
+            {key for row in export_rows for key in row.keys() if not str(key).startswith("_")},
+        )
+
+    csv_text = build_export_csv(export_rows, fieldnames)
+    label = q.strip()
+    if not label and normalized_terms:
+        label = "-".join(normalized_terms[:3])
+    if not label and parsed_advanced is not None:
+        clauses, _ = parsed_advanced
+        label = " ".join(
+            str(clause.get("text", "")).strip()
+            for clause in clauses
+            if str(clause.get("text", "")).strip()
+        )
+    filename = _safe_export_filename(label)
+
+    return Response(
+        content=csv_text,
+        media_type="text/csv; charset=utf-8",
+        headers={"Content-Disposition": f'attachment; filename="{filename}"'},
+    )
 
 
 @router.get("/project/{project_id}")
