@@ -657,7 +657,10 @@ export default function ProjectTermsThemeCloud({ payload, onSearch }: Props): Re
           {HELP_DASHBOARD_TERM_THEMES.body}
         </HelpTooltip>
       </div>
-     
+      <p className="text-text-secondary text-[0.75rem] leading-[1.45] m-0 mb-2">
+        Click a category, then a subcategory to browse terms. 
+        
+      </p>
 
       {buckets.length === 0 ? (
         <p className="text-text-muted text-[0.875rem] mt-2 m-0">

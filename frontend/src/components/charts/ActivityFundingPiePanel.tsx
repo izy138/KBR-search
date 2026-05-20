@@ -1,4 +1,5 @@
-import { useCallback, useMemo } from "react";
+import { useCallback, useEffect, useMemo, useRef, useState } from "react";
+import { useChartCursorTooltip } from "../../hooks/useChartCursorTooltip";
 import type { MouseEvent } from "react";
 import {
   Cell,
@@ -341,6 +342,10 @@ export default function ActivityFundingPiePanel({
   selectedActivity = "",
   onActivitySelect,
 }: ActivityFundingPiePanelProps) {
+  const chartBodyRef = useRef<HTMLDivElement>(null);
+  const { chartHoverActive, handleChartMouseMove, handleChartMouseLeave } =
+    useChartCursorTooltip(chartBodyRef);
+
   const { innerChartData, outerChartData, tailDetailRows } = useMemo(() => {
     const split = splitPieRows(pie);
     return {
@@ -356,6 +361,31 @@ export default function ActivityFundingPiePanel({
   );
 
   const showTailPanel = tailDetailRows.length > 0;
+
+  const pieRingCount =
+    (innerChartData.length > 0 ? 1 : 0) + (outerChartData.length > 0 ? 1 : 0);
+  const [pieAnimationActive, setPieAnimationActive] = useState(true);
+  const pieAnimationEndsRef = useRef(0);
+
+  useEffect(() => {
+    setPieAnimationActive(true);
+    pieAnimationEndsRef.current = 0;
+  }, [pie, innerChartData, outerChartData]);
+
+  useEffect(() => {
+    if (!pieAnimationActive || pieRingCount === 0) return;
+    const timeoutId = window.setTimeout(() => {
+      setPieAnimationActive(false);
+    }, 900);
+    return () => window.clearTimeout(timeoutId);
+  }, [pieAnimationActive, pieRingCount, pie]);
+
+  const handlePieAnimationEnd = useCallback(() => {
+    pieAnimationEndsRef.current += 1;
+    if (pieAnimationEndsRef.current >= pieRingCount) {
+      setPieAnimationActive(false);
+    }
+  }, [pieRingCount]);
 
   const handlePieSliceClick = useCallback(
     (entry: PieRow | { payload?: PieRow }) => {
@@ -385,7 +415,7 @@ export default function ActivityFundingPiePanel({
   );
 
   const renderTooltip = (props: TooltipContentProps<ValueType, NameType>) => {
-    if (!props.active || !props.payload?.length) {
+    if (!chartHoverActive || !props.active || !props.payload?.length) {
       return null;
     }
     const row = props.payload[0]?.payload as PieRow | undefined;
@@ -444,10 +474,16 @@ export default function ActivityFundingPiePanel({
       ) : null}
       <div className={showTailPanel ? "grid grid-cols-[minmax(0,1fr)_minmax(11rem,14rem)] gap-3 items-stretch min-h-[360px] px-1 pb-1" : "min-h-[360px] min-w-0 px-1 pb-1"}>
         <div
-          className={cn("w-full min-w-0 [&_svg]:text-[inherit]", CLS_RECHARTS_FOCUS_RESET)}
+          ref={chartBodyRef}
+          className={cn(
+            "w-full min-w-0 overflow-visible [&_svg]:overflow-visible [&_svg]:text-[inherit]",
+            CLS_RECHARTS_FOCUS_RESET,
+          )}
           style={{ height: chartHeight, minHeight: chartHeight }}
+          onMouseMove={handleChartMouseMove}
+          onMouseLeave={handleChartMouseLeave}
         >
-          <ResponsiveContainer width="100%" height="100%">
+          <ResponsiveContainer width="100%" height="100%" debounce={150}>
             <PieChart margin={{ top: 8, right: 4, bottom: 8, left: 4 }}>
               {innerChartData.length > 0 ? (
                 <Pie
@@ -463,7 +499,8 @@ export default function ActivityFundingPiePanel({
                   shape={renderPieSector}
                   animationDuration={700}
                   animationEasing="ease-out"
-                  isAnimationActive
+                  isAnimationActive={pieAnimationActive}
+                  onAnimationEnd={handlePieAnimationEnd}
                   legendType="none"
                   labelLine={false}
                   label={(props) => renderSliceLabel({ ...props, minPct: 0.8, compact: true })}
@@ -488,7 +525,8 @@ export default function ActivityFundingPiePanel({
                   shape={renderPieSector}
                   animationDuration={700}
                   animationEasing="ease-out"
-                  isAnimationActive
+                  isAnimationActive={pieAnimationActive}
+                  onAnimationEnd={handlePieAnimationEnd}
                   legendType="none"
                   labelLine={false}
                   label={(props) =>
@@ -508,6 +546,7 @@ export default function ActivityFundingPiePanel({
                 </Pie>
               ) : null}
               <Tooltip
+                active={chartHoverActive ? undefined : false}
                 content={renderTooltip}
                 isAnimationActive={false}
                 animationDuration={0}
@@ -517,7 +556,7 @@ export default function ActivityFundingPiePanel({
           </ResponsiveContainer>
         </div>
         {showTailPanel ? (
-          <aside className="flex flex-col min-h-0 max-h-[360px] pl-[0.9rem] pr-1 py-[0.85rem] border border-border-strong rounded-lg bg-bg" aria-label="Other Activity Codes">
+          <aside className="flex flex-col min-h-0 max-h-[360px] pl-[0.9rem] pr-1 py-[0.85rem] border border-border-strong rounded-[--radius-md] bg-bg" aria-label="Other Activity Codes">
             <div className="flex items-start justify-between gap-2 mb-1">
               <h4 className="m-0 font-bold leading-[1.25]">
                 Other Activity Codes
@@ -530,6 +569,8 @@ export default function ActivityFundingPiePanel({
             <ul className="flex-1 min-h-0 m-0 p-0 pr-6 -mr-1 list-none overflow-y-auto [scrollbar-width:thin]">
               {tailDetailRows.map((row) => {
                 const isSelected = selectedActivity === row.name;
+                const rowInnerClass =
+                  "flex w-full flex-col gap-0 rounded-md py-1 px-1.5 text-[0.8125rem] leading-[1.05]";
                 const rowBody = (
                   <>
                     <div className="flex items-baseline justify-between gap-[0.35rem] min-w-0">
@@ -546,19 +587,23 @@ export default function ActivityFundingPiePanel({
                   return (
                     <li
                       key={row.name}
-                      className="flex flex-col gap-[0.05rem] py-[0.28rem] pl-1 pr-1 border-b-2 m-[-3px] border-border-strong leading-[1.1] last:border-b-0"
+                      className="border-b-2 border-border-strong px-1.5 py-1 last:border-b-0"
                     >
-                      {rowBody}
+                      <div className={rowInnerClass}>{rowBody}</div>
                     </li>
                   );
                 }
 
                 return (
-                  <li key={row.name} className="border-b-2 m-[-3px] border-border-strong last:border-b-0">
+                  <li
+                    key={row.name}
+                    className="border-b-2 border-border-strong px-1.5 py-1 last:border-b-0"
+                  >
                     <button
                       type="button"
                       className={cn(
-                        "flex w-full cursor-pointer flex-col gap-[0.05rem] rounded-sm border-none bg-transparent py-[0.28rem] pl-1 pr-1 text-left font-[inherit] leading-[1.1] transition-[background,color] duration-150 hover:bg-surface-hover focus-visible:outline-2 focus-visible:outline-accent focus-visible:outline-offset-1",
+                        rowInnerClass,
+                        "appearance-none cursor-pointer border-none bg-transparent text-left font-[inherit] transition-[background,color] duration-150 hover:bg-surface-hover focus-visible:outline-2 focus-visible:outline-accent focus-visible:outline-offset-1",
                         isSelected && "bg-accent-light text-accent-text hover:bg-accent-light",
                       )}
                       aria-pressed={isSelected}
