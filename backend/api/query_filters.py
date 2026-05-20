@@ -21,6 +21,7 @@ def build_project_filters(
   *,
   pi: str = "",
   ic: str = "",
+  org: str = "",
   activity: str = "",
   state: str = "",
   fy_min: int | None = None,
@@ -42,6 +43,8 @@ def build_project_filters(
     )
   if ic:
     filters.append({"term": {"IC_NAME.keyword": ic}})
+  if org:
+    filters.append({"term": {"ORG_NAME.keyword": org}})
   if activity:
     filters.append({"term": {"ACTIVITY.keyword": activity}})
   if state:
@@ -59,6 +62,7 @@ def build_project_filters(
 def analytics_filter_params(
   pi: str = Query(default="", description="Filter by PI_NAMEs"),
   ic: str = Query(default="", description="Filter by IC_NAME"),
+  org: str = Query(default="", description="Filter by ORG_NAME"),
   activity: str = Query(default="", description="Filter by ACTIVITY"),
   state: str = Query(default="", description="Filter by ORG_STATE"),
   fy_min: int | None = Query(default=None, description="Minimum fiscal year"),
@@ -67,6 +71,7 @@ def analytics_filter_params(
   return build_project_filters(
     pi=pi,
     ic=ic,
+    org=org,
     activity=activity,
     state=state,
     fy_min=fy_min,
@@ -129,6 +134,7 @@ def analytics_scope(
   ),
   pi: str = Query(default="", description="Filter by PI_NAMEs"),
   ic: str = Query(default="", description="Filter by IC_NAME"),
+  org: str = Query(default="", description="Filter by ORG_NAME"),
   activity: str = Query(default="", description="Filter by ACTIVITY"),
   state: str = Query(default="", description="Filter by ORG_STATE"),
   fy_min: int | None = Query(default=None, description="Minimum fiscal year"),
@@ -143,6 +149,7 @@ def analytics_scope(
     filters=build_project_filters(
       pi=pi,
       ic=ic,
+      org=org,
       activity=activity,
       state=state,
       fy_min=fy_min,

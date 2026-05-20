@@ -6,7 +6,8 @@
   "scripts": {
     "dev": "vite --host 0.0.0.0 --port 5173",
     "build": "vite build",
-    "preview": "vite preview --host 0.0.0.0 --port 4173"
+    "preview": "vite preview --host 0.0.0.0 --port 4173",
+    "sync:activity-codes": "node scripts/sync-activity-codes.mjs"
   },
   "dependencies": {
     "@babel/runtime": "^7.29.2",

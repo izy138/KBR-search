@@ -19,6 +19,7 @@ export type SearchUrlSyncState = {
   limit: number;
   pi: string;
   ic: string;
+  org: string;
   activity: string;
   state: string;
   fyMin: string;
@@ -38,6 +39,7 @@ export type SearchUrlSyncSetters = {
   setLimit: (limit: number) => void;
   setPi: (pi: string) => void;
   setIc: (ic: string) => void;
+  setOrg: (org: string) => void;
   setActivity: (activity: string) => void;
   setState: (state: string) => void;
   setFyMin: (fyMin: string) => void;
@@ -75,6 +77,7 @@ export function useSearchUrlSync({ enabled, state, setters }: UseSearchUrlSyncOp
     s.setLimit(parsed.limit);
     s.setPi(parsed.pi);
     s.setIc(parsed.ic);
+    s.setOrg(parsed.org);
     s.setActivity(parsed.activity);
     s.setState(parsed.state);
     s.setFyMin(parsed.fyMin);
@@ -91,6 +94,7 @@ export function useSearchUrlSync({ enabled, state, setters }: UseSearchUrlSyncOp
         limit: parsed.limit,
         pi: parsed.pi,
         ic: parsed.ic,
+        org: parsed.org,
         activity: parsed.activity,
         state: parsed.state,
         fyMin: parsed.fyMin,
@@ -124,6 +128,7 @@ export function useSearchUrlSync({ enabled, state, setters }: UseSearchUrlSyncOp
       limit: state.limit,
       pi: state.pi,
       ic: state.ic,
+      org: state.org,
       activity: state.activity,
       state: state.state,
       fyMin: state.fyMin,
@@ -153,6 +158,7 @@ export function useSearchUrlSync({ enabled, state, setters }: UseSearchUrlSyncOp
     state.limit,
     state.pi,
     state.ic,
+    state.org,
     state.activity,
     state.state,
     state.fyMin,
@@ -173,6 +179,7 @@ export function useSearchUrlSync({ enabled, state, setters }: UseSearchUrlSyncOp
         limit: merged.limit,
         pi: merged.pi,
         ic: merged.ic,
+        org: merged.org,
         activity: merged.activity,
         state: merged.state,
         fyMin: merged.fyMin,

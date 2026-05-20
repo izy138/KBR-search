@@ -8,7 +8,12 @@ import {
 import type { Geography as GeographyType } from "react-simple-maps";
 import type { StateDataPoint } from "../../api";
 import { formatDollarsCompact } from "../../utils/format";
-import { getScrollableAncestors } from "../../utils/chartStyles";
+import { cn } from "../../utils/cn";
+import {
+  CHART_TOOLTIP_ROUNDED_STYLE,
+  CLS_CHART_CURSOR_TOOLTIP,
+  getScrollableAncestors,
+} from "../../utils/chartStyles";
 
 /** TopoJSON source — US states at 1:10m resolution */
 const GEO_URL = "https://cdn.jsdelivr.net/npm/us-atlas@3/states-10m.json";
@@ -470,8 +475,8 @@ export default function StateMap({
 
       {tooltip && (
         <div
-          className="bg-surface border border-border rounded-[--radius-md] shadow-md text-[0.8125rem] px-[0.875rem] py-[0.625rem] pointer-events-none min-w-[160px] fixed z-[1000]"
-          style={{ left: tooltip.x, top: tooltip.y }}
+          className={cn(CLS_CHART_CURSOR_TOOLTIP, "fixed z-[1000]")}
+          style={{ ...CHART_TOOLTIP_ROUNDED_STYLE, left: tooltip.x, top: tooltip.y }}
         >
           <div className="text-text-primary font-semibold mb-1 text-[0.82rem]">{tooltip.stateName}</div>
           <div className="text-text-secondary">Projects: {tooltip.count.toLocaleString()}</div>

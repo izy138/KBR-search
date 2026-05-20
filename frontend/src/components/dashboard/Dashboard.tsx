@@ -40,6 +40,7 @@ import {
   HELP_DASHBOARD_FILTER_ACTIVITY,
   HELP_DASHBOARD_FILTER_FY,
   HELP_DASHBOARD_FILTER_IC,
+  HELP_DASHBOARD_FILTER_ORG,
   HELP_DASHBOARD_FILTER_PI,
 } from "../../utils/helpContent";
 
@@ -139,6 +140,13 @@ const MAIN_CHART_SLOT_BAR_PROPS = {
   maxBarSize: 30,
 };
 
+/** IC projects chart: extra bottom inset so angled x-axis labels clear the panel edge. */
+const IC_PROJECTS_PANEL_CLASS = cn(
+  MAIN_CHART_SLOT_PANEL_CLASS,
+  "pb-2 [&_.recharts-responsive-container]:-mb-0",
+);
+const IC_PROJECTS_CHART_MARGIN = { top: 4, right: 4, bottom: 14, left: 0 };
+
 /** Pie/year-trend row — same chart styling as main slot, sized to match LineChartPanel. */
 const SECONDARY_CHART_ROW_PANEL_CLASS = cn(
   MAIN_CHART_SLOT_PANEL_CLASS,
@@ -195,6 +203,7 @@ type DashboardProps = {
   onApplyFilters: (filters: FilterValues) => void;
   onClearFilters: () => void;
   onTermSearchNavigate: (terms: string[]) => void;
+  onYearSearchNavigate: (year: number) => void;
 };
 
 // ─── KPI card subcomponent ────────────────────────────────────────────────────
@@ -227,6 +236,7 @@ export default function Dashboard({
   onApplyFilters,
   onClearFilters,
   onTermSearchNavigate,
+  onYearSearchNavigate,
 }: DashboardProps) {
   const hasLoadedOnceRef = useRef(false);
   const [data, setData] = useState<DashboardData | null>(null);
@@ -237,6 +247,7 @@ export default function Dashboard({
   const [icProjectsLogScale, setIcProjectsLogScale] = useState(true);
   const mapMeasureRef = useRef<HTMLDivElement>(null);
   const [mapMeasureHeight, setMapMeasureHeight] = useState<number | undefined>();
+  const [filterActivityHover, setFilterActivityHover] = useState<string | null>(null);
 
   const hasIcFilter = Boolean(appliedFilters.ic);
   const hasActivityFilter = Boolean(appliedFilters.activity);
@@ -279,6 +290,7 @@ export default function Dashboard({
         searchQuery.trim()
         || appliedFilters.pi
         || appliedFilters.ic
+        || appliedFilters.org
         || appliedFilters.activity
         || appliedFilters.state
         || appliedFilters.fyMin
@@ -316,6 +328,25 @@ export default function Dashboard({
       || "";
     if (institute) {
       onApplyFilters({ ...appliedFilters, ic: institute });
+    }
+  };
+
+  const handleYearClick = useCallback(
+    (point: YearDataPoint) => {
+      if (point.year != null) {
+        onYearSearchNavigate(point.year);
+      }
+    },
+    [onYearSearchNavigate],
+  );
+
+  const handleTopOrgBarClick = (row: Record<string, unknown>) => {
+    const org =
+      (typeof row.full_label === "string" && row.full_label.trim())
+      || (typeof row.label === "string" && row.label.trim())
+      || "";
+    if (org) {
+      onApplyFilters({ ...appliedFilters, org });
     }
   };
 
@@ -427,7 +458,7 @@ export default function Dashboard({
   }
 
   const { summary, stateData, activityPie, termThemeCloud, yearData, topOrgs, avgGrant } = data;
-  const { icNames, activityCodes, states } = filterCatalog;
+  const { icNames, orgNames, activityCodes, states } = filterCatalog;
 
   const avgGrantValue =
     summary.total_documents > 0
@@ -456,6 +487,7 @@ export default function Dashboard({
     labelKey: "short_label",
     tooltipLabelKey: "full_label",
     formatter: formatDollarsCompact,
+    onBarClick: handleTopOrgBarClick,
   };
 
   const topOrgsPanelMainSlot = (
@@ -488,7 +520,7 @@ export default function Dashboard({
   const icProjectsPanel = (
     <BarChartPanel
       title="Projects by Institute (IC)"
-      panelClassName={MAIN_CHART_SLOT_PANEL_CLASS}
+      panelClassName={IC_PROJECTS_PANEL_CLASS}
       headerEnd={
         <div className="inline-flex border border-border rounded-[--radius-sm] shrink-0 overflow-hidden" role="group" aria-label="Count axis scale">
           <button
@@ -512,6 +544,7 @@ export default function Dashboard({
       labelKey="short_label"
       tooltipLabelKey="full_label"
       {...MAIN_CHART_SLOT_BAR_PROPS}
+      chartMargin={IC_PROJECTS_CHART_MARGIN}
       barAnimation="vertical"
       barAnimationSnapKey={
         icProjectsUseLogScale ? `hybrid-log-${icChartHybridScale.linearMax}` : "linear"
@@ -539,6 +572,7 @@ export default function Dashboard({
     searchQuery,
     appliedFilters.pi,
     appliedFilters.ic,
+    appliedFilters.org,
     appliedFilters.activity,
     appliedFilters.state,
     appliedFilters.fyMin,
@@ -555,6 +589,7 @@ export default function Dashboard({
     const parts: string[] = [];
     if (searchQuery.trim()) parts.push(`"${searchQuery.trim()}"`);
     if (appliedFilters.ic) parts.push(appliedFilters.ic);
+    if (appliedFilters.org) parts.push(appliedFilters.org);
     if (appliedFilters.state) parts.push(appliedFilters.state);
     if (appliedFilters.pi) parts.push(`PI: ${appliedFilters.pi}`);
     if (appliedFilters.fyMin || appliedFilters.fyMax) {
@@ -573,6 +608,7 @@ export default function Dashboard({
       loading={refreshing}
       selectedActivity={appliedFilters.activity}
       onActivitySelect={handleActivitySelect}
+      hoveredActivityCode={filterActivityHover}
     />
   );
 
@@ -584,6 +620,7 @@ export default function Dashboard({
         applied={appliedFilters}
         catalog={{
           icNames,
+          orgNames,
           activityCodes,
           states,
           fiscalYearOptions: filterCatalog.fiscalYearOptions,
@@ -591,6 +628,7 @@ export default function Dashboard({
         fieldHelp={{
           pi: HELP_DASHBOARD_FILTER_PI,
           ic: HELP_DASHBOARD_FILTER_IC,
+          org: HELP_DASHBOARD_FILTER_ORG,
           activity: HELP_DASHBOARD_FILTER_ACTIVITY,
           fy: HELP_DASHBOARD_FILTER_FY,
         }}
@@ -600,6 +638,7 @@ export default function Dashboard({
         searchSubmitOnClear
         onApply={onApplyFilters}
         onClear={onClearFilters}
+        onActivityCodeHover={setFilterActivityHover}
         helpTooltip={
           <HelpTooltip label={HELP_DASHBOARD.label}>{HELP_DASHBOARD.body}</HelpTooltip>
         }
@@ -632,6 +671,7 @@ export default function Dashboard({
               data={yearData}
               height={YEAR_LINE_CHART_HEIGHT}
               formatter={formatDollarsCompact}
+              onYearClick={handleYearClick}
             />
           </div>
           <div className="flex flex-col min-w-0">{fundingByYearOrOrgsPanel}</div>

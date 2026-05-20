@@ -50,6 +50,20 @@ export const HELP_DASHBOARD_FILTER_IC: HelpTooltipContent = {
   ),
 };
 
+export const HELP_DASHBOARD_FILTER_ORG: HelpTooltipContent = {
+  label: "Organization filter",
+  body: (
+    <>
+      <p className="mb-2">
+        Limits dashboard charts and KPIs to awards at the selected funded organization (<strong className="font-medium text-text-primary">ORG_NAME</strong>).
+      </p>
+      <p>
+        Applies as soon as you pick a value. Combine with institute, activity, state, and other filters.
+      </p>
+    </>
+  ),
+};
+
 export const HELP_DASHBOARD_FILTER_ACTIVITY: HelpTooltipContent = {
   label: "Activity Code filter",
   body: (
@@ -154,6 +168,20 @@ export const HELP_SEARCH_FILTER_IC: HelpTooltipContent = {
     <>
       <p className="mb-2">
         Limits results to projects administered by the selected NIH institute or center (<strong className="font-medium text-text-primary">IC_NAME</strong>).
+      </p>
+      <p>
+        Applies as soon as you pick a value. Works together with your search query and other filters.
+      </p>
+    </>
+  ),
+};
+
+export const HELP_SEARCH_FILTER_ORG: HelpTooltipContent = {
+  label: "Organization filter",
+  body: (
+    <>
+      <p className="mb-2">
+        Limits results to grants at the selected funded organization (<strong className="font-medium text-text-primary">ORG_NAME</strong>). The <strong className="font-medium text-text-primary">University</strong> column shows each project&apos;s organization.
       </p>
       <p>
         Applies as soon as you pick a value. Works together with your search query and other filters.
