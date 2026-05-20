@@ -1,4 +1,5 @@
-import { useCallback, useMemo } from "react";
+import { useCallback, useEffect, useMemo, useRef, useState } from "react";
+import { useChartCursorTooltip } from "../../hooks/useChartCursorTooltip";
 import type { MouseEvent } from "react";
 import {
   Cell,
@@ -341,6 +342,10 @@ export default function ActivityFundingPiePanel({
   selectedActivity = "",
   onActivitySelect,
 }: ActivityFundingPiePanelProps) {
+  const chartBodyRef = useRef<HTMLDivElement>(null);
+  const { chartHoverActive, handleChartMouseMove, handleChartMouseLeave } =
+    useChartCursorTooltip(chartBodyRef);
+
   const { innerChartData, outerChartData, tailDetailRows } = useMemo(() => {
     const split = splitPieRows(pie);
     return {
@@ -356,6 +361,31 @@ export default function ActivityFundingPiePanel({
   );
 
   const showTailPanel = tailDetailRows.length > 0;
+
+  const pieRingCount =
+    (innerChartData.length > 0 ? 1 : 0) + (outerChartData.length > 0 ? 1 : 0);
+  const [pieAnimationActive, setPieAnimationActive] = useState(true);
+  const pieAnimationEndsRef = useRef(0);
+
+  useEffect(() => {
+    setPieAnimationActive(true);
+    pieAnimationEndsRef.current = 0;
+  }, [pie, innerChartData, outerChartData]);
+
+  useEffect(() => {
+    if (!pieAnimationActive || pieRingCount === 0) return;
+    const timeoutId = window.setTimeout(() => {
+      setPieAnimationActive(false);
+    }, 900);
+    return () => window.clearTimeout(timeoutId);
+  }, [pieAnimationActive, pieRingCount, pie]);
+
+  const handlePieAnimationEnd = useCallback(() => {
+    pieAnimationEndsRef.current += 1;
+    if (pieAnimationEndsRef.current >= pieRingCount) {
+      setPieAnimationActive(false);
+    }
+  }, [pieRingCount]);
 
   const handlePieSliceClick = useCallback(
     (entry: PieRow | { payload?: PieRow }) => {
@@ -385,7 +415,7 @@ export default function ActivityFundingPiePanel({
   );
 
   const renderTooltip = (props: TooltipContentProps<ValueType, NameType>) => {
-    if (!props.active || !props.payload?.length) {
+    if (!chartHoverActive || !props.active || !props.payload?.length) {
       return null;
     }
     const row = props.payload[0]?.payload as PieRow | undefined;
@@ -444,10 +474,16 @@ export default function ActivityFundingPiePanel({
       ) : null}
       <div className={showTailPanel ? "grid grid-cols-[minmax(0,1fr)_minmax(11rem,14rem)] gap-3 items-stretch min-h-[360px] px-1 pb-1" : "min-h-[360px] min-w-0 px-1 pb-1"}>
         <div
-          className={cn("w-full min-w-0 [&_svg]:text-[inherit]", CLS_RECHARTS_FOCUS_RESET)}
+          ref={chartBodyRef}
+          className={cn(
+            "w-full min-w-0 overflow-visible [&_svg]:overflow-visible [&_svg]:text-[inherit]",
+            CLS_RECHARTS_FOCUS_RESET,
+          )}
           style={{ height: chartHeight, minHeight: chartHeight }}
+          onMouseMove={handleChartMouseMove}
+          onMouseLeave={handleChartMouseLeave}
         >
-          <ResponsiveContainer width="100%" height="100%">
+          <ResponsiveContainer width="100%" height="100%" debounce={150}>
             <PieChart margin={{ top: 8, right: 4, bottom: 8, left: 4 }}>
               {innerChartData.length > 0 ? (
                 <Pie
@@ -463,7 +499,8 @@ export default function ActivityFundingPiePanel({
                   shape={renderPieSector}
                   animationDuration={700}
                   animationEasing="ease-out"
-                  isAnimationActive
+                  isAnimationActive={pieAnimationActive}
+                  onAnimationEnd={handlePieAnimationEnd}
                   legendType="none"
                   labelLine={false}
                   label={(props) => renderSliceLabel({ ...props, minPct: 0.8, compact: true })}
@@ -488,7 +525,8 @@ export default function ActivityFundingPiePanel({
                   shape={renderPieSector}
                   animationDuration={700}
                   animationEasing="ease-out"
-                  isAnimationActive
+                  isAnimationActive={pieAnimationActive}
+                  onAnimationEnd={handlePieAnimationEnd}
                   legendType="none"
                   labelLine={false}
                   label={(props) =>
@@ -508,6 +546,7 @@ export default function ActivityFundingPiePanel({
                 </Pie>
               ) : null}
               <Tooltip
+                active={chartHoverActive ? undefined : false}
                 content={renderTooltip}
                 isAnimationActive={false}
                 animationDuration={0}

@@ -163,7 +163,7 @@ export default function BarChartPanel({
 }: BarChartPanelProps) {
   const chartBodyRef = useRef<HTMLDivElement>(null);
   const [measuredChartHeight, setMeasuredChartHeight] = useState(0);
-  const { cursorTooltipPos, handleChartMouseMove, handleChartMouseLeave } =
+  const { chartHoverActive, cursorTooltipPos, handleChartMouseMove, handleChartMouseLeave } =
     useChartCursorTooltip(chartBodyRef);
 
   useEffect(() => {
@@ -189,7 +189,14 @@ export default function BarChartPanel({
 
   const chartHeight = fillHeight ? Math.max(measuredChartHeight, 1) : height;
   const renderTooltip = (props: TooltipContentProps<ValueType, NameType>) => {
-    if (!props.active || !props.payload?.length || cursorTooltipPos == null) return null;
+    if (
+      !chartHoverActive ||
+      !props.active ||
+      !props.payload?.length ||
+      cursorTooltipPos == null
+    ) {
+      return null;
+    }
     const entry = props.payload[0];
     const rawPayload = entry.payload as Record<string, unknown> | undefined;
     const rawFromPayload = rawPayload?.[`${dataKey}__raw`];
@@ -346,7 +353,11 @@ export default function BarChartPanel({
               axisLine={false}
               tickLine={false}
             />
-            <Tooltip content={renderTooltip} cursor={{ fill: "var(--accent-light)" }} />
+            <Tooltip
+              active={chartHoverActive ? undefined : false}
+              content={renderTooltip}
+              cursor={chartHoverActive ? { fill: "var(--accent-light)" } : false}
+            />
             <Bar
               dataKey={barDataKey}
               fill={color}
@@ -388,7 +399,11 @@ export default function BarChartPanel({
               type="number"
               {...valueAxisProps}
             />
-            <Tooltip content={renderTooltip} cursor={{ fill: "var(--accent-light)" }} />
+            <Tooltip
+              active={chartHoverActive ? undefined : false}
+              content={renderTooltip}
+              cursor={chartHoverActive ? { fill: "var(--accent-light)" } : false}
+            />
             <Bar
               dataKey={barDataKey}
               fill={color}

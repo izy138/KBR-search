@@ -3,6 +3,32 @@ export function chartTooltipCursorPosition(clientX: number, clientY: number): { 
   return { x: clientX + 12, y: clientY - 8 };
 }
 
+/** Scroll containers that can move a chart under a stationary pointer (e.g. app `<main>`). */
+export function getScrollableAncestors(node: HTMLElement): HTMLElement[] {
+  const scrollables: HTMLElement[] = [];
+  let parent: HTMLElement | null = node.parentElement;
+  while (parent != null) {
+    const style = getComputedStyle(parent);
+    const { overflow, overflowY, overflowX } = style;
+    const scrollsY =
+      overflowY === "auto" ||
+      overflowY === "scroll" ||
+      overflowY === "overlay" ||
+      overflow === "auto" ||
+      overflow === "scroll" ||
+      overflow === "overlay";
+    const scrollsX =
+      overflowX === "auto" ||
+      overflowX === "scroll" ||
+      overflowX === "overlay";
+    if (scrollsY || scrollsX) {
+      scrollables.push(parent);
+    }
+    parent = parent.parentElement;
+  }
+  return scrollables;
+}
+
 /** Suppress browser/Recharts focus rings on chart SVG internals (click/hover must still work). */
 export const CLS_RECHARTS_FOCUS_RESET =
   "[&_.recharts-wrapper_*:focus]:outline-none [&_.recharts-wrapper_*:focus-visible]:outline-none [&_.recharts-wrapper_*:focus]:ring-0 [&_.recharts-wrapper_*:focus-visible]:ring-0 [&_.recharts-wrapper:focus]:outline-none [&_.recharts-wrapper:focus-visible]:outline-none [&_.recharts-wrapper_svg:focus]:outline-none [&_.recharts-wrapper_svg:focus-visible]:outline-none [&_.recharts-responsive-container:focus]:outline-none [&_.recharts-responsive-container:focus-visible]:outline-none [&_.recharts-surface:focus]:outline-none [&_.recharts-surface:focus-visible]:outline-none [&_.recharts-sector:focus]:outline-none [&_.recharts-sector:focus-visible]:outline-none [&_.recharts-pie-sector:focus]:outline-none [&_.recharts-pie-sector:focus-visible]:outline-none [&_.recharts-bar-rectangle:focus]:outline-none [&_.recharts-bar-rectangle:focus-visible]:outline-none [&_.recharts-rectangle:focus]:outline-none [&_.recharts-rectangle:focus-visible]:outline-none [&_.recharts-active-bar:focus]:outline-none [&_.recharts-active-bar:focus-visible]:outline-none [&_.recharts-layer_path:focus]:outline-none [&_.recharts-layer_path:focus-visible]:outline-none [&_.recharts-line-curve:focus]:outline-none [&_.recharts-line-curve:focus-visible]:outline-none [&_.recharts-dot:focus]:outline-none [&_.recharts-dot:focus-visible]:outline-none [&_.recharts-active-dot:focus]:outline-none [&_.recharts-active-dot:focus-visible]:outline-none [&_.recharts-wrapper_rect:focus]:outline-none [&_.recharts-wrapper_rect:focus-visible]:outline-none";

@@ -8,6 +8,7 @@ import {
 import type { Geography as GeographyType } from "react-simple-maps";
 import type { StateDataPoint } from "../../api";
 import { formatDollarsCompact } from "../../utils/format";
+import { getScrollableAncestors } from "../../utils/chartStyles";
 
 /** TopoJSON source — US states at 1:10m resolution */
 const GEO_URL = "https://cdn.jsdelivr.net/npm/us-atlas@3/states-10m.json";
@@ -186,6 +187,16 @@ export default function StateMap({
         clearHover();
         return;
       }
+      const rect = canvas.getBoundingClientRect();
+      if (
+        last.x < rect.left ||
+        last.x > rect.right ||
+        last.y < rect.top ||
+        last.y > rect.bottom
+      ) {
+        clearHover();
+        return;
+      }
       const underPointer = document.elementFromPoint(last.x, last.y);
       if (!(underPointer instanceof Node) || !canvas.contains(underPointer)) {
         clearHover();
@@ -195,12 +206,21 @@ export default function StateMap({
       setTooltip((prev) => (prev ? { ...prev, x, y } : null));
     };
 
-    document.addEventListener("scroll", syncTooltipWithPointer, { capture: true, passive: true });
+    const scrollTargets = mapCanvasRef.current
+      ? getScrollableAncestors(mapCanvasRef.current)
+      : [];
+    for (const target of scrollTargets) {
+      target.addEventListener("scroll", syncTooltipWithPointer, { passive: true });
+    }
     window.addEventListener("resize", syncTooltipWithPointer, { passive: true });
+    window.addEventListener("wheel", syncTooltipWithPointer, { passive: true });
 
     return () => {
-      document.removeEventListener("scroll", syncTooltipWithPointer, { capture: true });
+      for (const target of scrollTargets) {
+        target.removeEventListener("scroll", syncTooltipWithPointer);
+      }
       window.removeEventListener("resize", syncTooltipWithPointer);
+      window.removeEventListener("wheel", syncTooltipWithPointer);
     };
   }, [tooltip, clearHover]);
 
