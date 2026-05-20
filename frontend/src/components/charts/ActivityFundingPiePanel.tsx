@@ -14,7 +14,13 @@ import type { NameType, ValueType } from "recharts/types/component/DefaultToolti
 import type { ActivityFundingPieResponse, ActivityPieSlice } from "../../api";
 import { cn } from "../../utils/cn";
 import { getActivityCodeTitle } from "../../utils/activityCodeTitles";
-import { CLS_RECHARTS_FOCUS_RESET } from "../../utils/chartStyles";
+import {
+  CHART_TOOLTIP_ROUNDED_STYLE,
+  CLS_CHART_HOVER_TOOLTIP,
+  CLS_RECHARTS_FOCUS_RESET,
+  RECHARTS_TOOLTIP_CONTENT_STYLE,
+  RECHARTS_TOOLTIP_WRAPPER_STYLE,
+} from "../../utils/chartStyles";
 
 const DEFAULT_CHART_HEIGHT_PX = 360;
 
@@ -28,6 +34,15 @@ const OTHER_SLICE_COLOR = "#64748b";
 const OTHER_SLICE_MAX_VS_RING = 0.07;
 /** Other sits inset in the outer ring so it reads smaller. */
 const OTHER_RADIAL_INSET_PX = 13;
+/** Inner-disk labels sit in the outer wedge (wider arc) but stay inset from the rim. */
+const INNER_SLICE_LABEL_RADIAL_FACTOR = 0.75;
+const INNER_SLICE_LABEL_OUTER_PAD_PX = 25;
+const INNER_SLICE_LABEL_INNER_PAD_PX = 350;
+/** Outer-band labels stay centered in the ring with padding on both edges. */
+const OUTER_SLICE_LABEL_RADIAL_FACTOR = 0.5;
+const OUTER_SLICE_LABEL_EDGE_PAD_PX = 10;
+const INNER_SLICE_LABEL_CODE_FONT_PX = 14;
+const INNER_SLICE_LABEL_PCT_FONT_PX = 12;
 
 /**
  * Two stacked `<Pie>` rings — inner (top 5) is a filled disk; outer (6…ZIF + Other) is a thin band.
@@ -35,7 +50,7 @@ const OTHER_RADIAL_INSET_PX = 13;
  */
 const INNER_PIE_INNER_RADIUS_PX = 0;
 const INNER_PIE_OUTER_RADIUS_PX = 120;
-const OUTER_PIE_INNER_RADIUS_PX = 126;
+const OUTER_PIE_INNER_RADIUS_PX = 130;
 /** Outer band thickness = 50% more than the previous 34px band (34 × 1.5 ≈ 51). */
 const OUTER_PIE_OUTER_RADIUS_PX = 175;
 
@@ -81,6 +96,79 @@ interface ActivityFundingPiePanelProps {
   selectedActivity?: string;
   /** When set, tail list codes apply that activity as a dashboard filter. */
   onActivitySelect?: (activityCode: string) => void;
+  /** Activity code hovered in the filter dropdown (not shown on pie slices). */
+  hoveredActivityCode?: string | null;
+}
+
+type ActivityCodeHoverCardProps = {
+  code: string;
+  formatDollars: (n: number) => string;
+  funding?: number;
+  projectCount?: number;
+  description?: string;
+  className?: string;
+};
+
+function ActivityCodeHoverCard({
+  code,
+  formatDollars,
+  funding,
+  projectCount,
+  description,
+  className,
+}: ActivityCodeHoverCardProps) {
+  return (
+    <div
+      className={cn(
+        CLS_CHART_HOVER_TOOLTIP,
+        "min-w-0 max-w-[min(20rem,calc(100vw-2rem))] px-[0.62rem] py-[0.48rem] text-[13px] leading-[1.2]",
+        className,
+      )}
+      style={CHART_TOOLTIP_ROUNDED_STYLE}
+    >
+      <div className="flex flex-wrap items-baseline gap-x-[0.4rem] gap-y-[0.15rem] whitespace-nowrap">
+        <span className="font-bold text-text-primary">{code}</span>
+        {funding != null ? (
+          <>
+            <span className="text-text-muted select-none">·</span>
+            <span>{formatDollars(funding)}</span>
+          </>
+        ) : null}
+        {projectCount != null ? (
+          <>
+            <span className="text-text-muted select-none">·</span>
+            <span className="text-text-muted">{projectCount.toLocaleString()} projects</span>
+          </>
+        ) : null}
+      </div>
+      {description ? (
+        <p className="m-0 mt-[0.18rem] text-text-secondary leading-[1.3] whitespace-normal">
+          {description}
+        </p>
+      ) : null}
+    </div>
+  );
+}
+
+type ActivityCodeInChartPreviewProps = {
+  code: string;
+  formatDollars: (n: number) => string;
+  row?: PieRow;
+};
+
+function ActivityCodeInChartPreview({ code, formatDollars, row }: ActivityCodeInChartPreviewProps) {
+  return (
+    <div className="absolute inset-0 z-20 flex items-center justify-center p-4 pointer-events-none">
+      <ActivityCodeHoverCard
+        code={code}
+        formatDollars={formatDollars}
+        funding={row?.value}
+        projectCount={row?.count}
+        description={getActivityCodeTitle(code)}
+        className="max-w-[min(18rem,90%)] text-center bg-surface/95 backdrop-blur-[2px] [&_p]:text-center"
+      />
+    </div>
+  );
 }
 
 function rowFromSlice(s: ActivityPieSlice): PieRow {
@@ -256,7 +344,28 @@ type SliceLabelProps = {
   payload?: { name: string; pct: number; isOther?: boolean };
   minPct?: number;
   compact?: boolean;
+  ring?: "inner" | "outer";
 };
+
+function sliceLabelRadius(
+  innerRadius: number,
+  outerRadius: number,
+  ring: "inner" | "outer",
+  isOther: boolean,
+): number {
+  const span = outerRadius - innerRadius;
+  if (ring === "inner") {
+    const target = innerRadius + span * INNER_SLICE_LABEL_RADIAL_FACTOR;
+    const minR = innerRadius + INNER_SLICE_LABEL_INNER_PAD_PX;
+    const maxR = outerRadius - INNER_SLICE_LABEL_OUTER_PAD_PX;
+    return Math.min(Math.max(target, minR), maxR);
+  }
+  const drawOuter = isOther ? outerRadius - OTHER_RADIAL_INSET_PX : outerRadius;
+  const target = innerRadius + span * OUTER_SLICE_LABEL_RADIAL_FACTOR;
+  const minR = innerRadius + OUTER_SLICE_LABEL_EDGE_PAD_PX;
+  const maxR = drawOuter - OUTER_SLICE_LABEL_EDGE_PAD_PX;
+  return Math.min(Math.max(target, minR), maxR);
+}
 
 /** Activity code + % of all indexed funding on each slice. */
 function renderSliceLabel({
@@ -268,6 +377,7 @@ function renderSliceLabel({
   payload,
   minPct = 2.5,
   compact = false,
+  ring = compact ? "inner" : "outer",
 }: SliceLabelProps) {
   const row = payload;
   if (
@@ -285,9 +395,11 @@ function renderSliceLabel({
     return null;
   }
   const RADIAN = Math.PI / 180;
-  const radius = innerRadius + (outerRadius - innerRadius) * 0.55;
+  const radius = sliceLabelRadius(innerRadius, outerRadius, ring, Boolean(row.isOther));
   const x = cx + radius * Math.cos(-midAngle * RADIAN);
   const y = cy + radius * Math.sin(-midAngle * RADIAN);
+  const codeStrokeWidth = compact ? "1.5px" : "2px";
+  const pctStrokeWidth = compact ? "1.25px" : "2px";
   return (
     <text
       x={x}
@@ -299,15 +411,29 @@ function renderSliceLabel({
     >
       <tspan
         x={x}
-        dy={compact ? "-0.45em" : "-0.55em"}
-        style={{ fill: "#fff", fontWeight: 700, paintOrder: "stroke fill", stroke: "rgba(15,23,42,0.5)", strokeWidth: "2px" }}
+        dy={compact ? "-0.4em" : "-0.55em"}
+        style={{
+          fill: "#fff",
+          fontSize: compact ? INNER_SLICE_LABEL_CODE_FONT_PX : undefined,
+          fontWeight: 700,
+          paintOrder: "stroke fill",
+          stroke: "rgba(15,23,42,0.5)",
+          strokeWidth: codeStrokeWidth,
+        }}
       >
         {row.isOther ? "Other" : row.name}
       </tspan>
       <tspan
         x={x}
-        dy={compact ? "0.95em" : "1.05em"}
-        style={{ fill: "#fff", fontWeight: 600, paintOrder: "stroke fill", stroke: "rgba(15,23,42,0.45)", strokeWidth: "2px" }}
+        dy={compact ? "0.85em" : "1.05em"}
+        style={{
+          fill: "#fff",
+          fontSize: compact ? INNER_SLICE_LABEL_PCT_FONT_PX : undefined,
+          fontWeight: 600,
+          paintOrder: "stroke fill",
+          stroke: "rgba(15,23,42,0.45)",
+          strokeWidth: pctStrokeWidth,
+        }}
       >
         {`${pctAll.toFixed(1)}%`}
       </tspan>
@@ -342,10 +468,12 @@ export default function ActivityFundingPiePanel({
   loading = false,
   selectedActivity = "",
   onActivitySelect,
+  hoveredActivityCode = null,
 }: ActivityFundingPiePanelProps) {
   const chartBodyRef = useRef<HTMLDivElement>(null);
   const { chartHoverActive, handleChartMouseMove, handleChartMouseLeave } =
     useChartCursorTooltip(chartBodyRef);
+  const [tailHoverCode, setTailHoverCode] = useState<string | null>(null);
 
   const { innerChartData, outerChartData, tailDetailRows } = useMemo(() => {
     const split = splitPieRows(pie);
@@ -360,6 +488,26 @@ export default function ActivityFundingPiePanel({
     () => [...innerChartData, ...outerChartData],
     [innerChartData, outerChartData],
   );
+
+  const pieSliceCodes = useMemo(
+    () =>
+      new Set(
+        [...innerChartData, ...outerChartData]
+          .filter((r) => !r.isOther)
+          .map((r) => r.name),
+      ),
+    [innerChartData, outerChartData],
+  );
+
+  const tailRowByCode = useMemo(
+    () => new Map(tailDetailRows.map((r) => [r.name, r])),
+    [tailDetailRows],
+  );
+
+  const previewCode = tailHoverCode ?? hoveredActivityCode ?? null;
+  const showChartPreview =
+    previewCode != null && previewCode.length > 0 && !pieSliceCodes.has(previewCode);
+  const previewRow = previewCode ? tailRowByCode.get(previewCode) : undefined;
 
   const showTailPanel = tailDetailRows.length > 0;
 
@@ -426,21 +574,14 @@ export default function ActivityFundingPiePanel({
     const codeLabel = row.isOther ? "Other" : row.name;
     const codeMeaning = row.isOther ? undefined : getActivityCodeTitle(row.name);
     return (
-      <div className="bg-surface border border-border rounded-[--radius-md] shadow-md min-w-0 max-w-[min(20rem,calc(100vw-2rem))] px-[0.68rem] py-[0.45rem] text-[14px] leading-[1.25] pointer-events-none z-10">
-        <div className="flex flex-wrap items-baseline gap-x-[0.45rem] gap-y-[0.3rem] whitespace-nowrap">
-          <span className="font-bold text-text-primary">{codeLabel}</span>
-          <span className="text-text-muted select-none">·</span>
-          <span>{formatDollars(row.value)}</span>
-        </div>
-        {codeMeaning ? (
-          <p className="m-0 mt-[0.2rem] text-text-secondary leading-[1.35] whitespace-normal">
-            {codeMeaning}
-          </p>
-        ) : null}
-        <div className="flex flex-wrap items-baseline gap-x-[0.45rem] gap-y-[0.3rem] whitespace-nowrap text-text-muted mt-[0.15rem]">
-          {row.count.toLocaleString()} projects
-        </div>
-      </div>
+      <ActivityCodeHoverCard
+        code={codeLabel}
+        formatDollars={formatDollars}
+        funding={row.value}
+        projectCount={row.count}
+        description={codeMeaning}
+        className="pointer-events-none z-10"
+      />
     );
   };
 
@@ -483,8 +624,9 @@ export default function ActivityFundingPiePanel({
         <div
           ref={chartBodyRef}
           className={cn(
-            "w-full min-w-0 overflow-visible [&_svg]:overflow-visible [&_svg]:text-[inherit]",
+            "relative w-full min-w-0 overflow-visible [&_svg]:overflow-visible [&_svg]:text-[inherit]",
             CLS_RECHARTS_FOCUS_RESET,
+            showChartPreview && "[&_svg]:opacity-35",
           )}
           style={{ height: chartHeight, minHeight: chartHeight }}
           onMouseMove={handleChartMouseMove}
@@ -510,7 +652,9 @@ export default function ActivityFundingPiePanel({
                   onAnimationEnd={handlePieAnimationEnd}
                   legendType="none"
                   labelLine={false}
-                  label={(props) => renderSliceLabel({ ...props, minPct: 0.8, compact: true })}
+                  label={(props) =>
+                    renderSliceLabel({ ...props, minPct: 0.8, compact: true, ring: "inner" })
+                  }
                   onClick={onActivitySelect ? handlePieSliceClick : undefined}
                 >
                   {innerChartData.map((_, index) => (
@@ -540,6 +684,7 @@ export default function ActivityFundingPiePanel({
                     renderSliceLabel({
                       ...props,
                       minPct: props.payload?.isOther ? 0 : 1.2,
+                      ring: "outer",
                     })
                   }
                   onClick={onActivitySelect ? handlePieSliceClick : undefined}
@@ -555,12 +700,20 @@ export default function ActivityFundingPiePanel({
               <Tooltip
                 active={chartHoverActive ? undefined : false}
                 content={renderTooltip}
+                contentStyle={RECHARTS_TOOLTIP_CONTENT_STYLE}
+                wrapperStyle={{ ...RECHARTS_TOOLTIP_WRAPPER_STYLE, transition: "none" }}
                 isAnimationActive={false}
                 animationDuration={0}
-                wrapperStyle={{ transition: "none", outline: "none" }}
               />
             </PieChart>
           </ResponsiveContainer>
+          {showChartPreview && previewCode ? (
+            <ActivityCodeInChartPreview
+              code={previewCode}
+              formatDollars={formatDollars}
+              row={previewRow}
+            />
+          ) : null}
         </div>
         {showTailPanel ? (
           <aside className="flex flex-col min-h-0 max-h-[360px] pl-[0.9rem] pr-1 py-[0.85rem] border border-border-strong rounded-[--radius-md] bg-bg" aria-label="Other Activity Codes">
@@ -590,11 +743,17 @@ export default function ActivityFundingPiePanel({
                   </>
                 );
 
+                const tailHoverHandlers = {
+                  onMouseEnter: () => setTailHoverCode(row.name),
+                  onMouseLeave: () => setTailHoverCode(null),
+                };
+
                 if (onActivitySelect == null) {
                   return (
                     <li
                       key={row.name}
                       className="border-b-2 border-border-strong px-1.5 py-1 last:border-b-0"
+                      {...tailHoverHandlers}
                     >
                       <div className={rowInnerClass}>{rowBody}</div>
                     </li>
@@ -605,6 +764,7 @@ export default function ActivityFundingPiePanel({
                   <li
                     key={row.name}
                     className="border-b-2 border-border-strong px-1.5 py-1 last:border-b-0"
+                    {...tailHoverHandlers}
                   >
                     <button
                       type="button"

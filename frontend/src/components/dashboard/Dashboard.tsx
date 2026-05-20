@@ -139,6 +139,13 @@ const MAIN_CHART_SLOT_BAR_PROPS = {
   maxBarSize: 30,
 };
 
+/** IC projects chart: extra bottom inset so angled x-axis labels clear the panel edge. */
+const IC_PROJECTS_PANEL_CLASS = cn(
+  MAIN_CHART_SLOT_PANEL_CLASS,
+  "pb-2 [&_.recharts-responsive-container]:-mb-0",
+);
+const IC_PROJECTS_CHART_MARGIN = { top: 4, right: 4, bottom: 14, left: 0 };
+
 /** Pie/year-trend row — same chart styling as main slot, sized to match LineChartPanel. */
 const SECONDARY_CHART_ROW_PANEL_CLASS = cn(
   MAIN_CHART_SLOT_PANEL_CLASS,
@@ -237,6 +244,7 @@ export default function Dashboard({
   const [icProjectsLogScale, setIcProjectsLogScale] = useState(true);
   const mapMeasureRef = useRef<HTMLDivElement>(null);
   const [mapMeasureHeight, setMapMeasureHeight] = useState<number | undefined>();
+  const [filterActivityHover, setFilterActivityHover] = useState<string | null>(null);
 
   const hasIcFilter = Boolean(appliedFilters.ic);
   const hasActivityFilter = Boolean(appliedFilters.activity);
@@ -488,7 +496,7 @@ export default function Dashboard({
   const icProjectsPanel = (
     <BarChartPanel
       title="Projects by Institute (IC)"
-      panelClassName={MAIN_CHART_SLOT_PANEL_CLASS}
+      panelClassName={IC_PROJECTS_PANEL_CLASS}
       headerEnd={
         <div className="inline-flex border border-border rounded-[--radius-sm] shrink-0 overflow-hidden" role="group" aria-label="Count axis scale">
           <button
@@ -512,6 +520,7 @@ export default function Dashboard({
       labelKey="short_label"
       tooltipLabelKey="full_label"
       {...MAIN_CHART_SLOT_BAR_PROPS}
+      chartMargin={IC_PROJECTS_CHART_MARGIN}
       barAnimation="vertical"
       barAnimationSnapKey={
         icProjectsUseLogScale ? `hybrid-log-${icChartHybridScale.linearMax}` : "linear"
@@ -573,6 +582,7 @@ export default function Dashboard({
       loading={refreshing}
       selectedActivity={appliedFilters.activity}
       onActivitySelect={handleActivitySelect}
+      hoveredActivityCode={filterActivityHover}
     />
   );
 
@@ -600,6 +610,7 @@ export default function Dashboard({
         searchSubmitOnClear
         onApply={onApplyFilters}
         onClear={onClearFilters}
+        onActivityCodeHover={setFilterActivityHover}
         helpTooltip={
           <HelpTooltip label={HELP_DASHBOARD.label}>{HELP_DASHBOARD.body}</HelpTooltip>
         }

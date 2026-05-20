@@ -11,7 +11,13 @@ import {
   YAxis,
 } from "recharts";
 import { cn } from "../../utils/cn";
-import { CLS_RECHARTS_FOCUS_RESET } from "../../utils/chartStyles";
+import {
+  CHART_TOOLTIP_ROUNDED_STYLE,
+  CLS_CHART_CURSOR_TOOLTIP,
+  CLS_RECHARTS_FOCUS_RESET,
+  RECHARTS_TOOLTIP_CONTENT_STYLE,
+  RECHARTS_TOOLTIP_WRAPPER_STYLE,
+} from "../../utils/chartStyles";
 import type { TooltipContentProps } from "recharts/types/component/Tooltip";
 import type { NameType, ValueType } from "recharts/types/component/DefaultTooltipContent";
 import type { YearDataPoint } from "../../api";
@@ -76,7 +82,7 @@ export default function LineChartPanel({
     if (!chartHoverActive || !props.active || !props.payload?.length) return null;
 
     return (
-      <div className="bg-surface border border-border rounded-[--radius-md] shadow-md text-[0.8125rem] px-[0.875rem] py-[0.625rem] pointer-events-none min-w-[160px] z-10">
+      <div className={cn(CLS_CHART_CURSOR_TOOLTIP, "z-10")} style={CHART_TOOLTIP_ROUNDED_STYLE}>
         <div className="text-text-primary font-semibold mb-1 text-[0.82rem]">FY {props.label}</div>
         {props.payload.map((entry) => {
           const rawValue = entry.value;
@@ -107,6 +113,7 @@ export default function LineChartPanel({
       <div className="text-text-primary text-[0.9rem] font-semibold mb-[0.65rem]">{title}</div>
       <div
         ref={chartBodyRef}
+        className={CLS_RECHARTS_FOCUS_RESET}
         onMouseMove={handleChartMouseMove}
         onMouseLeave={handleChartMouseLeave}
       >
@@ -141,6 +148,8 @@ export default function LineChartPanel({
           <Tooltip
             active={chartHoverActive ? undefined : false}
             content={renderTooltip}
+            contentStyle={RECHARTS_TOOLTIP_CONTENT_STYLE}
+            wrapperStyle={RECHARTS_TOOLTIP_WRAPPER_STYLE}
             position={{ x: 16, y: 16 }}
           />
           <Legend

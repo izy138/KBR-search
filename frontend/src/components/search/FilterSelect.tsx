@@ -31,6 +31,8 @@ export type FilterSelectProps = {
   /** Smaller trigger for compact toolbars. */
   compact?: boolean;
   disabled?: boolean;
+  onOptionPointerEnter?: (option: FilterSelectOption) => void;
+  onOptionPointerLeave?: () => void;
 };
 
 const FilterSelect: FC<FilterSelectProps> = ({
@@ -45,6 +47,8 @@ const FilterSelect: FC<FilterSelectProps> = ({
   includeEmptyOption = true,
   compact = false,
   disabled = false,
+  onOptionPointerEnter,
+  onOptionPointerLeave,
 }) => {
   const baseId = useId();
   const listboxId = `${baseId}-listbox`;
@@ -54,6 +58,11 @@ const FilterSelect: FC<FilterSelectProps> = ({
 
   const [open, setOpen] = useState(false);
   const [coords, setCoords] = useState({ top: 0, left: 0, width: 0 });
+
+  const closeDropdown = useCallback(() => {
+    onOptionPointerLeave?.();
+    setOpen(false);
+  }, [onOptionPointerLeave]);
 
   const flatOptions = useMemo((): readonly FilterSelectOption[] => {
     if (includeEmptyOption) {
@@ -101,16 +110,16 @@ const FilterSelect: FC<FilterSelectProps> = ({
     const onPointerDown = (e: MouseEvent) => {
       const t = e.target as Node;
       if (rootRef.current?.contains(t) || panelOuterRef.current?.contains(t)) return;
-      setOpen(false);
+      closeDropdown();
     };
     document.addEventListener("mousedown", onPointerDown);
     return () => document.removeEventListener("mousedown", onPointerDown);
-  }, [open]);
+  }, [open, closeDropdown]);
 
   useEffect(() => {
     if (!disabled) return;
-    setOpen(false);
-  }, [disabled]);
+    closeDropdown();
+  }, [disabled, closeDropdown]);
 
   const cols = listColumns != null && listColumns > 1 ? Math.floor(listColumns) : 1;
 
@@ -156,9 +165,15 @@ const FilterSelect: FC<FilterSelectProps> = ({
                 aria-selected={isSelected}
                 className={cn("filter-select-option", spanFullRow && "filter-select-option--grid-span")}
                 title={opt.label}
+                onMouseEnter={() => {
+                  if (opt.value !== "") {
+                    onOptionPointerEnter?.(opt);
+                  }
+                }}
+                onMouseLeave={() => onOptionPointerLeave?.()}
                 onClick={() => {
                   onChange(opt.value);
-                  setOpen(false);
+                  closeDropdown();
                   triggerRef.current?.focus();
                 }}
               >
@@ -191,7 +206,11 @@ const FilterSelect: FC<FilterSelectProps> = ({
         title={selectedLabel}
         onClick={() => {
           if (disabled) return;
-          setOpen((o) => !o);
+          if (open) {
+            closeDropdown();
+          } else {
+            setOpen(true);
+          }
         }}
       >
         <span

@@ -92,6 +92,8 @@ type FiltersProps = {
   searchSlot?: ReactNode;
   /** Optional help control shown at the top-right of the filter panel. */
   helpTooltip?: ReactNode;
+  /** Dashboard: drives activity-code preview in the funding pie chart area. */
+  onActivityCodeHover?: (code: string | null) => void;
 };
 
 function Filters({
@@ -110,6 +112,7 @@ function Filters({
   fieldHelp,
   searchSlot,
   helpTooltip,
+  onActivityCodeHover,
 }: FiltersProps) {
   const { draft, patch, resetDraft } = useFilterDraft(applied);
 
@@ -213,6 +216,16 @@ function Filters({
               menuMinWidthPx={field.menuMinWidthPx}
               listColumns={field.listColumns}
               truncateSelectedLabel={field.truncateSelectedLabel}
+              onOptionPointerEnter={
+                field.key === "activity" && onActivityCodeHover
+                  ? (opt) => onActivityCodeHover(opt.value)
+                  : undefined
+              }
+              onOptionPointerLeave={
+                field.key === "activity" && onActivityCodeHover
+                  ? () => onActivityCodeHover(null)
+                  : undefined
+              }
             />
           </FilterField>
         ))}
