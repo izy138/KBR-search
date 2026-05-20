@@ -1,7 +1,6 @@
 import { useCallback, useEffect, useRef } from "react";
 import { useLocation, useNavigate } from "react-router-dom";
 import type { SearchSortDirection, SearchSortField } from "../api";
-import type { AdvancedSearchQuery } from "../types/advancedSearch";
 import type { SortState as ResultsSortState } from "../components/search/ResultsList";
 import {
   buildSearchUrlParams,
@@ -9,12 +8,13 @@ import {
   parseSearchUrlParams,
   searchLocationsEqual,
   searchParamsToString,
+  unifiedSearchFromParsed,
   type SortOption,
 } from "../utils/searchUrlParams";
 
 export type SearchUrlSyncState = {
+  /** Unified search bar text (parenthesized advanced terms + plain keywords). */
   q: string;
-  advancedSearch: AdvancedSearchQuery | null;
   page: number;
   limit: number;
   pi: string;
@@ -34,7 +34,6 @@ export type SearchUrlSyncState = {
 
 export type SearchUrlSyncSetters = {
   setQ: (q: string) => void;
-  setAdvancedSearch: (q: AdvancedSearchQuery | null) => void;
   setPage: (page: number) => void;
   setLimit: (limit: number) => void;
   setPi: (pi: string) => void;
@@ -71,8 +70,7 @@ export function useSearchUrlSync({ enabled, state, setters }: UseSearchUrlSyncOp
   const applyParsedToState = useCallback((parsed: ReturnType<typeof parseSearchUrlParams>) => {
     isApplyingFromUrlRef.current = true;
     const s = settersRef.current;
-    s.setQ(parsed.q);
-    s.setAdvancedSearch(parsed.advancedSearch);
+    s.setQ(unifiedSearchFromParsed(parsed));
     s.setPage(parsed.page);
     s.setLimit(parsed.limit);
     s.setPi(parsed.pi);
@@ -88,8 +86,7 @@ export function useSearchUrlSync({ enabled, state, setters }: UseSearchUrlSyncOp
     s.setSemanticCommitted(parsed.semantic);
     lastWrittenSearchRef.current = searchParamsToString(
       buildSearchUrlParams({
-        q: parsed.q,
-        advancedSearch: parsed.advancedSearch,
+        q: unifiedSearchFromParsed(parsed),
         page: parsed.page,
         limit: parsed.limit,
         pi: parsed.pi,
@@ -122,8 +119,7 @@ export function useSearchUrlSync({ enabled, state, setters }: UseSearchUrlSyncOp
     }
 
     const params = buildSearchUrlParams({
-      q: state.advancedSearch ? "" : state.q,
-      advancedSearch: state.advancedSearch,
+      q: state.q,
       page: state.page,
       limit: state.limit,
       pi: state.pi,
@@ -153,7 +149,6 @@ export function useSearchUrlSync({ enabled, state, setters }: UseSearchUrlSyncOp
     location.search,
     navigate,
     state.q,
-    state.advancedSearch,
     state.page,
     state.limit,
     state.pi,
@@ -173,8 +168,7 @@ export function useSearchUrlSync({ enabled, state, setters }: UseSearchUrlSyncOp
     (overrides?: Partial<SearchUrlSyncState>) => {
       const merged = { ...state, ...overrides };
       const params = buildSearchUrlParams({
-        q: merged.advancedSearch ? "" : merged.q,
-        advancedSearch: merged.advancedSearch,
+        q: merged.q,
         page: merged.page,
         limit: merged.limit,
         pi: merged.pi,

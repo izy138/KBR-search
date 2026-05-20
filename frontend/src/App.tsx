@@ -35,8 +35,13 @@ import {
   HELP_SEARCH_FILTER_IC,
   HELP_SEARCH_FILTER_PI,
 } from "./utils/helpContent";
-import type { AdvancedSearchQuery } from "./types/advancedSearch";
-import { formatAdvancedSearchQuery, hasAdvancedSearchContent } from "./utils/advancedSearch";
+import {
+  formatAdvancedSearchQuery,
+  hasAdvancedSearchContent,
+  normalizeUnifiedSearch,
+  parseUnifiedSearch,
+} from "./utils/advancedSearch";
+import { unifiedSearchFromParsed } from "./utils/searchUrlParams";
 import { useFilterCatalog } from "./hooks/useFilterCatalog";
 import type { FilterValues } from "./types/filters";
 import { cn } from "./utils/cn";
@@ -60,9 +65,8 @@ const PER_PAGE_SELECT_OPTIONS = [10, 25, 50, 100].map((n) => ({
 export default function App() {
   const initialSearchUrl = readInitialSearchFromWindow();
 
-  const [searchQuery, setSearchQuery] = useState(() => initialSearchUrl?.q ?? "");
-  const [advancedSearch, setAdvancedSearch] = useState<AdvancedSearchQuery | null>(
-    () => initialSearchUrl?.advancedSearch ?? null,
+  const [searchQuery, setSearchQuery] = useState(() =>
+    initialSearchUrl ? unifiedSearchFromParsed(initialSearchUrl) : "",
   );
   const [semanticSearchMode, setSemanticSearchMode] = useState(
     () => initialSearchUrl?.semantic ?? false,
@@ -153,8 +157,6 @@ export default function App() {
     enabled: searchEnabled,
     state: {
       q: searchQuery,
-      advancedSearch:
-        advancedSearch && hasAdvancedSearchContent(advancedSearch) ? advancedSearch : null,
       page: currentPage,
       limit: resultsPerPage,
       pi: selectedPI,
@@ -173,7 +175,6 @@ export default function App() {
     },
     setters: {
       setQ: setSearchQuery,
-      setAdvancedSearch,
       setPage: setCurrentPage,
       setLimit: setResultsPerPage,
       setPi: setSelectedPI,
@@ -198,8 +199,6 @@ export default function App() {
   } = useSearch({
     query: searchQuery,
     setQuery: setSearchQuery,
-    advancedSearch:
-      advancedSearch && hasAdvancedSearchContent(advancedSearch) ? advancedSearch : null,
     projectTermFilters,
     excludeProjectTermFilters,
     selectedPI,
@@ -285,9 +284,8 @@ export default function App() {
   }, []);
 
   const handleSearch = (nextQuery: string) => {
-    setAdvancedSearch(null);
     setSemanticSearchCommitted(semanticSearchMode);
-    setSearchQuery(nextQuery);
+    setSearchQuery(normalizeUnifiedSearch(nextQuery));
     setProjectTermFilters([]);
     setExcludeProjectTermFilters([]);
     setCurrentPage(1);
@@ -295,41 +293,25 @@ export default function App() {
 
   const handleSemanticModeChange = useCallback((enabled: boolean) => {
     setSemanticSearchMode(enabled);
-    if (enabled) {
-      setAdvancedSearch(null);
-    } else {
+    if (!enabled) {
       setSemanticSearchCommitted(false);
     }
   }, []);
 
-  const handleAdvancedSearch = useCallback((nextQuery: AdvancedSearchQuery) => {
-    setSemanticSearchMode(false);
-    setSemanticSearchCommitted(false);
-    setAdvancedSearch(nextQuery);
-    setSearchQuery("");
-    setProjectTermFilters([]);
-    setExcludeProjectTermFilters([]);
-    setCurrentPage(1);
-  }, []);
-
-  const handleExitAdvancedSearch = useCallback(() => {
-    setAdvancedSearch(null);
-    setSearchQuery("");
-    setCurrentPage(1);
-  }, []);
-
   const activeSearchLabel = useMemo(() => {
-    if (advancedSearch && hasAdvancedSearchContent(advancedSearch)) {
-      return formatAdvancedSearchQuery(advancedSearch);
+    const { advanced, plainQ } = parseUnifiedSearch(searchQuery);
+    if (advanced && hasAdvancedSearchContent(advanced)) {
+      return formatAdvancedSearchQuery(advanced);
     }
-    return searchQuery;
-  }, [advancedSearch, searchQuery]);
+    return plainQ.trim();
+  }, [searchQuery]);
 
   const handleDownloadCsv = useCallback(async (): Promise<void> => {
     setExportingCsv(true);
     setExportCsvError(null);
     try {
-      await downloadSearchResultsCsv(searchQuery, {
+      const { plainQ, advanced } = parseUnifiedSearch(searchQuery);
+      await downloadSearchResultsCsv(plainQ, {
         pi: selectedPI,
         ic: selectedIC,
         activity: selectedActivity,
@@ -337,8 +319,9 @@ export default function App() {
         fyMin,
         fyMax,
         projectTerms: projectTermFilters,
+        excludeProjectTerms: excludeProjectTermFilters,
         advancedSearch:
-          advancedSearch && hasAdvancedSearchContent(advancedSearch) ? advancedSearch : null,
+          advanced && hasAdvancedSearchContent(advanced) ? advanced : null,
       });
     } catch (err) {
       setExportCsvError(err instanceof Error ? err.message : "Export failed");
@@ -354,7 +337,7 @@ export default function App() {
     fyMin,
     fyMax,
     projectTermFilters,
-    advancedSearch,
+    excludeProjectTermFilters,
   ]);
 
   const handleApplyFilters = (filters: FilterValues) => {
@@ -379,28 +362,26 @@ export default function App() {
     setColumnSort({ column: null, direction: "none" });
     setSortOption("relevant");
     setSearchQuery("");
-    setAdvancedSearch(null);
     setSemanticSearchMode(false);
     setSemanticSearchCommitted(false);
     setCurrentPage(1);
   }, []);
 
   const handleDashboardQueryUpdate = useCallback((nextQuery: string) => {
-    setSearchQuery(nextQuery);
+    setSearchQuery(normalizeUnifiedSearch(nextQuery));
   }, []);
 
   const handleDashboardSearchNavigate = useCallback(
     (nextQuery: string) => {
-      setAdvancedSearch(null);
       setSemanticSearchMode(false);
       setSemanticSearchCommitted(false);
-      setSearchQuery(nextQuery);
+      const unified = normalizeUnifiedSearch(nextQuery);
+      setSearchQuery(unified);
       setProjectTermFilters([]);
       setExcludeProjectTermFilters([]);
       setCurrentPage(1);
       navigateToSearch({
-        q: nextQuery,
-        advancedSearch: null,
+        q: unified,
         projectTerms: [],
         page: 1,
         semanticMode: false,
@@ -422,16 +403,15 @@ export default function App() {
 
   const handleSearchFromProjectTerms = useCallback(
     (payload: { terms: string[]; excludedTerms: string[]; additionalQuery: string }) => {
-      setAdvancedSearch(null);
       setSemanticSearchMode(false);
       setSemanticSearchCommitted(false);
       setProjectTermFilters(payload.terms);
       setExcludeProjectTermFilters(payload.excludedTerms);
-      setSearchQuery(payload.additionalQuery.trim());
+      const unified = normalizeUnifiedSearch(payload.additionalQuery);
+      setSearchQuery(unified);
       setCurrentPage(1);
       navigateToSearch({
-        q: payload.additionalQuery.trim(),
-        advancedSearch: null,
+        q: unified,
         projectTerms: payload.terms,
         page: 1,
         semanticMode: false,
@@ -663,11 +643,6 @@ export default function App() {
               />
             ) : isSearchRoute ? (
               <>
-                <div className="mb-1 flex justify-end">
-                  <HelpTooltip label={HELP_SEARCH.label} placement="before">
-                    {HELP_SEARCH.body}
-                  </HelpTooltip>
-                </div>
                 <Filters
                   applied={appliedFilters}
                   catalog={filterCatalog}
@@ -678,15 +653,15 @@ export default function App() {
                     fy: HELP_SEARCH_FILTER_FY,
                   }}
                   searchQuery={searchQuery}
-                  advancedSearch={advancedSearch}
                   semanticMode={semanticSearchMode}
                   onSemanticModeChange={handleSemanticModeChange}
                   showSemanticToggle
                   onSearch={handleSearch}
-                  onAdvancedSearch={handleAdvancedSearch}
-                  onExitAdvancedSearch={handleExitAdvancedSearch}
                   onApply={handleApplyFilters}
                   onClear={handleClearFilters}
+                  helpTooltip={
+                    <HelpTooltip label={HELP_SEARCH.label}>{HELP_SEARCH.body}</HelpTooltip>
+                  }
                 />
 
                 <div className="flex items-center justify-between pt-2 pl-1 gap-4 max-[900px]:flex-col max-[900px]:items-start max-[900px]:gap-2">
@@ -768,27 +743,27 @@ export default function App() {
                         )}
                         {exportingCsv ? "Preparing CSV…" : "Download CSV"}
                       </button>
-                              </div>
-                     <div className="min-w-[19.5rem] w-full flex items-center gap-3">         
-                    <FilterSelect
-                      compact
-                      includeEmptyOption={false}
-                      value={sortOption}
-                      onChange={handleSortOptionChange}
-                      options={SORT_SELECT_OPTIONS}
-                      placeholder="Sort"
-                      ariaLabel="Sort results"
-                    />
-                    <FilterSelect
-                      compact
-                      includeEmptyOption={false}
-                      value={String(resultsPerPage)}
-                      onChange={handlePerPageChange}
-                      options={PER_PAGE_SELECT_OPTIONS}
-                      placeholder="Per page"
-                      ariaLabel="Results per page"
-                                />
-                                </div>
+                    </div>
+                    <div className="min-w-[19.5rem] w-full flex items-center gap-3">
+                      <FilterSelect
+                        compact
+                        includeEmptyOption={false}
+                        value={sortOption}
+                        onChange={handleSortOptionChange}
+                        options={SORT_SELECT_OPTIONS}
+                        placeholder="Sort"
+                        ariaLabel="Sort results"
+                      />
+                      <FilterSelect
+                        compact
+                        includeEmptyOption={false}
+                        value={String(resultsPerPage)}
+                        onChange={handlePerPageChange}
+                        options={PER_PAGE_SELECT_OPTIONS}
+                        placeholder="Per page"
+                        ariaLabel="Results per page"
+                      />
+                    </div>
                   </div>
                 </div>
 
