@@ -1,4 +1,5 @@
-import { useEffect, useState } from "react";
+import { useCallback, useEffect, useState } from "react";
+import { useNavigate } from "react-router-dom";
 import { getActivityProjectCompareData, type ActivityProjectCompareDataPoint } from "../../api";
 import BarChartPanel from "../charts/BarChartPanel";
 
@@ -18,7 +19,17 @@ const truncateLabel = (value: string, maxLength: number = 28): string =>
   value.length > maxLength ? `${value.slice(0, maxLength - 1)}…` : value;
 
 export default function ProjectActivityCompareChart({ projectId, activityId }: ProjectActivityCompareChartProps) {
+  const navigate = useNavigate();
   const [data, setData] = useState<ActivityProjectCompareDataPoint[]>([]);
+
+  const handleBarClick = useCallback(
+    (row: Record<string, unknown>) => {
+      const targetId = typeof row.project_id === "string" ? row.project_id.trim() : "";
+      if (!targetId || targetId === projectId) return;
+      navigate(`/projects/${encodeURIComponent(targetId)}`);
+    },
+    [navigate, projectId],
+  );
   const [loading, setLoading] = useState<boolean>(true);
   const [error, setError] = useState<string>("");
 
@@ -105,6 +116,7 @@ export default function ProjectActivityCompareChart({ projectId, activityId }: P
         layout="horizontal"
         formatter={formatCurrency}
         height={465}
+        onBarClick={handleBarClick}
       />
     </section>
   );

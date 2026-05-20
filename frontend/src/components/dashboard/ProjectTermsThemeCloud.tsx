@@ -652,7 +652,10 @@ export default function ProjectTermsThemeCloud({ payload, onSearch }: Props): Re
       <div className="flex items-start justify-between gap-3 flex-wrap mb-[0.35rem]">
         <h3 className="text-text-primary text-[0.9rem] font-semibold mb-0">Project term themes</h3>
       </div>
-     
+      <p className="text-text-secondary text-[0.75rem] leading-[1.45] m-0 mb-2">
+        Click a category, then a subcategory to browse terms. 
+        
+      </p>
 
       {buckets.length === 0 ? (
         <p className="text-text-muted text-[0.875rem] mt-2 m-0">

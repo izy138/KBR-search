@@ -1,4 +1,5 @@
-import { useMemo } from "react";
+import { useMemo, useRef } from "react";
+import { useChartCursorTooltip } from "../../hooks/useChartCursorTooltip";
 import {
   CartesianGrid,
   Legend,
@@ -40,6 +41,9 @@ export default function LineChartPanel({
   panelClassName,
   chartMargin = { top: 12, right: 16, bottom: 4, left: 8 },
 }: LineChartPanelProps) {
+  const chartBodyRef = useRef<HTMLDivElement>(null);
+  const { chartHoverActive, handleChartMouseMove, handleChartMouseLeave } =
+    useChartCursorTooltip(chartBodyRef);
   const fundingFmt = formatter ?? formatDollarsCompact;
 
   const { countAxisDomain, fundingAxisDomain } = useMemo(() => {
@@ -69,7 +73,7 @@ export default function LineChartPanel({
   }, [data]);
 
   const renderTooltip = (props: TooltipContentProps<ValueType, NameType>) => {
-    if (!props.active || !props.payload?.length) return null;
+    if (!chartHoverActive || !props.active || !props.payload?.length) return null;
 
     return (
       <div className="bg-surface border border-border rounded-[--radius-md] shadow-md text-[0.8125rem] px-[0.875rem] py-[0.625rem] pointer-events-none min-w-[160px] z-10">
@@ -101,6 +105,11 @@ export default function LineChartPanel({
   return (
     <div className={panelClass}>
       <div className="text-text-primary text-[0.9rem] font-semibold mb-[0.65rem]">{title}</div>
+      <div
+        ref={chartBodyRef}
+        onMouseMove={handleChartMouseMove}
+        onMouseLeave={handleChartMouseLeave}
+      >
       <ResponsiveContainer width="100%" height={height}>
         <LineChart data={data} margin={chartMargin}>
           <CartesianGrid strokeDasharray="3 3" stroke="var(--border)" />
@@ -129,7 +138,11 @@ export default function LineChartPanel({
             axisLine={false}
             tickLine={false}
           />
-          <Tooltip content={renderTooltip} position={{ x: 16, y: 16 }} />
+          <Tooltip
+            active={chartHoverActive ? undefined : false}
+            content={renderTooltip}
+            position={{ x: 16, y: 16 }}
+          />
           <Legend
             wrapperStyle={{ fontSize: 13, color: "var(--text-secondary)" }}
           />
@@ -155,6 +168,7 @@ export default function LineChartPanel({
           />
         </LineChart>
       </ResponsiveContainer>
+      </div>
     </div>
   );
 }

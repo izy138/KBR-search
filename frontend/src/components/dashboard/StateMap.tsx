@@ -1,4 +1,4 @@
-import { type MouseEvent, useEffect, useState } from "react";
+import { type MouseEvent, useCallback, useEffect, useRef, useState } from "react";
 import { scaleThreshold } from "d3-scale";
 import {
   ComposableMap,
@@ -8,6 +8,7 @@ import {
 import type { Geography as GeographyType } from "react-simple-maps";
 import type { StateDataPoint } from "../../api";
 import { formatDollarsCompact } from "../../utils/format";
+import { getScrollableAncestors } from "../../utils/chartStyles";
 
 /** TopoJSON source — US states at 1:10m resolution */
 const GEO_URL = "https://cdn.jsdelivr.net/npm/us-atlas@3/states-10m.json";
@@ -139,6 +140,8 @@ export default function StateMap({
   const [tooltip, setTooltip] = useState<TooltipState | null>(null);
   const [hoveredState, setHoveredState] = useState<string | null>(null);
   const [mapClickedAbbrev, setMapClickedAbbrev] = useState<string | null>(null);
+  const mapCanvasRef = useRef<HTMLDivElement>(null);
+  const lastPointerRef = useRef<{ x: number; y: number } | null>(null);
 
   const normalizedSelectedAbbrev = selectedStateAbbrev.trim().toUpperCase();
 
@@ -168,10 +171,58 @@ export default function StateMap({
     y: clientY - 8,
   });
 
-  const clearHover = (): void => {
+  const clearHover = useCallback((): void => {
+    lastPointerRef.current = null;
     setHoveredState(null);
     setTooltip(null);
-  };
+  }, []);
+
+  useEffect(() => {
+    if (tooltip == null) return;
+
+    const syncTooltipWithPointer = (): void => {
+      const canvas = mapCanvasRef.current;
+      const last = lastPointerRef.current;
+      if (canvas == null || last == null) {
+        clearHover();
+        return;
+      }
+      const rect = canvas.getBoundingClientRect();
+      if (
+        last.x < rect.left ||
+        last.x > rect.right ||
+        last.y < rect.top ||
+        last.y > rect.bottom
+      ) {
+        clearHover();
+        return;
+      }
+      const underPointer = document.elementFromPoint(last.x, last.y);
+      if (!(underPointer instanceof Node) || !canvas.contains(underPointer)) {
+        clearHover();
+        return;
+      }
+      const { x, y } = tooltipOffset(last.x, last.y);
+      setTooltip((prev) => (prev ? { ...prev, x, y } : null));
+    };
+
+    const scrollTargets = mapCanvasRef.current
+      ? getScrollableAncestors(mapCanvasRef.current)
+      : [];
+    for (const target of scrollTargets) {
+      target.addEventListener("scroll", syncTooltipWithPointer, { passive: true });
+    }
+    window.addEventListener("resize", syncTooltipWithPointer, { passive: true });
+    window.addEventListener("wheel", syncTooltipWithPointer, { passive: true });
+
+    return () => {
+      for (const target of scrollTargets) {
+        target.removeEventListener("scroll", syncTooltipWithPointer);
+      }
+      window.removeEventListener("resize", syncTooltipWithPointer);
+      window.removeEventListener("wheel", syncTooltipWithPointer);
+    };
+  }, [tooltip, clearHover]);
 
   const isPointerStillOverMap = (
     event: MouseEvent<SVGPathElement>,
@@ -281,6 +332,7 @@ export default function StateMap({
           handleStateClick(geoName);
         }}
         onMouseEnter={(e) => {
+          lastPointerRef.current = { x: e.clientX, y: e.clientY };
           const { x, y } = tooltipOffset(e.clientX, e.clientY);
           setHoveredState(geoName);
           setTooltip({
@@ -292,6 +344,7 @@ export default function StateMap({
           });
         }}
         onMouseMove={(e) => {
+          lastPointerRef.current = { x: e.clientX, y: e.clientY };
           const { x, y } = tooltipOffset(e.clientX, e.clientY);
           setTooltip((prev) => (prev ? { ...prev, x, y } : null));
         }}
@@ -356,7 +409,7 @@ export default function StateMap({
   return (
     <div className="bg-surface border border-border rounded-[--radius-lg] w-full px-4 py-[0.9rem] min-h-[310px] relative">
       <div className="text-text-primary text-[0.9rem] font-semibold mb-1">Projects by State</div>
-      <div className="-mt-[0.2rem] relative" data-map-canvas onMouseLeave={clearHover}>
+      <div ref={mapCanvasRef} className="-mt-[0.2rem] relative" data-map-canvas onMouseLeave={clearHover}>
         <ComposableMap
           projection="geoAlbersUsa"
           projectionConfig={{ scale: 900 }}
