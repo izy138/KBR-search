@@ -1,18 +1,17 @@
-import { type FC, useEffect, useMemo, useState } from "react";
+import { type FC, useEffect, useState } from "react";
 import type { AdvancedSearchQuery } from "../../types/advancedSearch";
 import {
+  composeUnifiedSearch,
   createDefaultAdvancedSearchQuery,
-  formatAdvancedSearchQuery,
-  hasAdvancedSearchContent,
+  hasUnifiedAdvancedContent,
+  normalizeUnifiedSearch,
+  parseUnifiedSearch,
 } from "../../utils/advancedSearch";
 import { cn } from "../../utils/cn";
 import AdvancedSearchModal from "./AdvancedSearchModal";
 
 type SearchBarProps = {
   onSearch: (query: string) => void;
-  onAdvancedSearch?: (query: AdvancedSearchQuery) => void;
-  advancedSearch?: AdvancedSearchQuery | null;
-  onExitAdvancedSearch?: () => void;
   /** When set, shows a green "Update Dashboard" submit button; Search becomes a navigate action. */
   onUpdateDashboard?: (query: string) => void;
   initialQuery?: string;
@@ -28,9 +27,6 @@ type SearchBarProps = {
 
 const SearchBar: FC<SearchBarProps> = ({
   onSearch,
-  onAdvancedSearch,
-  advancedSearch = null,
-  onExitAdvancedSearch,
   onUpdateDashboard,
   initialQuery = "",
   submitOnClear = true,
@@ -42,45 +38,32 @@ const SearchBar: FC<SearchBarProps> = ({
   const [query, setQuery] = useState(initialQuery);
   const [advancedOpen, setAdvancedOpen] = useState(false);
   const isDashboardMode = onUpdateDashboard != null;
-  const advancedActive = advancedSearch != null && hasAdvancedSearchContent(advancedSearch);
-  const advancedSummary = useMemo(
-    () => (advancedSearch ? formatAdvancedSearchQuery(advancedSearch) : ""),
-    [advancedSearch],
-  );
+  const hasAdvancedInBar = hasUnifiedAdvancedContent(query);
 
   useEffect(() => {
-    if (!advancedActive) {
-      setQuery(initialQuery);
+    setQuery(initialQuery);
+  }, [initialQuery]);
+
+  const commitQuery = (raw: string) => {
+    const unified = normalizeUnifiedSearch(raw);
+    if (isDashboardMode) {
+      onUpdateDashboard(unified);
+    } else {
+      onSearch(unified);
     }
-  }, [initialQuery, advancedActive]);
+  };
 
   const handleSubmit = (event: React.FormEvent<HTMLFormElement>) => {
     event.preventDefault();
-    if (advancedActive) {
-      return;
-    }
-    if (isDashboardMode) {
-      onUpdateDashboard(query.trim());
-    } else {
-      onSearch(query.trim());
-    }
+    commitQuery(query);
   };
 
   const handleSearchClick = () => {
-    if (advancedActive) {
-      return;
-    }
-    onSearch(query.trim());
+    commitQuery(query);
   };
 
   const handleClear = () => {
-    if (advancedActive) {
-      onExitAdvancedSearch?.();
-      setQuery("");
-      if (!submitOnClear) return;
-      onSearch("");
-      return;
-    }
+    setAdvancedOpen(false);
     setQuery("");
     if (!submitOnClear) return;
     if (isDashboardMode) {
@@ -90,39 +73,55 @@ const SearchBar: FC<SearchBarProps> = ({
     }
   };
 
-  const handleAdvancedSubmit = (nextQuery: AdvancedSearchQuery) => {
-    onAdvancedSearch?.(nextQuery);
+  const handleAdvancedSubmit = (nextAdvanced: AdvancedSearchQuery) => {
+    const { plainQ } = parseUnifiedSearch(query);
+    setQuery(composeUnifiedSearch(nextAdvanced, plainQ));
+    setAdvancedOpen(false);
   };
 
-  const handleAdvancedToggle = () => {
-    if (advancedActive) {
-      onExitAdvancedSearch?.();
+  const handleAdvancedCheckboxChange = (checked: boolean) => {
+    if (checked) {
+      setAdvancedOpen(true);
       return;
     }
-    setAdvancedOpen(true);
+    setAdvancedOpen(false);
+    const { plainQ } = parseUnifiedSearch(query);
+    setQuery(plainQ);
   };
 
-  const modalInitialQuery = advancedSearch ?? createDefaultAdvancedSearchQuery(query.trim());
+  const modalInitialQuery = (() => {
+    const parsed = parseUnifiedSearch(query);
+    return parsed.advanced ?? createDefaultAdvancedSearchQuery(parsed.plainQ);
+  })();
+
   const useExpandedLayout = showAdvancedToggle || showSemanticToggle;
   const advancedToggleDisabled = semanticMode;
-  const semanticToggleDisabled = advancedActive;
+  const semanticToggleDisabled = hasAdvancedInBar;
+  const advancedCheckboxChecked = hasAdvancedInBar || advancedOpen;
 
-  const advancedButton =
-    showAdvancedToggle && onAdvancedSearch != null ? (
-      <button
-        type="button"
-        onClick={handleAdvancedToggle}
-        disabled={advancedToggleDisabled}
+  const advancedToggle =
+    showAdvancedToggle ? (
+      <label
         className={cn(
-          "shrink-0 cursor-pointer whitespace-nowrap rounded-sm border px-[0.65rem] py-[0.48rem] font-sans text-[14px] font-medium transition-colors duration-150",
+          "flex shrink-0 cursor-pointer select-none items-center gap-[0.35rem] rounded-sm border px-[0.55rem] py-[0.48rem] font-sans text-[14px] font-medium transition-colors duration-150",
           advancedToggleDisabled && "cursor-not-allowed opacity-50",
-          advancedActive
+          advancedCheckboxChecked
             ? "border-accent-hover bg-accent-hover text-white hover:bg-accent"
             : "border-accent bg-accent/30 text-black hover:border-accent-hover hover:bg-accent/40",
         )}
       >
-        {advancedActive ? "Simple" : "Advanced"}
-      </button>
+        <input
+          type="checkbox"
+          className={cn(
+            "h-[0.85rem] w-[0.85rem]",
+            advancedCheckboxChecked ? "accent-white" : "accent-accent",
+          )}
+          checked={advancedCheckboxChecked}
+          disabled={advancedToggleDisabled}
+          onChange={(e) => handleAdvancedCheckboxChange(e.target.checked)}
+        />
+        Advanced
+      </label>
     ) : null;
 
   const semanticToggle =
@@ -168,31 +167,25 @@ const SearchBar: FC<SearchBarProps> = ({
         </svg>
         <input
           type="text"
-          className={cn(
-            "min-w-0 flex-1 border-none bg-transparent py-[0.52rem] font-sans text-[14px] text-text-primary outline-none placeholder:text-text-muted",
-            advancedActive && "cursor-default text-text-secondary",
-          )}
+          className="min-w-0 flex-1 border-none bg-transparent py-[0.52rem] font-sans text-[14px] text-text-primary outline-none placeholder:text-text-muted"
           placeholder={
-            advancedActive
-              ? "Advanced search active"
-              : semanticMode
-                ? "Describe the research you are looking for…"
-                : "Search NIH projects by title, PI, keywords…"
+            semanticMode
+              ? "Describe the research you are looking for…"
+              : "Search NIH projects by title, PI, keywords…"
           }
-          value={advancedActive ? advancedSummary : query}
-          readOnly={advancedActive}
-          onClick={() => {
-            if (advancedActive) {
-              setAdvancedOpen(true);
-            }
-          }}
-          onChange={(e) => {
-            if (!advancedActive) {
-              setQuery(e.target.value);
-            }
-          }}
+          value={query}
+          onChange={(e) => setQuery(e.target.value)}
         />
-        {advancedActive || query ? (
+        {hasAdvancedInBar ? (
+          <button
+            type="button"
+            onClick={() => setAdvancedOpen(true)}
+            className="shrink-0 cursor-pointer border-none bg-transparent px-0.5 font-sans text-[13px] font-medium text-accent-text underline-offset-2 hover:underline"
+          >
+            Edit
+          </button>
+        ) : null}
+        {query ? (
           <button
             type="button"
             onClick={handleClear}
@@ -208,7 +201,7 @@ const SearchBar: FC<SearchBarProps> = ({
               type="submit"
               className="cursor-pointer whitespace-nowrap rounded-sm border-none bg-green px-[0.75rem] py-[0.38rem] font-sans text-sm font-medium text-white transition-colors duration-150 hover:brightness-110"
             >
-              Update Dashboard
+              Update
             </button>
             <button
               type="button"
@@ -233,14 +226,14 @@ const SearchBar: FC<SearchBarProps> = ({
     <>
       {useExpandedLayout ? (
         <div className="flex w-full min-w-0 items-center gap-2">
-          {advancedButton}
-          {searchForm}
           {semanticToggle}
+          {advancedToggle}
+          {searchForm}
         </div>
       ) : (
         searchForm
       )}
-      {showAdvancedToggle && onAdvancedSearch != null ? (
+      {showAdvancedToggle ? (
         <AdvancedSearchModal
           open={advancedOpen}
           initialQuery={modalInitialQuery}
