@@ -4,4 +4,15 @@ __pycache__/
 .mypy_cache/
 .venv/
 
-backend/indexer/data
+# Large data — mounted at runtime via docker-compose, not baked into the image
+indexer/data/
+indexer/OGdata/
+*.csv
+*.ndjson
+term_stats.json
+project_term_theme_counts.json
+unique_PROJECT_TERMS_tokens.txt
+
+# Not needed in the API container image
+*.ipynb
+.jupyter/

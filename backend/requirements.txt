@@ -1,6 +1,7 @@
 fastapi==0.136.1
 uvicorn[standard]==0.46.0
 pandas==3.0.2
+duckdb==1.2.2
 openpyxl==3.1.5
 opensearch-py==3.2.0
 python-dotenv==1.2.2

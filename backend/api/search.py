@@ -254,6 +254,40 @@ def _collect_search_hits(
     return hits
 
 
+def _collect_export_hits(
+    client: Any,
+    os_query: dict[str, object],
+    *,
+    max_rows: int,
+) -> list[dict[str, object]]:
+    """Scroll OpenSearch for APPLICATION_ID + FY keys that match the search."""
+    page_size = min(1_000, max_rows)
+    body: dict[str, object] = {
+        "size": page_size,
+        "query": os_query,
+        "_source": {"includes": ["APPLICATION_ID", "FY"]},
+    }
+    response = client.search(index=INDEX_NAME, body=body, scroll="2m")
+    scroll_id = response.get("_scroll_id")
+    hits: list[dict[str, object]] = list(response.get("hits", {}).get("hits", []))
+
+    try:
+        while len(hits) < max_rows and scroll_id:
+            response = client.scroll(scroll_id=scroll_id, scroll="2m")
+            batch = response.get("hits", {}).get("hits", [])
+            if not batch:
+                break
+            hits.extend(batch)
+    finally:
+        if scroll_id:
+            try:
+                client.clear_scroll(scroll_id=scroll_id)
+            except Exception:
+                pass
+
+    return hits[:max_rows]
+
+
 def _safe_export_filename(query_label: str) -> str:
     slug = re.sub(r"[^\w\-]+", "-", query_label.strip().lower()).strip("-")
     if not slug:
@@ -383,7 +417,10 @@ def export_search_csv(
     if not list_og_files():
         raise HTTPException(
             status_code=503,
-            detail="OGdata CSV files not found under backend/indexer/OGdata.",
+            detail=(
+                "OGdata CSV files not found under backend/indexer/OGdata. "
+                "Add files such as 2025_PROJECT.csv before exporting."
+            ),
         )
 
     client = get_client()
@@ -404,12 +441,7 @@ def export_search_csv(
         fy_max=fy_max,
     )
 
-    hits = _collect_search_hits(
-        client,
-        os_query,
-        max_rows=max_rows,
-        source_includes=["APPLICATION_ID", "FY"],
-    )
+    hits = _collect_export_hits(client, os_query, max_rows=max_rows)
     if not hits:
         raise HTTPException(status_code=404, detail="No results to export for this search.")
 
@@ -425,8 +457,7 @@ def export_search_csv(
             sample_fy = fy
         keys.append((app_id, fy))
 
-    og_rows = load_og_rows(keys)
-    export_rows = ordered_export_rows(hits, og_rows)
+    export_rows = ordered_export_rows(hits, load_og_rows(keys))
     fieldnames = resolve_export_columns(sample_fy)
     if not fieldnames:
         fieldnames = sorted(
