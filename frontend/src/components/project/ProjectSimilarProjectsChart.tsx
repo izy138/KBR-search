@@ -1,4 +1,5 @@
-import { useMemo } from "react";
+import { useCallback, useMemo } from "react";
+import { useNavigate } from "react-router-dom";
 import type { SearchResultRecord } from "../../api";
 import { recurrenceGroupKey } from "../../utils/recurrenceGrouping";
 import { cn } from "../../utils/cn";
@@ -92,7 +93,17 @@ export default function ProjectSimilarProjectsChart({
   loading,
   error,
 }: ProjectSimilarProjectsChartProps): React.ReactElement {
+  const navigate = useNavigate();
   const barFills = getSimilarChartBarFills();
+
+  const handleBarClick = useCallback(
+    (row: Record<string, unknown>) => {
+      const targetId = typeof row.project_id === "string" ? row.project_id.trim() : "";
+      if (!targetId || targetId === projectId) return;
+      navigate(`/projects/${encodeURIComponent(targetId)}`);
+    },
+    [navigate, projectId],
+  );
   const chartData = useMemo(() => {
     const fills = getSimilarChartBarFills();
     return buildComparePoints(currentProject, projectId, neighbors).map((item) => ({
@@ -175,6 +186,7 @@ export default function ProjectSimilarProjectsChart({
         layout="horizontal"
         formatter={formatCurrency}
         height={465}
+        onBarClick={handleBarClick}
       />
     </section>
   );

@@ -28,7 +28,13 @@ import {
   type SearchSortField,
 } from "./api";
 import HelpTooltip from "./components/shared/HelpTooltip";
-import { HELP_SEARCH } from "./utils/helpContent";
+import {
+  HELP_SEARCH,
+  HELP_SEARCH_FILTER_ACTIVITY,
+  HELP_SEARCH_FILTER_FY,
+  HELP_SEARCH_FILTER_IC,
+  HELP_SEARCH_FILTER_PI,
+} from "./utils/helpContent";
 import {
   formatAdvancedSearchQuery,
   hasAdvancedSearchContent,
@@ -640,6 +646,12 @@ export default function App() {
                 <Filters
                   applied={appliedFilters}
                   catalog={filterCatalog}
+                  fieldHelp={{
+                    pi: HELP_SEARCH_FILTER_PI,
+                    ic: HELP_SEARCH_FILTER_IC,
+                    activity: HELP_SEARCH_FILTER_ACTIVITY,
+                    fy: HELP_SEARCH_FILTER_FY,
+                  }}
                   searchQuery={searchQuery}
                   semanticMode={semanticSearchMode}
                   onSemanticModeChange={handleSemanticModeChange}
@@ -731,27 +743,27 @@ export default function App() {
                         )}
                         {exportingCsv ? "Preparing CSV…" : "Download CSV"}
                       </button>
-                              </div>
-                     <div className="min-w-[19.5rem] w-full flex items-center gap-3">         
-                    <FilterSelect
-                      compact
-                      includeEmptyOption={false}
-                      value={sortOption}
-                      onChange={handleSortOptionChange}
-                      options={SORT_SELECT_OPTIONS}
-                      placeholder="Sort"
-                      ariaLabel="Sort results"
-                    />
-                    <FilterSelect
-                      compact
-                      includeEmptyOption={false}
-                      value={String(resultsPerPage)}
-                      onChange={handlePerPageChange}
-                      options={PER_PAGE_SELECT_OPTIONS}
-                      placeholder="Per page"
-                      ariaLabel="Results per page"
-                                />
-                                </div>
+                    </div>
+                    <div className="min-w-[19.5rem] w-full flex items-center gap-3">
+                      <FilterSelect
+                        compact
+                        includeEmptyOption={false}
+                        value={sortOption}
+                        onChange={handleSortOptionChange}
+                        options={SORT_SELECT_OPTIONS}
+                        placeholder="Sort"
+                        ariaLabel="Sort results"
+                      />
+                      <FilterSelect
+                        compact
+                        includeEmptyOption={false}
+                        value={String(resultsPerPage)}
+                        onChange={handlePerPageChange}
+                        options={PER_PAGE_SELECT_OPTIONS}
+                        placeholder="Per page"
+                        ariaLabel="Results per page"
+                      />
+                    </div>
                   </div>
                 </div>
 

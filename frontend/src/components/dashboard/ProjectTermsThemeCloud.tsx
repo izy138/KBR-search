@@ -1,6 +1,8 @@
 import { useState, type KeyboardEvent, type ReactElement } from "react";
 import type { ProjectTermThemeCloudResponse, TermNode } from "../../api";
+import HelpTooltip from "../shared/HelpTooltip";
 import { cn } from "../../utils/cn";
+import { HELP_DASHBOARD_TERM_THEMES } from "../../utils/helpContent";
 
 type Props = {
   payload: ProjectTermThemeCloudResponse;
@@ -435,12 +437,14 @@ export default function ProjectTermsThemeCloud({ payload, onSearch }: Props): Re
 
   return (
     <div className="bg-surface border border-border rounded-[--radius-lg] w-full px-4 py-[0.9rem] min-h-0">
-      <div className="flex items-start justify-between gap-3 flex-wrap mb-[0.35rem]">
+      <div className="flex items-center gap-2 flex-wrap mb-[0.35rem]">
         <h3 className="text-text-primary text-[0.9rem] font-semibold mb-0">Project term themes</h3>
+        <HelpTooltip label={HELP_DASHBOARD_TERM_THEMES.label} placement="after">
+          {HELP_DASHBOARD_TERM_THEMES.body}
+        </HelpTooltip>
       </div>
       <p className="text-text-secondary text-[0.75rem] leading-[1.45] m-0 mb-2">
-        Click a category, then a subcategory to browse terms. Add categories in{" "}
-        <code className="text-[0.7rem]">build_project_term_theme_counts.py</code>.
+        Click a category, then a subcategory to browse terms.
       </p>
 
       {buckets.length === 0 ? (

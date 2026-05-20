@@ -35,7 +35,13 @@ import { buildIcProjectsHybridAxisScale } from "../../utils/chartAxis";
 import { formatDollarsCompact } from "../../utils/format";
 import { cn } from "../../utils/cn";
 import HelpTooltip from "../shared/HelpTooltip";
-import { HELP_DASHBOARD } from "../../utils/helpContent";
+import {
+  HELP_DASHBOARD,
+  HELP_DASHBOARD_FILTER_ACTIVITY,
+  HELP_DASHBOARD_FILTER_FY,
+  HELP_DASHBOARD_FILTER_IC,
+  HELP_DASHBOARD_FILTER_PI,
+} from "../../utils/helpContent";
 
 // ─── Formatting helpers ───────────────────────────────────────────────────────
 
@@ -581,6 +587,12 @@ export default function Dashboard({
           activityCodes,
           states,
           fiscalYearOptions: filterCatalog.fiscalYearOptions,
+        }}
+        fieldHelp={{
+          pi: HELP_DASHBOARD_FILTER_PI,
+          ic: HELP_DASHBOARD_FILTER_IC,
+          activity: HELP_DASHBOARD_FILTER_ACTIVITY,
+          fy: HELP_DASHBOARD_FILTER_FY,
         }}
         searchQuery={searchQuery}
         onSearch={onSearchNavigate}

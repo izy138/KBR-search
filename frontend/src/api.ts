@@ -78,7 +78,6 @@ export interface SearchResultRecord {
 export interface SearchResponse {
   query: string;
   project_terms?: string[];
-  exclude_project_terms?: string[];
   limit: number;
   total: number;
   visible_total?: number;
