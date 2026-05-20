@@ -30,3 +30,7 @@
   --font-sans: 'DM Sans', sans-serif;
   --font-mono: 'DM Mono', monospace;
 }
+
+html {
+  zoom: 0.9;
+}

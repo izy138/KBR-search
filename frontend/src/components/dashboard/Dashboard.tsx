@@ -245,39 +245,10 @@ export default function Dashboard({
   const [refreshing, setRefreshing] = useState(false);
   /** Log (hybrid) vs linear scale for Projects by Institute (IC); defaults log, linear when state/activity filtered. */
   const [icProjectsLogScale, setIcProjectsLogScale] = useState(true);
-  const mapMeasureRef = useRef<HTMLDivElement>(null);
-  const [mapMeasureHeight, setMapMeasureHeight] = useState<number | undefined>();
   const [filterActivityHover, setFilterActivityHover] = useState<string | null>(null);
 
   const hasIcFilter = Boolean(appliedFilters.ic);
   const hasActivityFilter = Boolean(appliedFilters.activity);
-
-  useEffect(() => {
-    const measureEl = mapMeasureRef.current;
-    if (!measureEl) return;
-
-    const updateHeight = (): void => {
-      setMapMeasureHeight(measureEl.getBoundingClientRect().height);
-    };
-
-    updateHeight();
-
-    const observer = new ResizeObserver(updateHeight);
-    observer.observe(measureEl);
-    window.addEventListener("resize", updateHeight);
-
-    return () => {
-      observer.disconnect();
-      window.removeEventListener("resize", updateHeight);
-    };
-  }, [data?.stateData, refreshing]);
-
-  const measuredSlotStyle =
-    mapMeasureHeight != null
-      ? { height: mapMeasureHeight, maxHeight: mapMeasureHeight }
-      : undefined;
-
-  const mainChartSlotStyle = measuredSlotStyle;
 
   const analyticsOptions = useMemo(
     () => toAnalyticsFilterOptions(appliedFilters, searchQuery),
@@ -652,15 +623,15 @@ export default function Dashboard({
       </div>
 
       {/* State map + main chart slot (IC projects or top orgs when IC filtered) */}
-      <div className="grid grid-cols-3 gap-3 w-full max-w-full min-w-0 max-[768px]:grid-cols-1">
-        <div ref={mapMeasureRef} className="col-start-1 row-start-1 self-start min-w-0 max-[768px]:col-auto max-[768px]:row-auto">
+      <div className="grid grid-cols-3 gap-3 items-stretch w-full max-w-full min-w-0 max-[768px]:grid-cols-1">
+        <div className="col-start-1 row-start-1 flex min-h-0 min-w-0 flex-col h-full max-[768px]:col-auto max-[768px]:row-auto">
           <StateMap
             data={stateData}
             selectedStateAbbrev={appliedFilters.state}
             onStateSelect={handleMapStateSelect}
           />
         </div>
-        <div className="col-start-2 col-end-[-1] row-start-1 self-start min-w-0 overflow-hidden w-full max-w-full max-[768px]:col-auto max-[768px]:row-auto" style={mainChartSlotStyle}>
+        <div className="col-start-2 col-end-[-1] row-start-1 flex min-h-0 min-w-0 h-full flex-col overflow-hidden w-full max-w-full max-[768px]:col-auto max-[768px]:row-auto">
           {hasIcFilter ? topOrgsPanelMainSlot : icProjectsPanel}
         </div>
         <div className="col-span-full row-start-2 grid grid-cols-2 gap-3 items-stretch min-w-0 max-[768px]:grid-cols-1 max-[768px]:col-auto max-[768px]:row-auto">

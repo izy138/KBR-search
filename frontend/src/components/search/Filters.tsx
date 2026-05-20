@@ -24,11 +24,11 @@ export type FilterFieldHelpKey = "pi" | "ic" | "org" | "activity" | "fy";
 export type FilterFieldHelp = Partial<Record<FilterFieldHelpKey, HelpTooltipContent>>;
 
 const FILTER_FIELD_WIDTH = {
-  pi: "w-[280px] max-[1100px]:flex-1 max-[1100px]:min-w-[140px]",
-  ic: "w-[280px] max-[1100px]:flex-1 max-[1100px]:min-w-[130px]",
-  org: "w-[280px] max-[1100px]:flex-1 max-[1100px]:min-w-[130px]",
-  activity: "w-[165px] max-[1100px]:min-w-[110px]",
-  state: "w-[165px] max-[1100px]:min-w-[100px]",
+  pi: "w-[260px] max-[1100px]:flex-1 max-[1100px]:min-w-[140px]",
+  ic: "w-[260px] max-[1100px]:flex-1 max-[1100px]:min-w-[130px]",
+  org: "w-[260px] max-[1100px]:flex-1 max-[1100px]:min-w-[130px]",
+  activity: "w-[145px] max-[1100px]:min-w-[110px]",
+  state: "w-[145px] max-[1100px]:min-w-[100px]",
   fiscalYear: "w-[min(100%,220px)] shrink-0",
 } as const;
 
