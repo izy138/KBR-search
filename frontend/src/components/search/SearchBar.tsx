@@ -124,7 +124,7 @@ const SearchBar: FC<SearchBarProps> = ({
         />
         Advanced
       </label>
-      <HelpTooltip label={HELP_SEARCH_ADVANCED.label} placement="after">
+      <HelpTooltip label={HELP_SEARCH_ADVANCED.label}>
         {HELP_SEARCH_ADVANCED.body}
       </HelpTooltip>
     </div>
@@ -154,7 +154,7 @@ const SearchBar: FC<SearchBarProps> = ({
           />
           Semantic
         </label>
-        <HelpTooltip label={HELP_SEARCH_SEMANTIC.label} placement="after">
+        <HelpTooltip label={HELP_SEARCH_SEMANTIC.label}>
           {HELP_SEARCH_SEMANTIC.body}
         </HelpTooltip>
       </div>

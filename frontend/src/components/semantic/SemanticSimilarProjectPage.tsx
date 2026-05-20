@@ -11,6 +11,8 @@ type SemanticSimilarProjectPageProps = {
   /** Optional; kept for callers that support chaining similarity from another grant. */
   onOpenSimilarFor?: (projectId: string) => void;
   onOpenInvestigator?: (name: string) => void;
+  onOpenOrganization?: (name: string) => void;
+  onOpenInstitution?: (name: string) => void;
 };
 
 const CLS_LINKISH =
@@ -36,6 +38,8 @@ export default function SemanticSimilarProjectPage({
   onBackToLab,
   onOpenFullProject,
   onOpenInvestigator,
+  onOpenOrganization,
+  onOpenInstitution,
 }: SemanticSimilarProjectPageProps): JSX.Element {
   const [anchor, setAnchor] = useState<SearchResultRecord | null>(null);
   const [neighbors, setNeighbors] = useState<SearchResultRecord[]>([]);
@@ -160,6 +164,8 @@ export default function SemanticSimilarProjectPage({
             loading={loading}
             onOpenDetails={handleOpenFromRow}
             onOpenInvestigator={onOpenInvestigator}
+            onOpenOrganization={onOpenOrganization}
+            onOpenInstitution={onOpenInstitution}
           />
         </section>
       ) : null}

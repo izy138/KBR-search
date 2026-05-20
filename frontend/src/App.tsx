@@ -10,7 +10,9 @@ import {
 } from "react";
 import { useTheme } from "./hooks/useTheme";
 import { useProjectDetails } from "./hooks/useProjectDetails";
-import { useInvestigatorProjects, INVESTIGATOR_PER_PAGE } from "./hooks/useInvestigatorProjects";
+import { useInvestigatorProjects, ENTITY_LIST_PER_PAGE } from "./hooks/useInvestigatorProjects";
+import { useOrganizationProjects } from "./hooks/useOrganizationProjects";
+import { useInstitutionProjects } from "./hooks/useInstitutionProjects";
 import { useSearch } from "./hooks/useSearch";
 import { readInitialSearchFromWindow, useSearchUrlSync } from "./hooks/useSearchUrlSync";
 import { matchPath, useLocation, useNavigate } from "react-router-dom";
@@ -100,6 +102,8 @@ export default function App() {
     () => initialSearchUrl?.columnSort ?? { column: null, direction: "none" },
   );
   const [investigatorPage, setInvestigatorPage] = useState(1);
+  const [organizationPage, setOrganizationPage] = useState(1);
+  const [institutionPage, setInstitutionPage] = useState(1);
   const [exportingCsv, setExportingCsv] = useState(false);
   const [exportCsvError, setExportCsvError] = useState<string | null>(null);
   const [showScrollTop, setShowScrollTop] = useState(false);
@@ -127,10 +131,20 @@ export default function App() {
   const selectedInvestigatorName = investigatorRouteMatch?.params.investigatorName
     ? decodeURIComponent(investigatorRouteMatch.params.investigatorName)
     : null;
+  const organizationRouteMatch = matchPath("/organizations/:organizationName", location.pathname);
+  const selectedOrganizationName = organizationRouteMatch?.params.organizationName
+    ? decodeURIComponent(organizationRouteMatch.params.organizationName)
+    : null;
+  const institutionRouteMatch = matchPath("/institutions/:institutionName", location.pathname);
+  const selectedInstitutionName = institutionRouteMatch?.params.institutionName
+    ? decodeURIComponent(institutionRouteMatch.params.institutionName)
+    : null;
   const searchEnabled =
     isSearchRoute
     && !selectedProjectId
     && !selectedInvestigatorName
+    && !selectedOrganizationName
+    && !selectedInstitutionName
     && !semanticSimilarProjectId
     && !isSemanticHub;
 
@@ -227,11 +241,35 @@ export default function App() {
     total: investigatorTotal,
     visibleTotal: investigatorVisibleTotal,
   } = useInvestigatorProjects(selectedInvestigatorName, investigatorPage);
+  const {
+    results: organizationResults,
+    loading: organizationLoading,
+    error: organizationError,
+    total: organizationTotal,
+    visibleTotal: organizationVisibleTotal,
+  } = useOrganizationProjects(selectedOrganizationName, organizationPage);
+  const {
+    results: institutionResults,
+    loading: institutionLoading,
+    error: institutionError,
+    total: institutionTotal,
+    visibleTotal: institutionVisibleTotal,
+  } = useInstitutionProjects(selectedInstitutionName, institutionPage);
   const investigatorTotalPages = Math.max(
     1,
-    Math.ceil(investigatorVisibleTotal / INVESTIGATOR_PER_PAGE),
+    Math.ceil(investigatorVisibleTotal / ENTITY_LIST_PER_PAGE),
   );
   const investigatorPageNumbers = getPageNumbers(investigatorPage, investigatorTotalPages);
+  const organizationTotalPages = Math.max(
+    1,
+    Math.ceil(organizationVisibleTotal / ENTITY_LIST_PER_PAGE),
+  );
+  const organizationPageNumbers = getPageNumbers(organizationPage, organizationTotalPages);
+  const institutionTotalPages = Math.max(
+    1,
+    Math.ceil(institutionVisibleTotal / ENTITY_LIST_PER_PAGE),
+  );
+  const institutionPageNumbers = getPageNumbers(institutionPage, institutionTotalPages);
 
   const totalPages = Math.max(1, Math.ceil(visibleTotal / resultsPerPage));
   const pageNumbers = getPageNumbers(currentPage, totalPages);
@@ -462,6 +500,14 @@ export default function App() {
     setInvestigatorPage(1);
     navigate(`/investigators/${encodeURIComponent(name)}`);
   };
+  const handleOpenOrganization = (name: string): void => {
+    setOrganizationPage(1);
+    navigate(`/organizations/${encodeURIComponent(name)}`);
+  };
+  const handleOpenInstitution = (name: string): void => {
+    setInstitutionPage(1);
+    navigate(`/institutions/${encodeURIComponent(name)}`);
+  };
 
   const handleScrollToTop = () => {
     window.scrollTo({
@@ -505,7 +551,11 @@ export default function App() {
             type="button"
             className={
               "px-3 py-[0.35rem] rounded-sm border-none font-sans text-[13px] font-medium cursor-pointer transition-[color,background] duration-150 hover:text-text-primary hover:bg-surface-hover" +
-              ((isSearchRoute || selectedProjectId || selectedInvestigatorName) && !isSemanticRoute
+              ((isSearchRoute
+                || selectedProjectId
+                || selectedInvestigatorName
+                || selectedOrganizationName
+                || selectedInstitutionName) && !isSemanticRoute
                 ? " text-accent-text bg-accent-light"
                 : " bg-transparent text-text-muted")
             }
@@ -584,6 +634,8 @@ export default function App() {
                 onBackToLab={() => navigate("/semantic")}
                 onOpenFullProject={(id) => navigate(`/projects/${encodeURIComponent(id)}`)}
                 onOpenInvestigator={handleOpenInvestigator}
+                onOpenOrganization={handleOpenOrganization}
+                onOpenInstitution={handleOpenInstitution}
               />
             ) : isSemanticHub ? (
               <SemanticVectorLabPage />
@@ -625,6 +677,42 @@ export default function App() {
                   </button>
                 </div>
               )
+            ) : selectedOrganizationName ? (
+              <InvestigatorPage
+                investigatorName={selectedOrganizationName}
+                loading={organizationLoading}
+                error={organizationError}
+                results={organizationResults}
+                visibleTotal={organizationVisibleTotal}
+                total={organizationTotal}
+                currentPage={organizationPage}
+                totalPages={organizationTotalPages}
+                pageNumbers={organizationPageNumbers}
+                onOpenDetails={handleOpenDetails}
+                onOpenInvestigator={handleOpenInvestigator}
+                onOpenOrganization={handleOpenOrganization}
+                onOpenInstitution={handleOpenInstitution}
+                onPageChange={setOrganizationPage}
+                onBack={handleBackToSearch}
+              />
+            ) : selectedInstitutionName ? (
+              <InvestigatorPage
+                investigatorName={selectedInstitutionName}
+                loading={institutionLoading}
+                error={institutionError}
+                results={institutionResults}
+                visibleTotal={institutionVisibleTotal}
+                total={institutionTotal}
+                currentPage={institutionPage}
+                totalPages={institutionTotalPages}
+                pageNumbers={institutionPageNumbers}
+                onOpenDetails={handleOpenDetails}
+                onOpenInvestigator={handleOpenInvestigator}
+                onOpenOrganization={handleOpenOrganization}
+                onOpenInstitution={handleOpenInstitution}
+                onPageChange={setInstitutionPage}
+                onBack={handleBackToSearch}
+              />
             ) : selectedInvestigatorName ? (
               <InvestigatorPage
                 investigatorName={selectedInvestigatorName}
@@ -638,6 +726,8 @@ export default function App() {
                 pageNumbers={investigatorPageNumbers}
                 onOpenDetails={handleOpenDetails}
                 onOpenInvestigator={handleOpenInvestigator}
+                onOpenOrganization={handleOpenOrganization}
+                onOpenInstitution={handleOpenInstitution}
                 onPageChange={setInvestigatorPage}
                 onBack={handleBackToSearch}
               />
@@ -779,6 +869,8 @@ export default function App() {
                   loading={loading}
                   onOpenDetails={handleOpenDetails}
                   onOpenInvestigator={handleOpenInvestigator}
+                  onOpenOrganization={handleOpenOrganization}
+                  onOpenInstitution={handleOpenInstitution}
                   sort={columnSort}
                   onSortChange={
                     semanticSearchMode && semanticSearchCommitted

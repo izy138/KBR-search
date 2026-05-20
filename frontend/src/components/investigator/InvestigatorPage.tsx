@@ -13,7 +13,9 @@ type InvestigatorPageProps = {
   totalPages: number;
   pageNumbers: Array<number | "...">;
   onOpenDetails: (item: SearchResultRecord) => void;
-  onOpenInvestigator: (name: string) => void;
+  onOpenInvestigator?: (name: string) => void;
+  onOpenOrganization?: (name: string) => void;
+  onOpenInstitution?: (name: string) => void;
   onPageChange: (page: number) => void;
   onBack: () => void;
 };
@@ -30,6 +32,8 @@ export default function InvestigatorPage({
   pageNumbers,
   onOpenDetails,
   onOpenInvestigator,
+  onOpenOrganization,
+  onOpenInstitution,
   onPageChange,
   onBack,
 }: InvestigatorPageProps) {
@@ -64,6 +68,8 @@ export default function InvestigatorPage({
           loading={loading}
           onOpenDetails={onOpenDetails}
           onOpenInvestigator={onOpenInvestigator}
+          onOpenOrganization={onOpenOrganization}
+          onOpenInstitution={onOpenInstitution}
         />
       )}
 

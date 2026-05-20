@@ -120,6 +120,22 @@ export interface InvestigatorProjectsResponse {
   results: SearchResultRecord[];
 }
 
+export interface OrganizationProjectsResponse {
+  organization_name: string;
+  limit: number;
+  total: number;
+  visible_total?: number;
+  results: SearchResultRecord[];
+}
+
+export interface InstitutionProjectsResponse {
+  institution_name: string;
+  limit: number;
+  total: number;
+  visible_total?: number;
+  results: SearchResultRecord[];
+}
+
 export interface AnalyticsCategory {
   label: string;
   value: number;
@@ -344,6 +360,36 @@ export async function getProjectsByInvestigator(
     throw new Error(`Investigator request failed: ${response.status}`);
   }
   return response.json() as Promise<InvestigatorProjectsResponse>;
+}
+
+export async function getProjectsByOrganization(
+  organizationName: string,
+  options: { limit?: number; page?: number } = {},
+): Promise<OrganizationProjectsResponse> {
+  const { limit = 25, page = 1 } = options;
+  const url = new URL(`${API_BASE_URL}/search/organization/${encodeURIComponent(organizationName)}`);
+  url.searchParams.set("limit", String(limit));
+  url.searchParams.set("page", String(page));
+  const response = await fetch(url.toString());
+  if (!response.ok) {
+    throw new Error(`Organization request failed: ${response.status}`);
+  }
+  return response.json() as Promise<OrganizationProjectsResponse>;
+}
+
+export async function getProjectsByInstitution(
+  institutionName: string,
+  options: { limit?: number; page?: number } = {},
+): Promise<InstitutionProjectsResponse> {
+  const { limit = 25, page = 1 } = options;
+  const url = new URL(`${API_BASE_URL}/search/institution/${encodeURIComponent(institutionName)}`);
+  url.searchParams.set("limit", String(limit));
+  url.searchParams.set("page", String(page));
+  const response = await fetch(url.toString());
+  if (!response.ok) {
+    throw new Error(`Institution request failed: ${response.status}`);
+  }
+  return response.json() as Promise<InstitutionProjectsResponse>;
 }
 
 // ─── Analytics dashboard interfaces ─────────────────────────────────────────

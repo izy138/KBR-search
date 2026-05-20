@@ -18,7 +18,7 @@ const FilterField: FC<FilterFieldProps> = ({ label, help, children, className })
           {label}
         </span>
         {help ? (
-          <HelpTooltip label={help.label} placement="after">
+          <HelpTooltip label={help.label}>
             {help.body}
           </HelpTooltip>
         ) : null}

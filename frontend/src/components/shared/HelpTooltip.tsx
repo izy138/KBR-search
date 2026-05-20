@@ -15,7 +15,7 @@ const VIEWPORT_PAD = 12;
 const PANEL_GAP = 6;
 const PANEL_MAX_WIDTH_PX = 296;
 
-type HelpTooltipPlacement = "after" | "before";
+type HelpTooltipPlacement = "below" | "after" | "before";
 
 type HelpTooltipProps = {
   label: string;
@@ -45,6 +45,19 @@ function clampPanelPosition(
   const width = Math.min(panelWidth, maxWidth);
   const height = Math.min(panelHeight, maxHeight);
 
+  if (placement === "below") {
+    let left = anchor.left + (anchor.width - width) / 2;
+    left = Math.max(pad, Math.min(left, vw - pad - width));
+
+    let top = anchor.bottom + PANEL_GAP;
+    if (top + height > vh - pad) {
+      top = anchor.top - PANEL_GAP - height;
+    }
+    top = Math.max(pad, Math.min(top, vh - pad - height));
+
+    return { top, left, maxWidth, maxHeight };
+  }
+
   let left =
     placement === "after"
       ? anchor.right + PANEL_GAP
@@ -68,7 +81,7 @@ export default function HelpTooltip({
   label,
   children,
   className,
-  placement = "after",
+  placement = "below",
 }: HelpTooltipProps) {
   const tooltipId = useId();
   const rootRef = useRef<HTMLDivElement>(null);
