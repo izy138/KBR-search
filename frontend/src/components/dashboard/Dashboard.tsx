@@ -40,6 +40,7 @@ import {
   HELP_DASHBOARD_FILTER_ACTIVITY,
   HELP_DASHBOARD_FILTER_FY,
   HELP_DASHBOARD_FILTER_IC,
+  HELP_DASHBOARD_FILTER_ORG,
   HELP_DASHBOARD_FILTER_PI,
 } from "../../utils/helpContent";
 
@@ -202,6 +203,7 @@ type DashboardProps = {
   onApplyFilters: (filters: FilterValues) => void;
   onClearFilters: () => void;
   onTermSearchNavigate: (terms: string[]) => void;
+  onYearSearchNavigate: (year: number) => void;
 };
 
 // ─── KPI card subcomponent ────────────────────────────────────────────────────
@@ -234,6 +236,7 @@ export default function Dashboard({
   onApplyFilters,
   onClearFilters,
   onTermSearchNavigate,
+  onYearSearchNavigate,
 }: DashboardProps) {
   const hasLoadedOnceRef = useRef(false);
   const [data, setData] = useState<DashboardData | null>(null);
@@ -287,6 +290,7 @@ export default function Dashboard({
         searchQuery.trim()
         || appliedFilters.pi
         || appliedFilters.ic
+        || appliedFilters.org
         || appliedFilters.activity
         || appliedFilters.state
         || appliedFilters.fyMin
@@ -324,6 +328,25 @@ export default function Dashboard({
       || "";
     if (institute) {
       onApplyFilters({ ...appliedFilters, ic: institute });
+    }
+  };
+
+  const handleYearClick = useCallback(
+    (point: YearDataPoint) => {
+      if (point.year != null) {
+        onYearSearchNavigate(point.year);
+      }
+    },
+    [onYearSearchNavigate],
+  );
+
+  const handleTopOrgBarClick = (row: Record<string, unknown>) => {
+    const org =
+      (typeof row.full_label === "string" && row.full_label.trim())
+      || (typeof row.label === "string" && row.label.trim())
+      || "";
+    if (org) {
+      onApplyFilters({ ...appliedFilters, org });
     }
   };
 
@@ -435,7 +458,7 @@ export default function Dashboard({
   }
 
   const { summary, stateData, activityPie, termThemeCloud, yearData, topOrgs, avgGrant } = data;
-  const { icNames, activityCodes, states } = filterCatalog;
+  const { icNames, orgNames, activityCodes, states } = filterCatalog;
 
   const avgGrantValue =
     summary.total_documents > 0
@@ -464,6 +487,7 @@ export default function Dashboard({
     labelKey: "short_label",
     tooltipLabelKey: "full_label",
     formatter: formatDollarsCompact,
+    onBarClick: handleTopOrgBarClick,
   };
 
   const topOrgsPanelMainSlot = (
@@ -548,6 +572,7 @@ export default function Dashboard({
     searchQuery,
     appliedFilters.pi,
     appliedFilters.ic,
+    appliedFilters.org,
     appliedFilters.activity,
     appliedFilters.state,
     appliedFilters.fyMin,
@@ -564,6 +589,7 @@ export default function Dashboard({
     const parts: string[] = [];
     if (searchQuery.trim()) parts.push(`"${searchQuery.trim()}"`);
     if (appliedFilters.ic) parts.push(appliedFilters.ic);
+    if (appliedFilters.org) parts.push(appliedFilters.org);
     if (appliedFilters.state) parts.push(appliedFilters.state);
     if (appliedFilters.pi) parts.push(`PI: ${appliedFilters.pi}`);
     if (appliedFilters.fyMin || appliedFilters.fyMax) {
@@ -594,6 +620,7 @@ export default function Dashboard({
         applied={appliedFilters}
         catalog={{
           icNames,
+          orgNames,
           activityCodes,
           states,
           fiscalYearOptions: filterCatalog.fiscalYearOptions,
@@ -601,6 +628,7 @@ export default function Dashboard({
         fieldHelp={{
           pi: HELP_DASHBOARD_FILTER_PI,
           ic: HELP_DASHBOARD_FILTER_IC,
+          org: HELP_DASHBOARD_FILTER_ORG,
           activity: HELP_DASHBOARD_FILTER_ACTIVITY,
           fy: HELP_DASHBOARD_FILTER_FY,
         }}
@@ -643,6 +671,7 @@ export default function Dashboard({
               data={yearData}
               height={YEAR_LINE_CHART_HEIGHT}
               formatter={formatDollarsCompact}
+              onYearClick={handleYearClick}
             />
           </div>
           <div className="flex flex-col min-w-0">{fundingByYearOrOrgsPanel}</div>

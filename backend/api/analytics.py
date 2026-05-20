@@ -406,6 +406,7 @@ def analytics_by_state(
       "total_funding": b.get("total_funding", {}).get("value", 0.0),
     }
     for b in buckets
+    if str(b.get("key", "")).strip()
   ]
   results.sort(key=lambda x: x["total_funding"], reverse=True)
   return results
@@ -464,6 +465,39 @@ def analytics_by_ic(
   counts = {b["key"]: b["doc_count"] for b in fy_buckets}
 
   return [{"label": b["key"], "value": counts.get(b["key"], 0)} for b in all_buckets]
+
+
+@router.get("/by-org")
+def analytics_by_org(
+  scope: Annotated[AnalyticsScope, Depends(analytics_scope)],
+  limit: int = Query(default=100, ge=1, le=500, description="Max organizations to return"),
+  min_projects: int = Query(
+    default=5001,
+    ge=1,
+    description="Minimum indexed awards per org (5001 = more than 5,000 projects)",
+  ),
+) -> list[dict[str, object]]:
+  client = get_client()
+  body = with_query_filters(
+    {
+      "size": 0,
+      "aggs": {
+        "all_orgs": {
+          "terms": {
+            "field": "ORG_NAME.keyword",
+            "size": limit,
+            "min_doc_count": min_projects,
+            "order": {"_count": "desc"},
+          },
+        },
+      },
+    },
+    scope.filters,
+    **analytics_scope_keyword_kwargs(scope),
+  )
+  response = client.search(index=INDEX_NAME, body=body)
+  buckets = response.get("aggregations", {}).get("all_orgs", {}).get("buckets", [])
+  return [{"label": b["key"], "value": b["doc_count"]} for b in buckets]
 
 
 def _activity_funding_buckets(

@@ -15,6 +15,7 @@ import { cn } from "../../utils/cn";
 export type FilterSelectOption = {
   value: string;
   label: string;
+  disabled?: boolean;
 };
 
 export type FilterSelectProps = {
@@ -157,21 +158,29 @@ const FilterSelect: FC<FilterSelectProps> = ({
           {flatOptions.map((opt, index) => {
             const isSelected = opt.value === value;
             const spanFullRow = cols >= 2 && index === 0;
+            const isDisabled = Boolean(opt.disabled);
             return (
               <button
                 key={opt.value === "" ? "__all__" : opt.value}
                 type="button"
                 role="option"
                 aria-selected={isSelected}
-                className={cn("filter-select-option", spanFullRow && "filter-select-option--grid-span")}
+                aria-disabled={isDisabled || undefined}
+                disabled={isDisabled}
+                className={cn(
+                  "filter-select-option",
+                  spanFullRow && "filter-select-option--grid-span",
+                  isDisabled && "filter-select-option--disabled",
+                )}
                 title={opt.label}
                 onMouseEnter={() => {
-                  if (opt.value !== "") {
+                  if (opt.value !== "" && !isDisabled) {
                     onOptionPointerEnter?.(opt);
                   }
                 }}
                 onMouseLeave={() => onOptionPointerLeave?.()}
                 onClick={() => {
+                  if (isDisabled) return;
                   onChange(opt.value);
                   closeDropdown();
                   triggerRef.current?.focus();

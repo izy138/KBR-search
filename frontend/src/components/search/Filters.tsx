@@ -1,12 +1,18 @@
 import { type ReactNode, useCallback, useMemo } from "react";
+import {
+  normalizeStateFacetKey,
+  useCascadingFilterAvailability,
+} from "../../hooks/useCascadingFilterAvailability";
 import { useFilterDraft } from "../../hooks/useFilterDraft";
 import type { FilterValues } from "../../types/filters";
 import { normalizeFiltersOnApply } from "../../types/filters";
+import { buildCascadingSelectOptions } from "../../utils/cascadingFilterOptions";
 import {
   formatAllCapsLabel,
   formatDropdownLabel,
   resolveFiscalYearChoices,
 } from "../../utils/filterLabels";
+import type { FilterSelectOption } from "./FilterSelect";
 import FilterField from "./FilterField";
 import FilterSelect from "./FilterSelect";
 import FiscalYearRangeSlider from "./FiscalYearRangeSlider";
@@ -14,12 +20,13 @@ import { cn } from "../../utils/cn";
 import type { HelpTooltipContent } from "../../utils/helpContent";
 import SearchBar from "./SearchBar";
 
-export type FilterFieldHelpKey = "pi" | "ic" | "activity" | "fy";
+export type FilterFieldHelpKey = "pi" | "ic" | "org" | "activity" | "fy";
 export type FilterFieldHelp = Partial<Record<FilterFieldHelpKey, HelpTooltipContent>>;
 
 const FILTER_FIELD_WIDTH = {
   pi: "w-[280px] max-[1100px]:flex-1 max-[1100px]:min-w-[140px]",
   ic: "w-[280px] max-[1100px]:flex-1 max-[1100px]:min-w-[130px]",
+  org: "w-[280px] max-[1100px]:flex-1 max-[1100px]:min-w-[130px]",
   activity: "w-[165px] max-[1100px]:min-w-[110px]",
   state: "w-[165px] max-[1100px]:min-w-[100px]",
   fiscalYear: "w-[min(100%,220px)] shrink-0",
@@ -29,12 +36,13 @@ export type { FilterValues } from "../../types/filters";
 
 export type FilterCatalog = {
   icNames: string[];
+  orgNames: string[];
   activityCodes: string[];
   states: string[];
   fiscalYearOptions?: number[];
 };
 
-type SelectFieldKey = "ic" | "activity" | "state";
+type SelectFieldKey = "ic" | "org" | "activity" | "state";
 
 type SelectFieldConfig = {
   key: SelectFieldKey;
@@ -52,6 +60,14 @@ const SELECT_FIELDS: readonly SelectFieldConfig[] = [
     key: "ic",
     label: "NIH Institute / Center",
     width: FILTER_FIELD_WIDTH.ic,
+    placeholder: "All",
+    menuMinWidthPx: 300,
+    truncateSelectedLabel: true,
+  },
+  {
+    key: "org",
+    label: "Organization",
+    width: FILTER_FIELD_WIDTH.org,
     placeholder: "All",
     menuMinWidthPx: 300,
     truncateSelectedLabel: true,
@@ -115,24 +131,52 @@ function Filters({
   onActivityCodeHover,
 }: FiltersProps) {
   const { draft, patch, resetDraft } = useFilterDraft(applied);
+  const cascadingAvailability = useCascadingFilterAvailability(draft);
 
   const fyChoices = useMemo(
     () => resolveFiscalYearChoices(catalog.fiscalYearOptions),
     [catalog.fiscalYearOptions],
   );
 
-  const selectOptionsByKey = useMemo(
-    (): Record<SelectFieldKey, { value: string; label: string }[]> => ({
-      ic: catalog.icNames.map((ic) => ({ value: ic, label: formatDropdownLabel(ic) })),
-      activity: [...catalog.activityCodes]
-        .sort((a, b) => a.localeCompare(b, undefined, { sensitivity: "base" }))
-        .map((code) => ({ value: code, label: formatAllCapsLabel(code) })),
-      state: [...catalog.states]
-        .sort((a, b) => a.localeCompare(b, undefined, { sensitivity: "base" }))
-        .map((s) => ({ value: s, label: formatAllCapsLabel(s) })),
-    }),
-    [catalog.icNames, catalog.activityCodes, catalog.states],
-  );
+  const selectOptionsByKey = useMemo((): Record<SelectFieldKey, FilterSelectOption[]> => ({
+    ic: buildCascadingSelectOptions(
+      catalog.icNames,
+      cascadingAvailability?.ic ?? null,
+      draft.ic,
+      formatDropdownLabel,
+      false,
+    ),
+    org: buildCascadingSelectOptions(
+      catalog.orgNames,
+      cascadingAvailability?.org ?? null,
+      draft.org,
+      formatDropdownLabel,
+    ),
+    activity: buildCascadingSelectOptions(
+      catalog.activityCodes,
+      cascadingAvailability?.activity ?? null,
+      draft.activity,
+      formatAllCapsLabel,
+    ),
+    state: buildCascadingSelectOptions(
+      catalog.states,
+      cascadingAvailability?.state ?? null,
+      draft.state,
+      formatAllCapsLabel,
+      true,
+      normalizeStateFacetKey,
+    ),
+  }), [
+    catalog.icNames,
+    catalog.orgNames,
+    catalog.activityCodes,
+    catalog.states,
+    cascadingAvailability,
+    draft.ic,
+    draft.org,
+    draft.activity,
+    draft.state,
+  ]);
 
   const handleApply = useCallback(() => {
     onApply(normalizeFiltersOnApply(draft, fyChoices));
@@ -203,9 +247,11 @@ function Filters({
             help={
               field.key === "ic"
                 ? fieldHelp?.ic
-                : field.key === "activity"
-                  ? fieldHelp?.activity
-                  : undefined
+                : field.key === "org"
+                  ? fieldHelp?.org
+                  : field.key === "activity"
+                    ? fieldHelp?.activity
+                    : undefined
             }
             className={field.width}
           >

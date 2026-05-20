@@ -24,8 +24,13 @@ import {
 
 const DEFAULT_CHART_HEIGHT_PX = 360;
 
-/** Inner ring = top N activity codes; outer = codes 6…ZIF plus one “Other” slice. */
-const INNER_SLICE_COUNT = 5;
+/** Inner ring = largest activity codes; outer = remaining named codes up through ZIF plus “Other”. */
+const INNER_SLICE_MAX_COUNT = 5;
+/** Smallest inner wedge must be at least this share of inner-ring funding (else → outer). */
+const MIN_INNER_SLICE_SHARE_OF_RING = 0.06;
+/** Stop adding inner slices once this share of named funding is covered (after min count). */
+const INNER_RING_CUMULATIVE_SHARE_TARGET = 0.88;
+const INNER_SLICE_MIN_COUNT = 2;
 /** Last activity code shown as its own slice; everything after rolls into Other. */
 const LAST_INDIVIDUAL_ACTIVITY_CODE = "ZIF";
 const FALLBACK_OUTER_SLICE_COUNT = 15;
@@ -34,10 +39,11 @@ const OTHER_SLICE_COLOR = "#64748b";
 const OTHER_SLICE_MAX_VS_RING = 0.07;
 /** Other sits inset in the outer ring so it reads smaller. */
 const OTHER_RADIAL_INSET_PX = 13;
-/** Inner-disk labels sit in the outer wedge (wider arc) but stay inset from the rim. */
-const INNER_SLICE_LABEL_RADIAL_FACTOR = 0.75;
+/** Inner-disk labels: large slices pull inward; small slices stay toward the outer wedge. */
+const INNER_SLICE_LABEL_RADIAL_FACTOR_MAX = 0.75;
+const INNER_SLICE_LABEL_RADIAL_FACTOR_MIN = 0.48;
 const INNER_SLICE_LABEL_OUTER_PAD_PX = 25;
-const INNER_SLICE_LABEL_INNER_PAD_PX = 350;
+const INNER_SLICE_LABEL_INNER_PAD_PX = 28;
 /** Outer-band labels stay centered in the ring with padding on both edges. */
 const OUTER_SLICE_LABEL_RADIAL_FACTOR = 0.5;
 const OUTER_SLICE_LABEL_EDGE_PAD_PX = 10;
@@ -228,29 +234,76 @@ function prepareRingRows(rows: PieRow[], ring: "inner" | "outer"): PieRow[] {
   });
 }
 
+function sortPieRowsByFunding(rows: PieRow[]): PieRow[] {
+  return [...rows].sort((a, b) => {
+    const diff = b.value - a.value;
+    return diff !== 0 ? diff : a.name.localeCompare(b.name);
+  });
+}
+
+/**
+ * Picks inner-ring slices by funding rank. Small wedges are deferred to the outer ring so
+ * labels do not cluster in the center disk.
+ */
+function pickInnerRingSlices(named: PieRow[]): PieRow[] {
+  const sorted = sortPieRowsByFunding(named);
+  if (sorted.length === 0) {
+    return [];
+  }
+  if (sorted.length <= INNER_SLICE_MAX_COUNT) {
+    return sorted;
+  }
+
+  const total = sorted.reduce((acc, r) => acc + r.value, 0);
+  const inner: PieRow[] = [];
+  let sum = 0;
+
+  for (const row of sorted) {
+    if (inner.length >= INNER_SLICE_MAX_COUNT) {
+      break;
+    }
+    if (inner.length >= INNER_SLICE_MIN_COUNT && total > 0) {
+      if (sum / total >= INNER_RING_CUMULATIVE_SHARE_TARGET) {
+        break;
+      }
+      const nextSum = sum + row.value;
+      if (nextSum > 0 && row.value / nextSum < MIN_INNER_SLICE_SHARE_OF_RING) {
+        break;
+      }
+    }
+    inner.push(row);
+    sum += row.value;
+  }
+
+  return inner;
+}
+
 function splitPieRows(pie: ActivityFundingPieResponse): {
   innerChartData: PieRow[];
   outerChartData: PieRow[];
   tailDetailRows: PieRow[];
   usesZifCutoff: boolean;
 } {
-  const ordered = [
+  const ordered = sortPieRowsByFunding([
     ...pie.slices.map(rowFromSlice),
     ...(pie.tail_slices ?? []).map(rowFromSlice),
-  ];
+  ]);
   const zifIdx = ordered.findIndex((r) => r.name === LAST_INDIVIDUAL_ACTIVITY_CODE);
 
   if (zifIdx < 0) {
-    const inner = ordered.slice(0, INNER_SLICE_COUNT);
-    const outer = ordered.slice(INNER_SLICE_COUNT, INNER_SLICE_COUNT + FALLBACK_OUTER_SLICE_COUNT);
-    const tailDetailRows = ordered.slice(INNER_SLICE_COUNT + FALLBACK_OUTER_SLICE_COUNT);
-    return { innerChartData: inner, outerChartData: outer, tailDetailRows, usesZifCutoff: false };
+    const innerChartData = pickInnerRingSlices(ordered);
+    const innerNames = new Set(innerChartData.map((r) => r.name));
+    const afterInner = ordered.filter((r) => !innerNames.has(r.name));
+    const outerChartData = afterInner.slice(0, FALLBACK_OUTER_SLICE_COUNT);
+    const tailDetailRows = afterInner.slice(FALLBACK_OUTER_SLICE_COUNT);
+    return { innerChartData, outerChartData, tailDetailRows, usesZifCutoff: false };
   }
 
-  const individual = ordered.slice(0, zifIdx + 1);
+  const named = ordered.slice(0, zifIdx + 1);
   const tailDetailRows = ordered.slice(zifIdx + 1);
-  const innerChartData = individual.slice(0, INNER_SLICE_COUNT);
-  const outerIndividuals = individual.slice(INNER_SLICE_COUNT);
+  const innerChartData = pickInnerRingSlices(named);
+  const innerNames = new Set(innerChartData.map((r) => r.name));
+  const outerIndividuals = sortPieRowsByFunding(named.filter((r) => !innerNames.has(r.name)));
   const outerChartData =
     tailDetailRows.length > 0
       ? [...outerIndividuals, buildOtherAggregateRow(tailDetailRows, pie.total_funding_indexed)]
@@ -341,21 +394,41 @@ type SliceLabelProps = {
   midAngle?: number;
   innerRadius?: number;
   outerRadius?: number;
+  /** Recharts slice share of this ring (0–1, or 0–100 in some versions). */
+  percent?: number;
   payload?: { name: string; pct: number; isOther?: boolean };
   minPct?: number;
   compact?: boolean;
   ring?: "inner" | "outer";
 };
 
+function normalizeSlicePercent(percent: number | undefined): number | undefined {
+  if (percent == null || !Number.isFinite(percent)) {
+    return undefined;
+  }
+  return percent > 1 ? percent / 100 : percent;
+}
+
+function innerSliceLabelRadialFactor(slicePercent: number | undefined): number {
+  const share = normalizeSlicePercent(slicePercent);
+  if (share == null || share <= 0) {
+    return INNER_SLICE_LABEL_RADIAL_FACTOR_MAX;
+  }
+  const span = INNER_SLICE_LABEL_RADIAL_FACTOR_MAX - INNER_SLICE_LABEL_RADIAL_FACTOR_MIN;
+  return INNER_SLICE_LABEL_RADIAL_FACTOR_MAX - share * span;
+}
+
 function sliceLabelRadius(
   innerRadius: number,
   outerRadius: number,
   ring: "inner" | "outer",
   isOther: boolean,
+  slicePercent?: number,
 ): number {
   const span = outerRadius - innerRadius;
   if (ring === "inner") {
-    const target = innerRadius + span * INNER_SLICE_LABEL_RADIAL_FACTOR;
+    const factor = innerSliceLabelRadialFactor(slicePercent);
+    const target = innerRadius + span * factor;
     const minR = innerRadius + INNER_SLICE_LABEL_INNER_PAD_PX;
     const maxR = outerRadius - INNER_SLICE_LABEL_OUTER_PAD_PX;
     return Math.min(Math.max(target, minR), maxR);
@@ -374,6 +447,7 @@ function renderSliceLabel({
   midAngle,
   innerRadius,
   outerRadius,
+  percent,
   payload,
   minPct = 2.5,
   compact = false,
@@ -395,7 +469,13 @@ function renderSliceLabel({
     return null;
   }
   const RADIAN = Math.PI / 180;
-  const radius = sliceLabelRadius(innerRadius, outerRadius, ring, Boolean(row.isOther));
+  const radius = sliceLabelRadius(
+    innerRadius,
+    outerRadius,
+    ring,
+    Boolean(row.isOther),
+    ring === "inner" ? percent : undefined,
+  );
   const x = cx + radius * Math.cos(-midAngle * RADIAN);
   const y = cy + radius * Math.sin(-midAngle * RADIAN);
   const codeStrokeWidth = compact ? "1.5px" : "2px";
@@ -692,7 +772,7 @@ export default function ActivityFundingPiePanel({
                   {outerChartData.map((row, index) => (
                     <Cell
                       key={`outer-cell-${index}`}
-                      fill={row.isOther ? OTHER_SLICE_COLOR : sliceColor(INNER_SLICE_COUNT + index)}
+                      fill={row.isOther ? OTHER_SLICE_COLOR : sliceColor(INNER_SLICE_MAX_COUNT + index)}
                     />
                   ))}
                 </Pie>

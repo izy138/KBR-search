@@ -154,6 +154,7 @@ export type SearchProjectsOptions = {
   category?: string;
   pi?: string;
   ic?: string;
+  org?: string;
   activity?: string;
   state?: string;
   fyMin?: string;
@@ -175,6 +176,7 @@ export async function searchProjects(
     category = "",
     pi = "",
     ic = "",
+    org = "",
     activity = "",
     state = "",
     fyMin = "",
@@ -203,6 +205,7 @@ export async function searchProjects(
   }
   if (pi) url.searchParams.set("pi", pi);
   if (ic) url.searchParams.set("ic", ic);
+  if (org) url.searchParams.set("org", org);
   if (activity) url.searchParams.set("activity", activity);
   if (state) url.searchParams.set("state", state);
   if (fyMin) url.searchParams.set("fy_min", fyMin);
@@ -240,6 +243,7 @@ export async function downloadSearchResultsCsv(
     category = "",
     pi = "",
     ic = "",
+    org = "",
     activity = "",
     state = "",
     fyMin = "",
@@ -259,6 +263,7 @@ export async function downloadSearchResultsCsv(
   if (category) url.searchParams.set("category", category);
   if (pi) url.searchParams.set("pi", pi);
   if (ic) url.searchParams.set("ic", ic);
+  if (org) url.searchParams.set("org", org);
   if (activity) url.searchParams.set("activity", activity);
   if (state) url.searchParams.set("state", state);
   if (fyMin) url.searchParams.set("fy_min", fyMin);
@@ -358,6 +363,11 @@ export interface StateDataPoint {
 }
 
 export interface IcDataPoint {
+  label: string;
+  value: number;
+}
+
+export interface OrgCatalogDataPoint {
   label: string;
   value: number;
 }
@@ -475,6 +485,7 @@ export type AnalyticsFilterOptions = {
   advancedSearch?: AdvancedSearchQuery | null;
   pi?: string;
   ic?: string;
+  org?: string;
   activity?: string;
   state?: string;
   fyMin?: string;
@@ -492,6 +503,7 @@ function appendAnalyticsFilters(params: URLSearchParams, filters?: AnalyticsFilt
   }
   if (filters.pi) params.set("pi", filters.pi);
   if (filters.ic) params.set("ic", filters.ic);
+  if (filters.org) params.set("org", filters.org);
   if (filters.activity) params.set("activity", filters.activity);
   if (filters.state) params.set("state", filters.state);
   if (filters.fyMin) params.set("fy_min", filters.fyMin);
@@ -510,6 +522,21 @@ async function fetchAnalytics<T>(path: string, filters?: AnalyticsFilterOptions)
 
 export function getStateData(filters?: AnalyticsFilterOptions): Promise<StateDataPoint[]> {
   return fetchAnalytics<StateDataPoint[]>("/analytics/by-state", filters);
+}
+
+export function getOrgData(options?: {
+  limit?: number;
+  /** Indexed awards per org; default 1001 means more than 1,000 projects. */
+  minProjects?: number;
+  filters?: AnalyticsFilterOptions;
+}): Promise<OrgCatalogDataPoint[]> {
+  const params = new URLSearchParams();
+  params.set("limit", String(options?.limit ?? 100));
+  params.set("min_projects", String(options?.minProjects ?? 1001));
+  appendAnalyticsFilters(params, options?.filters);
+  const qs = params.toString();
+  const path = qs ? `/analytics/by-org?${qs}` : "/analytics/by-org";
+  return fetchAnalytics<OrgCatalogDataPoint[]>(path);
 }
 
 export function getIcData(fy?: number, filters?: AnalyticsFilterOptions): Promise<IcDataPoint[]> {
@@ -638,6 +665,7 @@ export type HybridSearchOptions = {
   category?: string;
   pi?: string;
   ic?: string;
+  org?: string;
   activity?: string;
   state?: string;
   fyMin?: string;
@@ -690,6 +718,7 @@ export async function searchHybrid(
     category = "",
     pi = "",
     ic = "",
+    org = "",
     activity = "",
     state = "",
     fyMin = "",
@@ -701,6 +730,7 @@ export async function searchHybrid(
   if (category) url.searchParams.set("category", category);
   if (pi) url.searchParams.set("pi", pi);
   if (ic) url.searchParams.set("ic", ic);
+  if (org) url.searchParams.set("org", org);
   if (activity) url.searchParams.set("activity", activity);
   if (state) url.searchParams.set("state", state);
   if (fyMin) url.searchParams.set("fy_min", fyMin);
