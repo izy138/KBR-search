@@ -97,6 +97,9 @@ export const HELP_DASHBOARD_TERM_THEMES: HelpTooltipContent = {
   body: (
     <>
       <p className="mb-2">
+        Select a theme from the list, then choose a subcategory to browse terms.
+      </p>
+      <p className="mb-2">
         Browse grouped NIH <strong className="font-medium text-text-primary">PROJECT_TERMS</strong> themes. Click a category to open sub-themes, then select individual term pills (up to 20).
       </p>
       <p>

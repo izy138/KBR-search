@@ -2,6 +2,7 @@ import {
   forwardRef,
   useCallback,
   useLayoutEffect,
+  useMemo,
   useRef,
   useState,
   type KeyboardEvent,
@@ -31,8 +32,14 @@ const LIST_ITEM_GAP = 20;
 const LIST_ITEM_STEP = LIST_ITEM_HEIGHT + LIST_ITEM_GAP;
 const LIST_HUB_GAP_PX = 54;
 const EXPAND_MIN_W = 320;
+const TERMS_PANEL_WIDTH = "28rem";
 const LIST_WIDTH_CLASS = "w-[13.5rem]";
-const EXPAND_COL_MIN = "18rem";
+
+function expansionContentWidthPx(hubWidthPx: number): number {
+  const maxSubHalfW = SUB_NODE_HALF_W + 2;
+  const childColumnX = spineXFromHub(LIST_HUB_GAP_PX, hubWidthPx) + SUB_BRANCH_LENGTH;
+  return Math.max(EXPAND_MIN_W, Math.ceil(childColumnX + maxSubHalfW + VIEWBOX_PAD_X));
+}
 const FLYOUT_MS = 480;
 const FLYOUT_SWITCH_RETURN_MS = 260;
 const FLYOUT_EASE = "cubic-bezier(0.4, 0, 0.2, 1)";
@@ -41,10 +48,14 @@ function flyoutTransition(ms: number): string {
   return `transform ${ms}ms ${FLYOUT_EASE}, background-color ${ms}ms ${FLYOUT_EASE}, border-color ${ms}ms ${FLYOUT_EASE}, color ${ms}ms ${FLYOUT_EASE}, box-shadow ${ms}ms ${FLYOUT_EASE}`;
 }
 const PANEL_MS = 400;
-const SUB_OPEN_MS = 300;
+const SUB_OPEN_MS = 150;
 const SUB_STAGGER_MS = 28;
 const SUB_REVEAL_BASE_MS = 48;
 const SUB_OPEN_EASE = "cubic-bezier(0.33, 1, 0.68, 1)";
+const SUB_TRUNK_DRAW_MS = 160;
+const SUB_SPINE_DRAW_MS = 100;
+const SUB_BRANCH_DRAW_MS = 160;
+const SUB_BRANCH_DRAW_STAGGER_MS = 32;
 const SUB_NODE_SCALE_HIDDEN = 0.96;
 function pillCornerRadius(box: NodeBox): number {
   return Math.min(box.halfW, box.halfH);
@@ -63,8 +74,26 @@ const CAT_FONT_CLASS = "text-[14px]";
 const CAT_BUTTON_LAYOUT =
   "flex items-center justify-center text-center px-3 py-2.5 leading-snug";
 
-const leafPillBase =
-  "inline-flex items-center justify-center min-h-[2rem] px-2 py-1 rounded-full bg-tag-bg text-tag-text border border-border text-[0.75rem] leading-tight text-center cursor-pointer transition-[background,border-color,color] duration-150 hover:border-border-strong";
+const TERM_CHIP_BASE =
+  "inline-flex items-center justify-center h-7 max-w-full px-[0.55rem] rounded-full border text-[0.82rem] leading-none font-[inherit] whitespace-nowrap cursor-pointer transition-[background,border-color,color] duration-[120ms] focus-visible:outline-2 focus-visible:outline-accent focus-visible:outline-offset-2";
+
+const TERM_CHIP_IDLE =
+  "border-border bg-bg text-text-secondary hover:border-text-muted hover:text-text-primary";
+
+const TERM_CHIP_SELECTED = "border-accent bg-accent-light text-accent-text font-medium";
+
+const DEFAULT_THEME_CAT_LABEL = "Engineering";
+const DEFAULT_THEME_SUB_LABEL = "Biomedical Engineering";
+
+function resolveDefaultThemeOpen(tree: TermNode[]): { catId: string; subId: string } | null {
+  const categories = tree.filter((node) => node.label !== "Low confidence");
+  const category = categories.find((node) => node.label === DEFAULT_THEME_CAT_LABEL);
+  const subcategory = category?.children?.find((node) => node.label === DEFAULT_THEME_SUB_LABEL);
+  if (!category?.id || !subcategory?.id) {
+    return null;
+  }
+  return { catId: category.id, subId: subcategory.id };
+}
 
 function clamp(v: number, lo: number, hi: number): number {
   return Math.max(lo, Math.min(hi, v));
@@ -161,36 +190,67 @@ function spineXFromHub(hubGapPx: number, hubWidthPx: number): number {
   return hubExitX(hubGapPx, hubWidthPx) + SUB_TRUNK_LENGTH;
 }
 
-function subcatBusConnectorPath(
+type BusSegment = {
+  d: string;
+  delayMs: number;
+  drawMs: number;
+};
+
+function subcatBusSegments(
   hubGapPx: number,
   hubWidthPx: number,
   hubY: number,
   subPositions: [number, number][],
   subBoxes: NodeBox[],
-): string {
-  if (subPositions.length === 0) return "";
+): BusSegment[] {
+  if (subPositions.length === 0) return [];
   const exitX = hubExitX(hubGapPx, hubWidthPx);
   const spineX = spineXFromHub(hubGapPx, hubWidthPx);
+  const segments: BusSegment[] = [
+    {
+      d: `M ${exitX} ${hubY} L ${spineX} ${hubY}`,
+      delayMs: 0,
+      drawMs: SUB_TRUNK_DRAW_MS,
+    },
+  ];
 
   if (subPositions.length === 1) {
     const [sx, sy] = subPositions[0];
     const box = subBoxes[0];
     const [childX] = rectEdgePoint(sx, sy, box.halfW, box.halfH, spineX, sy);
-    return `M ${exitX} ${hubY} L ${spineX} ${hubY} L ${childX} ${sy}`;
+    segments.push({
+      d: `M ${spineX} ${sy} L ${childX} ${sy}`,
+      delayMs: Math.round(SUB_TRUNK_DRAW_MS * 0.72),
+      drawMs: SUB_BRANCH_DRAW_MS,
+    });
+    return segments;
   }
 
   const childYs = subPositions.map(([, sy]) => sy);
   const spineTop = Math.min(...childYs);
   const spineBottom = Math.max(...childYs);
-  let path = `M ${exitX} ${hubY} L ${spineX} ${hubY} M ${spineX} ${spineTop} L ${spineX} ${spineBottom}`;
+  segments.push({
+    d: `M ${spineX} ${spineTop} L ${spineX} ${spineBottom}`,
+    delayMs: Math.round(SUB_TRUNK_DRAW_MS * 0.68),
+    drawMs: SUB_SPINE_DRAW_MS,
+  });
 
+  const branchBaseDelay = Math.round(SUB_TRUNK_DRAW_MS * 0.55 + SUB_SPINE_DRAW_MS * 0.55);
   subPositions.forEach(([sx, sy], i) => {
     const box = subBoxes[i];
     const [childX] = rectEdgePoint(sx, sy, box.halfW, box.halfH, spineX, sy);
-    path += ` M ${spineX} ${sy} L ${childX} ${sy}`;
+    segments.push({
+      d: `M ${spineX} ${sy} L ${childX} ${sy}`,
+      delayMs: branchBaseDelay + i * SUB_BRANCH_DRAW_STAGGER_MS,
+      drawMs: SUB_BRANCH_DRAW_MS,
+    });
   });
 
-  return path;
+  return segments;
+}
+
+function subNodeRevealDelayMs(branchDelayMs: number): number {
+  return branchDelayMs + Math.round(SUB_BRANCH_DRAW_MS * 0.55);
 }
 
 function listSlotTop(index: number): number {
@@ -201,10 +261,6 @@ function listCenterY(count: number): number {
   if (count <= 0) return LIST_ITEM_HEIGHT / 2;
   const totalH = count * LIST_ITEM_HEIGHT + (count - 1) * LIST_ITEM_GAP;
   return totalH / 2;
-}
-
-function hubYForListCenter(count: number): number {
-  return listCenterY(count);
 }
 
 function subcatListPositions(
@@ -227,18 +283,19 @@ function expandLayoutMetrics(
   maxSubHalfW: number,
   listCount: number,
 ): { hubY: number; svgW: number; svgH: number; viewBoxWidth: number; viewBox: string } {
-  const hubY = hubYForListCenter(listCount);
   const listHeight = listCount * LIST_ITEM_HEIGHT + Math.max(0, listCount - 1) * LIST_ITEM_GAP;
+  const listHubY = listCenterY(listCount);
   const subSpan = subCount > 0 ? (subCount - 1) * SUB_GAP_Y : 0;
   const childColumnX = spineXFromHub(LIST_HUB_GAP_PX, hubWidthPx) + SUB_BRANCH_LENGTH;
   const contentRight = childColumnX + maxSubHalfW + VIEWBOX_PAD_X;
   const contentBottom = Math.max(
     listHeight + VIEWBOX_PAD_Y,
-    hubY + hubHalfH + VIEWBOX_PAD_Y,
-    hubY + subSpan / 2 + hubHalfH + VIEWBOX_PAD_Y,
+    listHubY + hubHalfH + VIEWBOX_PAD_Y,
+    listHubY + subSpan / 2 + hubHalfH + VIEWBOX_PAD_Y,
   );
   const svgW = Math.max(EXPAND_MIN_W, contentRight);
   const svgH = Math.max(listHeight, contentBottom);
+  const hubY = svgH / 2;
   const viewBoxWidth = svgW + VIEWBOX_PAD_X * 2;
   const viewBox = `${-VIEWBOX_PAD_X} ${-VIEWBOX_PAD_Y} ${viewBoxWidth} ${svgH + VIEWBOX_PAD_Y * 2}`;
   return { hubY, svgW, svgH, viewBoxWidth, viewBox };
@@ -263,14 +320,6 @@ function subNodeBox(selected: boolean): NodeBox {
 
 function expandBox(box: NodeBox, extra: number): NodeBox {
   return { halfW: box.halfW + extra, halfH: box.halfH + extra };
-}
-
-function chunkRows<T>(items: T[], perRow: number): T[][] {
-  const rows: T[][] = [];
-  for (let i = 0; i < items.length; i += perRow) {
-    rows.push(items.slice(i, i + perRow));
-  }
-  return rows;
 }
 
 type InsideLabelProps = {
@@ -466,23 +515,25 @@ const CategoryFlyout = forwardRef<HTMLButtonElement, CategoryFlyoutProps>(functi
 });
 
 export default function ProjectTermsThemeCloud({ payload, onSearch }: Props): ReactElement {
-  const [activeId, setActiveId] = useState<string | null>(null);
-  const [flyoutId, setFlyoutId] = useState<string | null>(null);
-  const [flyoutAtHub, setFlyoutAtHub] = useState(false);
+  const rawTree: TermNode[] = (payload.tree ?? []).filter((n) => n.label !== "Low confidence");
+  const defaultOpen = useMemo(() => resolveDefaultThemeOpen(rawTree), [rawTree]);
+  const opensByDefault = defaultOpen !== null;
+
+  const [activeId, setActiveId] = useState<string | null>(defaultOpen?.catId ?? null);
+  const [flyoutId, setFlyoutId] = useState<string | null>(defaultOpen?.catId ?? null);
+  const [flyoutAtHub, setFlyoutAtHub] = useState(opensByDefault);
   const [pendingSelectId, setPendingSelectId] = useState<string | null>(null);
-  const [snapFlyoutPosition, setSnapFlyoutPosition] = useState(false);
+  const [snapFlyoutPosition, setSnapFlyoutPosition] = useState(opensByDefault);
   const [flyoutMoveMs, setFlyoutMoveMs] = useState(FLYOUT_MS);
-  const [subsMounted, setSubsMounted] = useState(false);
-  const [subsAnimatedIn, setSubsAnimatedIn] = useState(false);
-  const [selectedSubId, setSelectedSubId] = useState<string | null>(null);
+  const [subsMounted, setSubsMounted] = useState(opensByDefault);
+  const [subsAnimatedIn, setSubsAnimatedIn] = useState(opensByDefault);
+  const [selectedSubId, setSelectedSubId] = useState<string | null>(defaultOpen?.subId ?? null);
   const [selectedTerms, setSelectedTerms] = useState<Set<string>>(new Set());
   const [showMaxWarning, setShowMaxWarning] = useState(false);
   const listRef = useRef<HTMLElement>(null);
   const flyoutRef = useRef<HTMLButtonElement>(null);
   const needsFlyToHubRef = useRef(false);
   const [listWidthPx, setListWidthPx] = useState(216);
-
-  const rawTree: TermNode[] = (payload.tree ?? []).filter((n) => n.label !== "Low confidence");
   const buckets = (payload.buckets ?? []).filter((b) => b.label !== "Low confidence");
 
   const catFontSize = CAT_FONT_PX;
@@ -545,14 +596,17 @@ export default function ProjectTermsThemeCloud({ payload, onSearch }: Props): Re
   const flyoutIndex = flyoutId !== null ? catNodes.findIndex((node) => node.cat.id === flyoutId) : -1;
   const listHeightPx =
     catNodes.length * LIST_ITEM_HEIGHT + Math.max(0, catNodes.length - 1) * LIST_ITEM_GAP;
+  const expansionSlotWidthPx = useMemo(
+    () => expansionContentWidthPx(listWidthPx > 0 ? listWidthPx : 216),
+    [listWidthPx],
+  );
+  const clusterGridTemplate = `13.5rem ${expansionSlotWidthPx}px ${TERMS_PANEL_WIDTH}`;
   const selectedSub =
     activeCatNode?.cat.children?.find((sub) => sub.id === selectedSubId) ?? null;
   const leafTerms: TermNode[] = selectedSub?.children ?? [];
-  const leafRows = chunkRows(leafTerms, 3);
   const selectedCount = selectedTerms.size;
   const panelOpen = selectedSub !== null;
   const expansionOpen = flyoutId !== null;
-  const expandGridColumn = flyoutAtHub;
   const showSubs = subsMounted && activeId !== null;
 
   const handleFlyoutTransitionEnd = useCallback((): void => {
@@ -657,23 +711,14 @@ export default function ProjectTermsThemeCloud({ payload, onSearch }: Props): Re
     setShowMaxWarning(false);
   };
 
-  const closeTermsPanel = (): void => {
-    setSelectedSubId(null);
-    setSelectedTerms(new Set());
-    setShowMaxWarning(false);
-  };
-
   return (
     <div className="bg-surface border border-border rounded-[--radius-lg] w-full px-4 py-[0.9rem] min-h-0">
-      <div className="flex items-center gap-2 flex-wrap mb-[0.35rem]">
+      <div className="flex items-center gap-2 flex-wrap mb-5">
         <h3 className="text-text-primary text-[0.9rem] font-semibold mb-0">Project term themes</h3>
         <HelpTooltip label={HELP_DASHBOARD_TERM_THEMES.label}>
           {HELP_DASHBOARD_TERM_THEMES.body}
         </HelpTooltip>
       </div>
-      <p className="text-text-secondary text-[0.75rem] leading-[1.45] m-0 mb-2">
-        Select a theme from the list, then choose a subcategory to browse terms.
-      </p>
 
       {buckets.length === 0 ? (
         <p className="text-text-muted text-[0.875rem] mt-2 m-0">
@@ -681,19 +726,15 @@ export default function ProjectTermsThemeCloud({ payload, onSearch }: Props): Re
             "No theme data yet. Run: docker compose exec backend python indexer/build_project_term_theme_counts.py"}
         </p>
       ) : (
-        <div className="flex w-full min-h-[24rem] lg:min-h-[28rem] flex-col lg:flex-row items-start gap-3 overflow-hidden">
+        <div className="flex w-full min-h-[24rem] lg:min-h-[28rem] justify-center overflow-x-auto overflow-y-hidden ">
           <div
-            className="relative shrink-0 min-w-0 transition-[grid-template-columns] ease-in-out"
+            className="grid shrink-0 items-start gap-3"
             style={{
+              gridTemplateColumns: clusterGridTemplate,
               minHeight: listHeightPx,
-              display: "grid",
-              gridTemplateColumns: expandGridColumn
-                ? `13.5rem minmax(${EXPAND_COL_MIN}, max-content)`
-                : "13.5rem 0fr",
-              transitionDuration: `${PANEL_MS}ms`,
-              transitionProperty: "grid-template-columns",
             }}
           >
+            <div className="relative min-w-0" style={{ minHeight: listHeightPx }}>
             <nav
               ref={listRef}
               className={cn("flex flex-col gap-5 min-w-0", LIST_WIDTH_CLASS)}
@@ -726,17 +767,18 @@ export default function ProjectTermsThemeCloud({ payload, onSearch }: Props): Re
                 onTransitionEnd={handleFlyoutTransitionEnd}
               />
             )}
+            </div>
 
             <div
               className={cn(
-                "flex flex-col overflow-hidden min-w-0 transition-opacity ease-in-out",
+                "flex flex-col items-start justify-start overflow-hidden min-w-0 transition-opacity ease-in-out",
                 expansionOpen ? "opacity-100" : "opacity-0 pointer-events-none",
               )}
               style={{ transitionDuration: `${PANEL_MS}ms`, height: listHeightPx }}
               aria-hidden={!expansionOpen}
             >
               {showSubs && activeCatNode && (
-                <div className="h-full max-h-[32rem]">
+                <div className="flex h-full max-h-[32rem] w-full items-start justify-start">
                   {(() => {
                     const { cat, hue, box } = activeCatNode;
                     const displayBox = expandBox(box, 4);
@@ -760,55 +802,59 @@ export default function ProjectTermsThemeCloud({ payload, onSearch }: Props): Re
                       layout.viewBoxWidth,
                       layout.svgW,
                     );
-
-                    return (
-                      <svg
-                        viewBox={layout.viewBox}
-                        preserveAspectRatio="xMinYMid meet"
-                        className="block h-full"
-                        style={{ width: layout.svgW, minWidth: layout.svgW }}
-                        aria-label={`${cat.label} subcategories`}
-                      >
-                        <g>
-                        {subPositions.length > 0 && (() => {
-                          const subBoxes = subs.map((sub) =>
-                            subNodeBox(selectedSubId === sub.id),
-                          );
-                          const busPath = subcatBusConnectorPath(
+                    const subBoxes = subs.map((sub) => subNodeBox(selectedSubId === sub.id));
+                    const busSegments =
+                      subPositions.length > 0
+                        ? subcatBusSegments(
                             LIST_HUB_GAP_PX,
                             listWidthPx,
                             layout.hubY,
                             subPositions,
                             subBoxes,
-                          );
-                          return (
-                            <path
-                              d={busPath}
-                              fill="none"
-                              pathLength={1}
-                              stroke={`hsl(${hue} 38% 62%)`}
-                              strokeWidth={2}
-                              strokeLinecap="round"
-                              strokeLinejoin="round"
-                              style={{
-                                strokeDasharray: 1,
-                                strokeDashoffset: subsAnimatedIn ? 0 : 1,
-                                opacity: subsAnimatedIn ? 0.9 : 0,
-                                transition: subsAnimatedIn
-                                  ? `stroke-dashoffset ${SUB_OPEN_MS}ms ${SUB_OPEN_EASE}, opacity ${SUB_OPEN_MS * 0.45}ms ease`
-                                  : "none",
-                                pointerEvents: "none",
-                              }}
-                            />
-                          );
-                        })()}
+                          )
+                        : [];
+
+                    return (
+                      <svg
+                        viewBox={layout.viewBox}
+                        preserveAspectRatio="xMinYMin meet"
+                        className="block h-full max-w-full"
+                        style={{ width: layout.svgW, minWidth: layout.svgW, maxWidth: expansionSlotWidthPx }}
+                        aria-label={`${cat.label} subcategories`}
+                      >
+                        <g>
+                        {busSegments.map((segment, segIndex) => (
+                          <path
+                            key={segIndex}
+                            d={segment.d}
+                            fill="none"
+                            pathLength={1}
+                            stroke={`hsl(${hue} 38% 62%)`}
+                            strokeWidth={2}
+                            strokeLinecap="round"
+                            strokeLinejoin="round"
+                            style={{
+                              strokeDasharray: 1,
+                              strokeDashoffset: subsAnimatedIn ? 0 : 1,
+                              opacity: subsAnimatedIn ? 0.9 : 0,
+                              transition: subsAnimatedIn
+                                ? `stroke-dashoffset ${segment.drawMs}ms ${SUB_OPEN_EASE} ${segment.delayMs}ms, opacity ${segment.drawMs * 0.4}ms ease ${segment.delayMs}ms`
+                                : "none",
+                              pointerEvents: "none",
+                            }}
+                          />
+                        ))}
 
                         {subs.map((sub, si) => {
                           const [sx, sy] = subPositions[si];
                           const subLines = splitLabel(sub.label, SUB_LABEL_MAX_CHARS);
                           const isSubSelected = selectedSubId === sub.id;
                           const subBox = subNodeBox(isSubSelected);
-                          const animDelay = subOpenDelay(si);
+                          const branchSegmentIndex = subs.length === 1 ? 1 : 2 + si;
+                          const branchDelayMs =
+                            busSegments[branchSegmentIndex]?.delayMs ??
+                            SUB_REVEAL_BASE_MS + si * SUB_STAGGER_MS;
+                          const animDelay = `${subNodeRevealDelayMs(branchDelayMs)}ms`;
 
                           return (
                             <g
@@ -873,120 +919,97 @@ export default function ProjectTermsThemeCloud({ payload, onSearch }: Props): Re
                 </div>
               )}
             </div>
-          </div>
 
-          <div
-            className={cn(
-              "flex flex-col min-w-0 border-border overflow-hidden",
-              "transition-[flex-basis,width,opacity,transform] ease-in-out",
-              panelOpen
-                ? "flex-1 lg:flex-[0.95] lg:max-w-[20rem] opacity-100 translate-x-0 max-lg:mt-0 max-lg:border max-lg:rounded-[--radius-md]"
-                : "flex-[0] w-0 opacity-0 translate-x-4 pointer-events-none border-0 max-lg:max-h-0",
-            )}
-            style={{ transitionDuration: `${PANEL_MS}ms` }}
-            aria-hidden={!panelOpen}
-          >
-            {selectedSub && activeCatNode && (
-              <aside
-                className="h-full w-full min-w-[17.5rem] border border-border rounded-[--radius-md] bg-surface-hover/50 flex flex-col max-h-[32rem] lg:max-h-[520px] shadow-sm transition-[opacity,transform] ease-out"
+            <div
+              className={cn(
+                "flex min-w-0 flex-col overflow-hidden transition-opacity ease-in-out",
+                panelOpen ? "opacity-100" : "opacity-0 pointer-events-none",
+              )}
+              style={{ transitionDuration: `${PANEL_MS}ms`, minHeight: listHeightPx }}
+              aria-hidden={!panelOpen}
+            >
+            {selectedSub && activeCatNode ? (
+              <div
+                className="flex w-full flex-col gap-2 transition-opacity ease-out"
                 style={{
                   transitionDuration: `${PANEL_MS}ms`,
                   opacity: panelOpen ? 1 : 0,
-                  transform: panelOpen ? "translateX(0)" : "translateX(12px)",
                 }}
-                aria-label={`Terms in ${selectedSub.label}`}
               >
-                <div className="flex items-start justify-between gap-2 px-3 py-2 border-b border-border shrink-0">
-                  <div className="min-w-0">
-                    <p className="text-[0.65rem] uppercase tracking-wide text-text-muted m-0 font-semibold">
-                      {activeCatNode.cat.label}
-                    </p>
-                    <h4 className="text-text-primary text-[0.85rem] font-semibold m-0 leading-snug">
-                      {selectedSub.label}
-                    </h4>
-                  </div>
-                  <button
-                    type="button"
-                    className="shrink-0 bg-transparent border-none text-text-muted cursor-pointer text-[1.1rem] leading-none px-1 hover:text-text-primary"
-                    onClick={closeTermsPanel}
-                    aria-label="Close terms panel"
+                <div className="min-w-0">
+                  <p className="text-[0.65rem] uppercase tracking-wide text-text-muted m-0 font-semibold">
+                    {activeCatNode.cat.label}
+                  </p>
+                  <h4 className="text-text-primary text-[0.85rem] font-semibold m-0 leading-snug">
+                    {selectedSub.label}
+                  </h4>
+                </div>
+
+                {leafTerms.length === 0 ? (
+                  <p className="text-text-muted text-[0.8rem] m-0">No terms in this subcategory.</p>
+                ) : (
+                  <div
+                    className="flex flex-wrap gap-[0.4rem] w-full"
+                    role="group"
+                    aria-label={`Terms in ${selectedSub.label}`}
                   >
-                    ×
-                  </button>
-                </div>
+                    {leafTerms.map((leaf) => {
+                      const isSelected = selectedTerms.has(leaf.label);
+                      return (
+                        <button
+                          key={leaf.id}
+                          type="button"
+                          className={cn(
+                            TERM_CHIP_BASE,
+                            isSelected ? TERM_CHIP_SELECTED : TERM_CHIP_IDLE,
+                          )}
+                          onClick={() => handleToggleLeaf(leaf.label)}
+                          aria-pressed={isSelected}
+                          title={
+                            leaf.weight != null
+                              ? `${leaf.weight.toLocaleString()} corpus hits`
+                              : undefined
+                          }
+                        >
+                          {leaf.label}
+                        </button>
+                      );
+                    })}
+                  </div>
+                )}
 
-                <div className="flex-1 overflow-y-auto px-3 py-2 min-h-0">
-                  {leafTerms.length === 0 ? (
-                    <p className="text-text-muted text-[0.8rem] m-0">No terms in this subcategory.</p>
-                  ) : (
-                    <div className="flex flex-col gap-2">
-                      {leafRows.map((row, rowIndex) => (
-                        <div key={rowIndex} className="grid grid-cols-3 gap-2">
-                          {row.map((leaf) => {
-                            const isSelected = selectedTerms.has(leaf.label);
-                            return (
-                              <button
-                                key={leaf.id}
-                                type="button"
-                                className={cn(
-                                  leafPillBase,
-                                  isSelected && "bg-accent text-white border-accent",
-                                )}
-                                onClick={() => handleToggleLeaf(leaf.label)}
-                                aria-pressed={isSelected}
-                                title={
-                                  leaf.weight != null
-                                    ? `${leaf.weight.toLocaleString()} corpus hits`
-                                    : undefined
-                                }
-                              >
-                                {isSelected && "✓ "}
-                                {leaf.label}
-                              </button>
-                            );
-                          })}
-                          {row.length < 3 &&
-                            Array.from({ length: 3 - row.length }).map((_, padIndex) => (
-                              <span key={`pad-${padIndex}`} className="min-h-[2rem]" aria-hidden />
-                            ))}
-                        </div>
-                      ))}
-                    </div>
-                  )}
-                </div>
-
-                <div className="shrink-0 px-3 py-2 border-t border-border">
-                  {showMaxWarning && (
-                    <p className="text-[0.75rem] text-text-muted m-0 mb-2">
-                      Maximum {MAX_SELECTION} terms
-                    </p>
-                  )}
-                  {selectedCount > 0 && onSearch && (
-                    <div className="flex flex-col gap-2">
-                      <button
-                        type="button"
-                        className="w-full bg-accent text-white border-none rounded-sm px-3 py-[0.38rem] font-sans text-[13px] font-medium cursor-pointer transition-[background] duration-150 hover:bg-accent-hover"
-                        onClick={handleSearch}
-                      >
-                        Search {selectedCount} term{selectedCount > 1 ? "s" : ""}
-                      </button>
-                      <button
-                        type="button"
-                        className="w-full bg-transparent border-none text-accent-text cursor-pointer text-[0.8rem] underline py-0 hover:text-text-primary"
-                        onClick={handleClearAll}
-                      >
-                        Clear all
-                      </button>
-                    </div>
-                  )}
-                  {selectedCount === 0 && (
-                    <p className="text-[0.72rem] text-text-muted m-0 text-center">
-                      Select terms to search
-                    </p>
-                  )}
-                </div>
-              </aside>
+                {showMaxWarning && (
+                  <p className="text-[0.75rem] text-text-muted m-0">
+                    Maximum {MAX_SELECTION} terms
+                  </p>
+                )}
+                {selectedCount > 0 && onSearch ? (
+                  <div className="flex flex-wrap items-center gap-2">
+                    <button
+                      type="button"
+                      className="bg-accent text-white border-none rounded-sm px-3 py-[0.38rem] font-sans text-[13px] font-medium cursor-pointer transition-[background] duration-150 hover:bg-accent-hover"
+                      onClick={handleSearch}
+                    >
+                      Search {selectedCount} term{selectedCount > 1 ? "s" : ""}
+                    </button>
+                    <button
+                      type="button"
+                      className="bg-transparent border-none text-accent-text cursor-pointer text-[0.8rem] underline py-0 hover:text-text-primary"
+                      onClick={handleClearAll}
+                    >
+                      Clear all
+                    </button>
+                  </div>
+                ) : (
+                  <p className="text-[0.72rem] text-text-muted m-0">
+                    Select terms to search
+                  </p>
+                )}
+              </div>
+            ) : (
+              <div className="min-h-px" aria-hidden />
             )}
+            </div>
           </div>
         </div>
       )}
