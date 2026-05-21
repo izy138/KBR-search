@@ -1,5 +1,4 @@
-import { useMemo, useRef } from "react";
-import { useChartCursorTooltip } from "../../hooks/useChartCursorTooltip";
+import { useMemo } from "react";
 import {
   CartesianGrid,
   Legend,
@@ -81,9 +80,6 @@ export default function LineChartPanel({
   chartMargin = { top: 12, right: 16, bottom: 4, left: 8 },
   onYearClick,
 }: LineChartPanelProps) {
-  const chartBodyRef = useRef<HTMLDivElement>(null);
-  const { chartHoverActive, handleChartMouseMove, handleChartMouseLeave } =
-    useChartCursorTooltip(chartBodyRef);
   const fundingFmt = formatter ?? formatDollarsCompact;
 
   const { countAxisDomain, fundingAxisDomain } = useMemo(() => {
@@ -113,7 +109,7 @@ export default function LineChartPanel({
   }, [data]);
 
   const renderTooltip = (props: TooltipContentProps<ValueType, NameType>) => {
-    if (!chartHoverActive || !props.active || !props.payload?.length) return null;
+    if (!props.active || !props.payload?.length) return null;
 
     return (
       <div className={cn(CLS_CHART_CURSOR_TOOLTIP, "z-10")} style={CHART_TOOLTIP_ROUNDED_STYLE}>
@@ -145,75 +141,63 @@ export default function LineChartPanel({
   return (
     <div className={panelClass}>
       <div className="text-text-primary text-[0.9rem] font-semibold mb-[0.65rem]">{title}</div>
-      <div
-        ref={chartBodyRef}
-        className={cn(
-          CLS_RECHARTS_FOCUS_RESET,
-          onYearClick && "[&_.recharts-layer]:cursor-pointer",
-        )}
-        onMouseMove={handleChartMouseMove}
-        onMouseLeave={handleChartMouseLeave}
-      >
-      <ResponsiveContainer width="100%" height={height}>
-        <LineChart data={data} margin={chartMargin}>
-          <CartesianGrid strokeDasharray="3 3" stroke="var(--border)" />
-          <XAxis
-            dataKey="year"
-            tick={{ fontSize: 13, fill: "var(--text-secondary)" }}
-            axisLine={false}
-            tickLine={false}
-          />
-          <YAxis
-            yAxisId="left"
-            domain={countAxisDomain}
-            allowDataOverflow
-            tick={{ fontSize: 13, fill: "var(--text-secondary)" }}
-            tickFormatter={(v: number) => v.toLocaleString()}
-            axisLine={false}
-            tickLine={false}
-          />
-          <YAxis
-            yAxisId="right"
-            orientation="right"
-            domain={fundingAxisDomain}
-            allowDataOverflow
-            tick={{ fontSize: 13, fill: "var(--text-secondary)" }}
-            tickFormatter={fundingFmt}
-            axisLine={false}
-            tickLine={false}
-          />
-          <Tooltip
-            active={chartHoverActive ? undefined : false}
-            content={renderTooltip}
-            contentStyle={RECHARTS_TOOLTIP_CONTENT_STYLE}
-            wrapperStyle={RECHARTS_TOOLTIP_WRAPPER_STYLE}
-            position={{ x: 16, y: 16 }}
-          />
-          <Legend
-            wrapperStyle={{ fontSize: 13, color: "var(--text-secondary)" }}
-          />
-          <Line
-            yAxisId="left"
-            type="monotone"
-            dataKey="count"
-            name="Projects"
-            stroke="#1a56db"
-            strokeWidth={2}
-            dot={makeYearDot("#1a56db", onYearClick)}
-            activeDot={onYearClick ? false : { r: 5, strokeWidth: 0 }}
-          />
-          <Line
-            yAxisId="right"
-            type="monotone"
-            dataKey="total_funding"
-            name="Total Funding"
-            stroke="#0e9f6e"
-            strokeWidth={2}
-            dot={makeYearDot("#0e9f6e", onYearClick)}
-            activeDot={onYearClick ? false : { r: 5, strokeWidth: 0 }}
-          />
-        </LineChart>
-      </ResponsiveContainer>
+      <div className={cn(CLS_RECHARTS_FOCUS_RESET, onYearClick && "[&_.recharts-layer]:cursor-pointer")}>
+        <ResponsiveContainer width="100%" height={height}>
+          <LineChart data={data} margin={chartMargin}>
+            <CartesianGrid strokeDasharray="3 3" stroke="var(--border)" />
+            <XAxis
+              dataKey="year"
+              tick={{ fontSize: 13, fill: "var(--text-secondary)" }}
+              axisLine={false}
+              tickLine={false}
+            />
+            <YAxis
+              yAxisId="left"
+              domain={countAxisDomain}
+              allowDataOverflow
+              tick={{ fontSize: 13, fill: "var(--text-secondary)" }}
+              tickFormatter={(v: number) => v.toLocaleString()}
+              axisLine={false}
+              tickLine={false}
+            />
+            <YAxis
+              yAxisId="right"
+              orientation="right"
+              domain={fundingAxisDomain}
+              allowDataOverflow
+              tick={{ fontSize: 13, fill: "var(--text-secondary)" }}
+              tickFormatter={fundingFmt}
+              axisLine={false}
+              tickLine={false}
+            />
+            <Tooltip
+              content={renderTooltip}
+              contentStyle={RECHARTS_TOOLTIP_CONTENT_STYLE}
+              wrapperStyle={RECHARTS_TOOLTIP_WRAPPER_STYLE}
+            />
+            <Legend wrapperStyle={{ fontSize: 13, color: "var(--text-secondary)" }} />
+            <Line
+              yAxisId="left"
+              type="monotone"
+              dataKey="count"
+              name="Projects"
+              stroke="#1a56db"
+              strokeWidth={2}
+              dot={makeYearDot("#1a56db", onYearClick)}
+              activeDot={onYearClick ? false : { r: 5, strokeWidth: 0 }}
+            />
+            <Line
+              yAxisId="right"
+              type="monotone"
+              dataKey="total_funding"
+              name="Total Funding"
+              stroke="#0e9f6e"
+              strokeWidth={2}
+              dot={makeYearDot("#0e9f6e", onYearClick)}
+              activeDot={onYearClick ? false : { r: 5, strokeWidth: 0 }}
+            />
+          </LineChart>
+        </ResponsiveContainer>
       </div>
     </div>
   );
