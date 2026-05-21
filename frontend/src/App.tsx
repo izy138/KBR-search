@@ -37,6 +37,7 @@ import {
   HELP_SEARCH_FILTER_FY,
   HELP_SEARCH_FILTER_IC,
   HELP_SEARCH_FILTER_PI,
+  HELP_SEARCH_FILTER_STATE,
 } from "./utils/helpContent";
 import {
   formatAdvancedSearchQuery,
@@ -764,6 +765,7 @@ export default function App() {
                     pi: HELP_SEARCH_FILTER_PI,
                     ic: HELP_SEARCH_FILTER_IC,
                     activity: HELP_SEARCH_FILTER_ACTIVITY,
+                    state: HELP_SEARCH_FILTER_STATE,
                     fy: HELP_SEARCH_FILTER_FY,
                   }}
                   searchQuery={searchQuery}

@@ -41,6 +41,7 @@ import {
   HELP_DASHBOARD_FILTER_FY,
   HELP_DASHBOARD_FILTER_IC,
   HELP_DASHBOARD_FILTER_PI,
+  HELP_DASHBOARD_FILTER_STATE,
 } from "../../utils/helpContent";
 
 // ─── Formatting helpers ───────────────────────────────────────────────────────
@@ -615,6 +616,7 @@ export default function Dashboard({
           pi: HELP_DASHBOARD_FILTER_PI,
           ic: HELP_DASHBOARD_FILTER_IC,
           activity: HELP_DASHBOARD_FILTER_ACTIVITY,
+          state: HELP_DASHBOARD_FILTER_STATE,
           fy: HELP_DASHBOARD_FILTER_FY,
         }}
         searchQuery={searchQuery}
