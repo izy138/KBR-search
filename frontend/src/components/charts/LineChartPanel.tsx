@@ -11,12 +11,24 @@ import {
   YAxis,
 } from "recharts";
 import { cn } from "../../utils/cn";
-import { CLS_RECHARTS_FOCUS_RESET } from "../../utils/chartStyles";
+import {
+  CHART_TOOLTIP_ROUNDED_STYLE,
+  CLS_CHART_CURSOR_TOOLTIP,
+  CLS_RECHARTS_FOCUS_RESET,
+  RECHARTS_TOOLTIP_CONTENT_STYLE,
+  RECHARTS_TOOLTIP_WRAPPER_STYLE,
+} from "../../utils/chartStyles";
 import type { TooltipContentProps } from "recharts/types/component/Tooltip";
 import type { NameType, ValueType } from "recharts/types/component/DefaultTooltipContent";
 import type { YearDataPoint } from "../../api";
 import { buildNumericAxisDomain } from "../../utils/chartAxis";
 import { formatDollarsCompact } from "../../utils/format";
+
+type LineDotProps = {
+  cx?: number;
+  cy?: number;
+  payload?: YearDataPoint;
+};
 
 interface LineChartPanelProps {
   title: string;
@@ -27,12 +39,39 @@ interface LineChartPanelProps {
   /** Extra class on the outer panel wrapper for chart-specific layout/CSS */
   panelClassName?: string;
   chartMargin?: { top?: number; right?: number; bottom?: number; left?: number };
+  /** Fired when a fiscal-year point is clicked (navigate to search, etc.). */
+  onYearClick?: (point: YearDataPoint) => void;
 }
 
 /**
  * Dual-axis line chart showing project count (left axis) and
  * total funding (right axis) over fiscal years.
  */
+function makeYearDot(fill: string, onYearClick?: (point: YearDataPoint) => void) {
+  if (!onYearClick) {
+    return { r: 3, fill, strokeWidth: 0 };
+  }
+  return ({ cx, cy, payload }: LineDotProps) => {
+    if (cx == null || cy == null || payload == null) {
+      return null;
+    }
+    return (
+      <circle
+        cx={cx}
+        cy={cy}
+        r={5}
+        fill={fill}
+        strokeWidth={0}
+        style={{ cursor: "pointer" }}
+        onClick={(event) => {
+          event.stopPropagation();
+          onYearClick(payload);
+        }}
+      />
+    );
+  };
+}
+
 export default function LineChartPanel({
   title,
   data,
@@ -40,6 +79,7 @@ export default function LineChartPanel({
   height = 300,
   panelClassName,
   chartMargin = { top: 12, right: 16, bottom: 4, left: 8 },
+  onYearClick,
 }: LineChartPanelProps) {
   const chartBodyRef = useRef<HTMLDivElement>(null);
   const { chartHoverActive, handleChartMouseMove, handleChartMouseLeave } =
@@ -76,7 +116,7 @@ export default function LineChartPanel({
     if (!chartHoverActive || !props.active || !props.payload?.length) return null;
 
     return (
-      <div className="bg-surface border border-border rounded-[--radius-md] shadow-md text-[0.8125rem] px-[0.875rem] py-[0.625rem] pointer-events-none min-w-[160px] z-10">
+      <div className={cn(CLS_CHART_CURSOR_TOOLTIP, "z-10")} style={CHART_TOOLTIP_ROUNDED_STYLE}>
         <div className="text-text-primary font-semibold mb-1 text-[0.82rem]">FY {props.label}</div>
         {props.payload.map((entry) => {
           const rawValue = entry.value;
@@ -107,6 +147,10 @@ export default function LineChartPanel({
       <div className="text-text-primary text-[0.9rem] font-semibold mb-[0.65rem]">{title}</div>
       <div
         ref={chartBodyRef}
+        className={cn(
+          CLS_RECHARTS_FOCUS_RESET,
+          onYearClick && "[&_.recharts-layer]:cursor-pointer",
+        )}
         onMouseMove={handleChartMouseMove}
         onMouseLeave={handleChartMouseLeave}
       >
@@ -141,6 +185,8 @@ export default function LineChartPanel({
           <Tooltip
             active={chartHoverActive ? undefined : false}
             content={renderTooltip}
+            contentStyle={RECHARTS_TOOLTIP_CONTENT_STYLE}
+            wrapperStyle={RECHARTS_TOOLTIP_WRAPPER_STYLE}
             position={{ x: 16, y: 16 }}
           />
           <Legend
@@ -153,8 +199,8 @@ export default function LineChartPanel({
             name="Projects"
             stroke="#1a56db"
             strokeWidth={2}
-            dot={{ r: 3, fill: "#1a56db", strokeWidth: 0 }}
-            activeDot={{ r: 5, strokeWidth: 0 }}
+            dot={makeYearDot("#1a56db", onYearClick)}
+            activeDot={onYearClick ? false : { r: 5, strokeWidth: 0 }}
           />
           <Line
             yAxisId="right"
@@ -163,8 +209,8 @@ export default function LineChartPanel({
             name="Total Funding"
             stroke="#0e9f6e"
             strokeWidth={2}
-            dot={{ r: 3, fill: "#0e9f6e", strokeWidth: 0 }}
-            activeDot={{ r: 5, strokeWidth: 0 }}
+            dot={makeYearDot("#0e9f6e", onYearClick)}
+            activeDot={onYearClick ? false : { r: 5, strokeWidth: 0 }}
           />
         </LineChart>
       </ResponsiveContainer>

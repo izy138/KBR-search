@@ -3,6 +3,7 @@ import { isFiscalYearRangeFiltered } from "../utils/fiscalYearRange";
 export type FilterValues = {
   pi: string;
   ic: string;
+  org: string;
   activity: string;
   state: string;
   fyMin: string;
@@ -12,6 +13,7 @@ export type FilterValues = {
 export const emptyFilterValues = (): FilterValues => ({
   pi: "",
   ic: "",
+  org: "",
   activity: "",
   state: "",
   fyMin: "",
@@ -22,6 +24,7 @@ export const hasActiveFilters = (filters: FilterValues): boolean =>
   Boolean(
     filters.pi
       || filters.ic
+      || filters.org
       || filters.activity
       || filters.state
       || isFiscalYearRangeFiltered(filters.fyMin, filters.fyMax),

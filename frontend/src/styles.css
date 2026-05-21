@@ -153,6 +153,23 @@ body {
   color: var(--accent-text);
 }
 
+.filter-select-option--disabled {
+  color: var(--text-muted);
+  cursor: default;
+  opacity: 0.55;
+}
+
+.filter-select-option--disabled:hover,
+.filter-select-option--disabled:focus-visible {
+  background: transparent;
+}
+
+.filter-select-option--disabled[aria-selected="true"] {
+  background: var(--surface-hover);
+  color: var(--text-secondary);
+  font-weight: 400;
+}
+
 
 
 

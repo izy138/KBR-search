@@ -36,6 +36,7 @@ import {
   HELP_SEARCH_FILTER_ACTIVITY,
   HELP_SEARCH_FILTER_FY,
   HELP_SEARCH_FILTER_IC,
+  HELP_SEARCH_FILTER_ORG,
   HELP_SEARCH_FILTER_PI,
   HELP_SEARCH_FILTER_STATE,
 } from "./utils/helpContent";
@@ -80,6 +81,7 @@ export default function App() {
   );
   const [selectedPI, setSelectedPI] = useState(() => initialSearchUrl?.pi ?? "");
   const [selectedIC, setSelectedIC] = useState(() => initialSearchUrl?.ic ?? "");
+  const [selectedOrg, setSelectedOrg] = useState(() => initialSearchUrl?.org ?? "");
   const [selectedActivity, setSelectedActivity] = useState(
     () => initialSearchUrl?.activity ?? "",
   );
@@ -177,6 +179,7 @@ export default function App() {
       limit: resultsPerPage,
       pi: selectedPI,
       ic: selectedIC,
+      org: selectedOrg,
       activity: selectedActivity,
       state: selectedState,
       fyMin,
@@ -195,6 +198,7 @@ export default function App() {
       setLimit: setResultsPerPage,
       setPi: setSelectedPI,
       setIc: setSelectedIC,
+      setOrg: setSelectedOrg,
       setActivity: setSelectedActivity,
       setState: setSelectedState,
       setFyMin,
@@ -219,6 +223,7 @@ export default function App() {
     excludeProjectTermFilters,
     selectedPI,
     selectedIC,
+    selectedOrg,
     selectedActivity,
     selectedState,
     fyMin,
@@ -282,17 +287,19 @@ export default function App() {
     () => ({
       pi: selectedPI,
       ic: selectedIC,
+      org: selectedOrg,
       activity: selectedActivity,
       state: selectedState,
       fyMin,
       fyMax,
     }),
-    [selectedPI, selectedIC, selectedActivity, selectedState, fyMin, fyMax],
+    [selectedPI, selectedIC, selectedOrg, selectedActivity, selectedState, fyMin, fyMax],
   );
 
   const filterCatalog = useMemo(
     () => ({
       icNames: searchFilterCatalog?.icNames ?? [],
+      orgNames: searchFilterCatalog?.orgNames ?? [],
       activityCodes: searchFilterCatalog?.activityCodes ?? [],
       states: searchFilterCatalog?.states ?? [],
       fiscalYearOptions: searchFilterCatalog?.fiscalYearOptions,
@@ -354,6 +361,7 @@ export default function App() {
       await downloadSearchResultsCsv(plainQ, {
         pi: selectedPI,
         ic: selectedIC,
+        org: selectedOrg,
         activity: selectedActivity,
         state: selectedState,
         fyMin,
@@ -372,6 +380,7 @@ export default function App() {
     searchQuery,
     selectedPI,
     selectedIC,
+    selectedOrg,
     selectedActivity,
     selectedState,
     fyMin,
@@ -383,6 +392,7 @@ export default function App() {
   const handleApplyFilters = (filters: FilterValues) => {
     setSelectedPI(filters.pi);
     setSelectedIC(filters.ic);
+    setSelectedOrg(filters.org);
     setSelectedActivity(filters.activity);
     setSelectedState(filters.state);
     setFyMin(filters.fyMin);
@@ -393,6 +403,7 @@ export default function App() {
   const handleClearFilters = useCallback(() => {
     setSelectedPI("");
     setSelectedIC("");
+    setSelectedOrg("");
     setSelectedActivity("");
     setSelectedState("");
     setFyMin("");
@@ -470,6 +481,20 @@ export default function App() {
       semanticCommitted: false,
     });
   }, [navigateToSearch]);
+  const handleDashboardYearSearchNavigate = useCallback(
+    (year: number) => {
+      const yearStr = String(year);
+      setFyMin(yearStr);
+      setFyMax(yearStr);
+      setCurrentPage(1);
+      navigateToSearch({
+        fyMin: yearStr,
+        fyMax: yearStr,
+        page: 1,
+      });
+    },
+    [navigateToSearch],
+  );
 
   const handleSearchFromProjectTerms = useCallback(
     (payload: { terms: string[]; excludedTerms: string[]; additionalQuery: string }) => {
@@ -660,6 +685,7 @@ export default function App() {
                 onClearFilters={handleClearFilters}
                 onTermSearchNavigate={handleDashboardTermSearchNavigate}
                 onViewAllProjects={handleViewAllProjects}
+                onYearSearchNavigate={handleDashboardYearSearchNavigate}
               />
             ) : semanticSimilarProjectId ? (
               <SemanticSimilarProjectPage
@@ -764,6 +790,7 @@ export default function App() {
                   fieldHelp={{
                     pi: HELP_SEARCH_FILTER_PI,
                     ic: HELP_SEARCH_FILTER_IC,
+                    org: HELP_SEARCH_FILTER_ORG,
                     activity: HELP_SEARCH_FILTER_ACTIVITY,
                     state: HELP_SEARCH_FILTER_STATE,
                     fy: HELP_SEARCH_FILTER_FY,

@@ -13,12 +13,24 @@ import type { TooltipContentProps } from "recharts/types/component/Tooltip";
 import type { NameType, ValueType } from "recharts/types/component/DefaultTooltipContent";
 import type { ActivityFundingPieResponse, ActivityPieSlice } from "../../api";
 import { cn } from "../../utils/cn";
-import { CLS_RECHARTS_FOCUS_RESET } from "../../utils/chartStyles";
+import { getActivityCodeTitle } from "../../utils/activityCodeTitles";
+import {
+  CHART_TOOLTIP_ROUNDED_STYLE,
+  CLS_CHART_HOVER_TOOLTIP,
+  CLS_RECHARTS_FOCUS_RESET,
+  RECHARTS_TOOLTIP_CONTENT_STYLE,
+  RECHARTS_TOOLTIP_WRAPPER_STYLE,
+} from "../../utils/chartStyles";
 
 const DEFAULT_CHART_HEIGHT_PX = 360;
 
-/** Inner ring = top N activity codes; outer = codes 6…ZIF plus one “Other” slice. */
-const INNER_SLICE_COUNT = 5;
+/** Inner ring = largest activity codes; outer = remaining named codes up through ZIF plus “Other”. */
+const INNER_SLICE_MAX_COUNT = 5;
+/** Smallest inner wedge must be at least this share of inner-ring funding (else → outer). */
+const MIN_INNER_SLICE_SHARE_OF_RING = 0.06;
+/** Stop adding inner slices once this share of named funding is covered (after min count). */
+const INNER_RING_CUMULATIVE_SHARE_TARGET = 0.88;
+const INNER_SLICE_MIN_COUNT = 2;
 /** Last activity code shown as its own slice; everything after rolls into Other. */
 const LAST_INDIVIDUAL_ACTIVITY_CODE = "ZIF";
 const FALLBACK_OUTER_SLICE_COUNT = 15;
@@ -27,6 +39,16 @@ const OTHER_SLICE_COLOR = "#64748b";
 const OTHER_SLICE_MAX_VS_RING = 0.07;
 /** Other sits inset in the outer ring so it reads smaller. */
 const OTHER_RADIAL_INSET_PX = 13;
+/** Inner-disk labels: large slices pull inward; small slices stay toward the outer wedge. */
+const INNER_SLICE_LABEL_RADIAL_FACTOR_MAX = 0.75;
+const INNER_SLICE_LABEL_RADIAL_FACTOR_MIN = 0.48;
+const INNER_SLICE_LABEL_OUTER_PAD_PX = 25;
+const INNER_SLICE_LABEL_INNER_PAD_PX = 28;
+/** Outer-band labels stay centered in the ring with padding on both edges. */
+const OUTER_SLICE_LABEL_RADIAL_FACTOR = 0.5;
+const OUTER_SLICE_LABEL_EDGE_PAD_PX = 10;
+const INNER_SLICE_LABEL_CODE_FONT_PX = 14;
+const INNER_SLICE_LABEL_PCT_FONT_PX = 12;
 
 /**
  * Two stacked `<Pie>` rings — inner (top 5) is a filled disk; outer (6…ZIF + Other) is a thin band.
@@ -34,7 +56,7 @@ const OTHER_RADIAL_INSET_PX = 13;
  */
 const INNER_PIE_INNER_RADIUS_PX = 0;
 const INNER_PIE_OUTER_RADIUS_PX = 120;
-const OUTER_PIE_INNER_RADIUS_PX = 126;
+const OUTER_PIE_INNER_RADIUS_PX = 130;
 /** Outer band thickness = 50% more than the previous 34px band (34 × 1.5 ≈ 51). */
 const OUTER_PIE_OUTER_RADIUS_PX = 175;
 
@@ -80,6 +102,79 @@ interface ActivityFundingPiePanelProps {
   selectedActivity?: string;
   /** When set, tail list codes apply that activity as a dashboard filter. */
   onActivitySelect?: (activityCode: string) => void;
+  /** Activity code hovered in the filter dropdown (not shown on pie slices). */
+  hoveredActivityCode?: string | null;
+}
+
+type ActivityCodeHoverCardProps = {
+  code: string;
+  formatDollars: (n: number) => string;
+  funding?: number;
+  projectCount?: number;
+  description?: string;
+  className?: string;
+};
+
+function ActivityCodeHoverCard({
+  code,
+  formatDollars,
+  funding,
+  projectCount,
+  description,
+  className,
+}: ActivityCodeHoverCardProps) {
+  return (
+    <div
+      className={cn(
+        CLS_CHART_HOVER_TOOLTIP,
+        "min-w-0 max-w-[min(20rem,calc(100vw-2rem))] px-[0.62rem] py-[0.48rem] text-[13px] leading-[1.2]",
+        className,
+      )}
+      style={CHART_TOOLTIP_ROUNDED_STYLE}
+    >
+      <div className="flex flex-wrap items-baseline gap-x-[0.4rem] gap-y-[0.15rem] whitespace-nowrap">
+        <span className="font-bold text-text-primary">{code}</span>
+        {funding != null ? (
+          <>
+            <span className="text-text-muted select-none">·</span>
+            <span>{formatDollars(funding)}</span>
+          </>
+        ) : null}
+        {projectCount != null ? (
+          <>
+            <span className="text-text-muted select-none">·</span>
+            <span className="text-text-muted">{projectCount.toLocaleString()} projects</span>
+          </>
+        ) : null}
+      </div>
+      {description ? (
+        <p className="m-0 mt-[0.18rem] text-text-secondary leading-[1.3] whitespace-normal">
+          {description}
+        </p>
+      ) : null}
+    </div>
+  );
+}
+
+type ActivityCodeInChartPreviewProps = {
+  code: string;
+  formatDollars: (n: number) => string;
+  row?: PieRow;
+};
+
+function ActivityCodeInChartPreview({ code, formatDollars, row }: ActivityCodeInChartPreviewProps) {
+  return (
+    <div className="absolute inset-0 z-20 flex items-center justify-center p-4 pointer-events-none">
+      <ActivityCodeHoverCard
+        code={code}
+        formatDollars={formatDollars}
+        funding={row?.value}
+        projectCount={row?.count}
+        description={getActivityCodeTitle(code)}
+        className="max-w-[min(18rem,90%)] text-center bg-surface/95 backdrop-blur-[2px] [&_p]:text-center"
+      />
+    </div>
+  );
 }
 
 function rowFromSlice(s: ActivityPieSlice): PieRow {
@@ -139,29 +234,76 @@ function prepareRingRows(rows: PieRow[], ring: "inner" | "outer"): PieRow[] {
   });
 }
 
+function sortPieRowsByFunding(rows: PieRow[]): PieRow[] {
+  return [...rows].sort((a, b) => {
+    const diff = b.value - a.value;
+    return diff !== 0 ? diff : a.name.localeCompare(b.name);
+  });
+}
+
+/**
+ * Picks inner-ring slices by funding rank. Small wedges are deferred to the outer ring so
+ * labels do not cluster in the center disk.
+ */
+function pickInnerRingSlices(named: PieRow[]): PieRow[] {
+  const sorted = sortPieRowsByFunding(named);
+  if (sorted.length === 0) {
+    return [];
+  }
+  if (sorted.length <= INNER_SLICE_MAX_COUNT) {
+    return sorted;
+  }
+
+  const total = sorted.reduce((acc, r) => acc + r.value, 0);
+  const inner: PieRow[] = [];
+  let sum = 0;
+
+  for (const row of sorted) {
+    if (inner.length >= INNER_SLICE_MAX_COUNT) {
+      break;
+    }
+    if (inner.length >= INNER_SLICE_MIN_COUNT && total > 0) {
+      if (sum / total >= INNER_RING_CUMULATIVE_SHARE_TARGET) {
+        break;
+      }
+      const nextSum = sum + row.value;
+      if (nextSum > 0 && row.value / nextSum < MIN_INNER_SLICE_SHARE_OF_RING) {
+        break;
+      }
+    }
+    inner.push(row);
+    sum += row.value;
+  }
+
+  return inner;
+}
+
 function splitPieRows(pie: ActivityFundingPieResponse): {
   innerChartData: PieRow[];
   outerChartData: PieRow[];
   tailDetailRows: PieRow[];
   usesZifCutoff: boolean;
 } {
-  const ordered = [
+  const ordered = sortPieRowsByFunding([
     ...pie.slices.map(rowFromSlice),
     ...(pie.tail_slices ?? []).map(rowFromSlice),
-  ];
+  ]);
   const zifIdx = ordered.findIndex((r) => r.name === LAST_INDIVIDUAL_ACTIVITY_CODE);
 
   if (zifIdx < 0) {
-    const inner = ordered.slice(0, INNER_SLICE_COUNT);
-    const outer = ordered.slice(INNER_SLICE_COUNT, INNER_SLICE_COUNT + FALLBACK_OUTER_SLICE_COUNT);
-    const tailDetailRows = ordered.slice(INNER_SLICE_COUNT + FALLBACK_OUTER_SLICE_COUNT);
-    return { innerChartData: inner, outerChartData: outer, tailDetailRows, usesZifCutoff: false };
+    const innerChartData = pickInnerRingSlices(ordered);
+    const innerNames = new Set(innerChartData.map((r) => r.name));
+    const afterInner = ordered.filter((r) => !innerNames.has(r.name));
+    const outerChartData = afterInner.slice(0, FALLBACK_OUTER_SLICE_COUNT);
+    const tailDetailRows = afterInner.slice(FALLBACK_OUTER_SLICE_COUNT);
+    return { innerChartData, outerChartData, tailDetailRows, usesZifCutoff: false };
   }
 
-  const individual = ordered.slice(0, zifIdx + 1);
+  const named = ordered.slice(0, zifIdx + 1);
   const tailDetailRows = ordered.slice(zifIdx + 1);
-  const innerChartData = individual.slice(0, INNER_SLICE_COUNT);
-  const outerIndividuals = individual.slice(INNER_SLICE_COUNT);
+  const innerChartData = pickInnerRingSlices(named);
+  const innerNames = new Set(innerChartData.map((r) => r.name));
+  const outerIndividuals = sortPieRowsByFunding(named.filter((r) => !innerNames.has(r.name)));
   const outerChartData =
     tailDetailRows.length > 0
       ? [...outerIndividuals, buildOtherAggregateRow(tailDetailRows, pie.total_funding_indexed)]
@@ -252,10 +394,51 @@ type SliceLabelProps = {
   midAngle?: number;
   innerRadius?: number;
   outerRadius?: number;
+  /** Recharts slice share of this ring (0–1, or 0–100 in some versions). */
+  percent?: number;
   payload?: { name: string; pct: number; isOther?: boolean };
   minPct?: number;
   compact?: boolean;
+  ring?: "inner" | "outer";
 };
+
+function normalizeSlicePercent(percent: number | undefined): number | undefined {
+  if (percent == null || !Number.isFinite(percent)) {
+    return undefined;
+  }
+  return percent > 1 ? percent / 100 : percent;
+}
+
+function innerSliceLabelRadialFactor(slicePercent: number | undefined): number {
+  const share = normalizeSlicePercent(slicePercent);
+  if (share == null || share <= 0) {
+    return INNER_SLICE_LABEL_RADIAL_FACTOR_MAX;
+  }
+  const span = INNER_SLICE_LABEL_RADIAL_FACTOR_MAX - INNER_SLICE_LABEL_RADIAL_FACTOR_MIN;
+  return INNER_SLICE_LABEL_RADIAL_FACTOR_MAX - share * span;
+}
+
+function sliceLabelRadius(
+  innerRadius: number,
+  outerRadius: number,
+  ring: "inner" | "outer",
+  isOther: boolean,
+  slicePercent?: number,
+): number {
+  const span = outerRadius - innerRadius;
+  if (ring === "inner") {
+    const factor = innerSliceLabelRadialFactor(slicePercent);
+    const target = innerRadius + span * factor;
+    const minR = innerRadius + INNER_SLICE_LABEL_INNER_PAD_PX;
+    const maxR = outerRadius - INNER_SLICE_LABEL_OUTER_PAD_PX;
+    return Math.min(Math.max(target, minR), maxR);
+  }
+  const drawOuter = isOther ? outerRadius - OTHER_RADIAL_INSET_PX : outerRadius;
+  const target = innerRadius + span * OUTER_SLICE_LABEL_RADIAL_FACTOR;
+  const minR = innerRadius + OUTER_SLICE_LABEL_EDGE_PAD_PX;
+  const maxR = drawOuter - OUTER_SLICE_LABEL_EDGE_PAD_PX;
+  return Math.min(Math.max(target, minR), maxR);
+}
 
 /** Activity code + % of all indexed funding on each slice. */
 function renderSliceLabel({
@@ -264,9 +447,11 @@ function renderSliceLabel({
   midAngle,
   innerRadius,
   outerRadius,
+  percent,
   payload,
   minPct = 2.5,
   compact = false,
+  ring = compact ? "inner" : "outer",
 }: SliceLabelProps) {
   const row = payload;
   if (
@@ -284,9 +469,17 @@ function renderSliceLabel({
     return null;
   }
   const RADIAN = Math.PI / 180;
-  const radius = innerRadius + (outerRadius - innerRadius) * 0.55;
+  const radius = sliceLabelRadius(
+    innerRadius,
+    outerRadius,
+    ring,
+    Boolean(row.isOther),
+    ring === "inner" ? percent : undefined,
+  );
   const x = cx + radius * Math.cos(-midAngle * RADIAN);
   const y = cy + radius * Math.sin(-midAngle * RADIAN);
+  const codeStrokeWidth = compact ? "1.5px" : "2px";
+  const pctStrokeWidth = compact ? "1.25px" : "2px";
   return (
     <text
       x={x}
@@ -298,15 +491,29 @@ function renderSliceLabel({
     >
       <tspan
         x={x}
-        dy={compact ? "-0.45em" : "-0.55em"}
-        style={{ fill: "#fff", fontWeight: 700, paintOrder: "stroke fill", stroke: "rgba(15,23,42,0.5)", strokeWidth: "2px" }}
+        dy={compact ? "-0.4em" : "-0.55em"}
+        style={{
+          fill: "#fff",
+          fontSize: compact ? INNER_SLICE_LABEL_CODE_FONT_PX : undefined,
+          fontWeight: 700,
+          paintOrder: "stroke fill",
+          stroke: "rgba(15,23,42,0.5)",
+          strokeWidth: codeStrokeWidth,
+        }}
       >
         {row.isOther ? "Other" : row.name}
       </tspan>
       <tspan
         x={x}
-        dy={compact ? "0.95em" : "1.05em"}
-        style={{ fill: "#fff", fontWeight: 600, paintOrder: "stroke fill", stroke: "rgba(15,23,42,0.45)", strokeWidth: "2px" }}
+        dy={compact ? "0.85em" : "1.05em"}
+        style={{
+          fill: "#fff",
+          fontSize: compact ? INNER_SLICE_LABEL_PCT_FONT_PX : undefined,
+          fontWeight: 600,
+          paintOrder: "stroke fill",
+          stroke: "rgba(15,23,42,0.45)",
+          strokeWidth: pctStrokeWidth,
+        }}
       >
         {`${pctAll.toFixed(1)}%`}
       </tspan>
@@ -341,10 +548,12 @@ export default function ActivityFundingPiePanel({
   loading = false,
   selectedActivity = "",
   onActivitySelect,
+  hoveredActivityCode = null,
 }: ActivityFundingPiePanelProps) {
   const chartBodyRef = useRef<HTMLDivElement>(null);
   const { chartHoverActive, handleChartMouseMove, handleChartMouseLeave } =
     useChartCursorTooltip(chartBodyRef);
+  const [tailHoverCode, setTailHoverCode] = useState<string | null>(null);
 
   const { innerChartData, outerChartData, tailDetailRows } = useMemo(() => {
     const split = splitPieRows(pie);
@@ -359,6 +568,26 @@ export default function ActivityFundingPiePanel({
     () => [...innerChartData, ...outerChartData],
     [innerChartData, outerChartData],
   );
+
+  const pieSliceCodes = useMemo(
+    () =>
+      new Set(
+        [...innerChartData, ...outerChartData]
+          .filter((r) => !r.isOther)
+          .map((r) => r.name),
+      ),
+    [innerChartData, outerChartData],
+  );
+
+  const tailRowByCode = useMemo(
+    () => new Map(tailDetailRows.map((r) => [r.name, r])),
+    [tailDetailRows],
+  );
+
+  const previewCode = tailHoverCode ?? hoveredActivityCode ?? null;
+  const showChartPreview =
+    previewCode != null && previewCode.length > 0 && !pieSliceCodes.has(previewCode);
+  const previewRow = previewCode ? tailRowByCode.get(previewCode) : undefined;
 
   const showTailPanel = tailDetailRows.length > 0;
 
@@ -423,17 +652,16 @@ export default function ActivityFundingPiePanel({
       return null;
     }
     const codeLabel = row.isOther ? "Other" : row.name;
+    const codeMeaning = row.isOther ? undefined : getActivityCodeTitle(row.name);
     return (
-      <div className="bg-surface border border-border rounded-[--radius-md] shadow-md min-w-0 px-[0.68rem] py-[0.45rem] text-[14px] leading-[1.25] pointer-events-none z-10">
-        <div className="flex flex-wrap items-baseline gap-x-[0.45rem] gap-y-[0.3rem] whitespace-nowrap">
-          <span className="font-bold text-text-primary">{codeLabel}</span>
-          <span className="text-text-muted select-none">·</span>
-          <span>{formatDollars(row.value)}</span>
-        </div>
-        <div className="flex flex-wrap items-baseline gap-x-[0.45rem] gap-y-[0.3rem] whitespace-nowrap text-text-muted mt-[0.15rem]">
-          {row.count.toLocaleString()} projects
-        </div>
-      </div>
+      <ActivityCodeHoverCard
+        code={codeLabel}
+        formatDollars={formatDollars}
+        funding={row.value}
+        projectCount={row.count}
+        description={codeMeaning}
+        className="pointer-events-none z-10"
+      />
     );
   };
 
@@ -476,8 +704,9 @@ export default function ActivityFundingPiePanel({
         <div
           ref={chartBodyRef}
           className={cn(
-            "w-full min-w-0 overflow-visible [&_svg]:overflow-visible [&_svg]:text-[inherit]",
+            "relative w-full min-w-0 overflow-visible [&_svg]:overflow-visible [&_svg]:text-[inherit]",
             CLS_RECHARTS_FOCUS_RESET,
+            showChartPreview && "[&_svg]:opacity-35",
           )}
           style={{ height: chartHeight, minHeight: chartHeight }}
           onMouseMove={handleChartMouseMove}
@@ -503,7 +732,9 @@ export default function ActivityFundingPiePanel({
                   onAnimationEnd={handlePieAnimationEnd}
                   legendType="none"
                   labelLine={false}
-                  label={(props) => renderSliceLabel({ ...props, minPct: 0.8, compact: true })}
+                  label={(props) =>
+                    renderSliceLabel({ ...props, minPct: 0.8, compact: true, ring: "inner" })
+                  }
                   onClick={onActivitySelect ? handlePieSliceClick : undefined}
                 >
                   {innerChartData.map((_, index) => (
@@ -533,6 +764,7 @@ export default function ActivityFundingPiePanel({
                     renderSliceLabel({
                       ...props,
                       minPct: props.payload?.isOther ? 0 : 1.2,
+                      ring: "outer",
                     })
                   }
                   onClick={onActivitySelect ? handlePieSliceClick : undefined}
@@ -540,7 +772,7 @@ export default function ActivityFundingPiePanel({
                   {outerChartData.map((row, index) => (
                     <Cell
                       key={`outer-cell-${index}`}
-                      fill={row.isOther ? OTHER_SLICE_COLOR : sliceColor(INNER_SLICE_COUNT + index)}
+                      fill={row.isOther ? OTHER_SLICE_COLOR : sliceColor(INNER_SLICE_MAX_COUNT + index)}
                     />
                   ))}
                 </Pie>
@@ -548,12 +780,20 @@ export default function ActivityFundingPiePanel({
               <Tooltip
                 active={chartHoverActive ? undefined : false}
                 content={renderTooltip}
+                contentStyle={RECHARTS_TOOLTIP_CONTENT_STYLE}
+                wrapperStyle={{ ...RECHARTS_TOOLTIP_WRAPPER_STYLE, transition: "none" }}
                 isAnimationActive={false}
                 animationDuration={0}
-                wrapperStyle={{ transition: "none", outline: "none" }}
               />
             </PieChart>
           </ResponsiveContainer>
+          {showChartPreview && previewCode ? (
+            <ActivityCodeInChartPreview
+              code={previewCode}
+              formatDollars={formatDollars}
+              row={previewRow}
+            />
+          ) : null}
         </div>
         {showTailPanel ? (
           <aside className="flex flex-col min-h-0 max-h-[360px] pl-[0.9rem] pr-1 py-[0.85rem] border border-border-strong rounded-[--radius-md] bg-bg" aria-label="Other Activity Codes">
@@ -583,11 +823,17 @@ export default function ActivityFundingPiePanel({
                   </>
                 );
 
+                const tailHoverHandlers = {
+                  onMouseEnter: () => setTailHoverCode(row.name),
+                  onMouseLeave: () => setTailHoverCode(null),
+                };
+
                 if (onActivitySelect == null) {
                   return (
                     <li
                       key={row.name}
                       className="border-b-2 border-border-strong px-1.5 py-1 last:border-b-0"
+                      {...tailHoverHandlers}
                     >
                       <div className={rowInnerClass}>{rowBody}</div>
                     </li>
@@ -598,6 +844,7 @@ export default function ActivityFundingPiePanel({
                   <li
                     key={row.name}
                     className="border-b-2 border-border-strong px-1.5 py-1 last:border-b-0"
+                    {...tailHoverHandlers}
                   >
                     <button
                       type="button"

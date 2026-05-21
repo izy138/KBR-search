@@ -17,6 +17,7 @@ export type UseSearchParams = {
   excludeProjectTermFilters: string[];
   selectedPI: string;
   selectedIC: string;
+  selectedOrg: string;
   selectedActivity: string;
   selectedState: string;
   fyMin: string;
@@ -63,6 +64,7 @@ export function useSearch({
   excludeProjectTermFilters,
   selectedPI,
   selectedIC,
+  selectedOrg,
   selectedActivity,
   selectedState,
   fyMin,
@@ -85,6 +87,7 @@ export function useSearch({
     semanticSearchCommitted,
     selectedPI,
     selectedIC,
+    selectedOrg,
     selectedActivity,
     selectedState,
     fyMin,
@@ -99,6 +102,7 @@ export function useSearch({
     semanticSearchCommitted,
     selectedPI,
     selectedIC,
+    selectedOrg,
     selectedActivity,
     selectedState,
     fyMin,
@@ -138,6 +142,7 @@ export function useSearch({
           limit,
           pi: ctx.selectedPI,
           ic: ctx.selectedIC,
+          org: ctx.selectedOrg,
           activity: ctx.selectedActivity,
           state: ctx.selectedState,
           fyMin: ctx.fyMin,
@@ -171,6 +176,7 @@ export function useSearch({
     resultsPerPage,
     selectedPI,
     selectedIC,
+    selectedOrg,
     selectedActivity,
     selectedState,
     fyMin,

@@ -1,9 +1,10 @@
 import { useEffect, useState } from "react";
-import { getActivityData, getIcData, getStateData, getYearData } from "../api";
+import { getActivityData, getIcData, getOrgData, getStateData, getYearData } from "../api";
 
 /** Shape of the filter option lists shared across Search and Dashboard views. */
 export interface FilterCatalog {
   icNames: string[];
+  orgNames: string[];
   activityCodes: string[];
   states: string[];
   fiscalYearOptions: number[];
@@ -20,12 +21,14 @@ function fetchFilterCatalog(): Promise<FilterCatalog> {
   if (!cachedPromise) {
     cachedPromise = Promise.all([
       getIcData(),
+      getOrgData(),
       getActivityData(80),
       getStateData(),
       getYearData(),
     ])
-      .then(([icData, activityData, stateData, yearData]) => ({
+      .then(([icData, orgData, activityData, stateData, yearData]) => ({
         icNames: icData.map((p) => p.label),
+        orgNames: orgData.map((p) => p.label),
         activityCodes: activityData.map((p) => p.label),
         states: stateData.map((p) => p.state),
         fiscalYearOptions: yearData.map((d) => d.year),

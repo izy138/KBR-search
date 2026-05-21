@@ -1,7 +1,13 @@
 import { useCallback, useEffect, useMemo, useRef, useState, type MouseEvent, type ReactNode } from "react";
 import { useChartCursorTooltip } from "../../hooks/useChartCursorTooltip";
 import { cn } from "../../utils/cn";
-import { CLS_RECHARTS_FOCUS_RESET } from "../../utils/chartStyles";
+import {
+  CHART_TOOLTIP_ROUNDED_STYLE,
+  CLS_CHART_CURSOR_TOOLTIP,
+  CLS_RECHARTS_FOCUS_RESET,
+  RECHARTS_TOOLTIP_CONTENT_STYLE,
+  RECHARTS_TOOLTIP_WRAPPER_STYLE,
+} from "../../utils/chartStyles";
 import {
   Bar,
   BarChart,
@@ -20,6 +26,8 @@ import {
 } from "./VerticalOnlyBarShape";
 
 let lastBarAnimationSnapKey: string | undefined;
+
+const COLUMN_CLICK_BACKGROUND = { fill: "transparent" } as const;
 
 type ColoredBarShapeProps = {
   x?: number;
@@ -176,7 +184,7 @@ export default function BarChartPanel({
     if (!chartBody) return;
 
     const updateHeight = (): void => {
-      setMeasuredChartHeight(chartBody.getBoundingClientRect().height);
+      setMeasuredChartHeight(chartBody.offsetHeight);
     };
 
     updateHeight();
@@ -217,8 +225,8 @@ export default function BarChartPanel({
 
     return (
       <div
-        className="bg-surface border border-border rounded-[--radius-md] shadow-md text-[0.8125rem] px-[0.875rem] py-[0.625rem] pointer-events-none min-w-[160px] fixed z-[1000]"
-        style={{ left: tooltipPos.x, top: tooltipPos.y }}
+        className={cn(CLS_CHART_CURSOR_TOOLTIP, "fixed z-[1000]")}
+        style={{ ...CHART_TOOLTIP_ROUNDED_STYLE, left: tooltipPos.x, top: tooltipPos.y }}
       >
         <div className="text-text-primary font-semibold mb-1 text-[0.82rem]">{label}</div>
         <div className="text-text-secondary">{displayValue}</div>
@@ -278,7 +286,8 @@ export default function BarChartPanel({
     panelClassName,
     fillHeight && "flex flex-col min-h-0 h-full",
     CLS_RECHARTS_FOCUS_RESET,
-    onBarClick && "[&_.recharts-bar-rectangle]:cursor-pointer",
+    onBarClick &&
+      "[&_.recharts-bar-background-rectangle]:cursor-pointer [&_.recharts-bar-rectangle]:cursor-pointer",
   );
 
   const handleBarClick = (barEntry: { payload?: Record<string, unknown> }): void => {
@@ -356,6 +365,8 @@ export default function BarChartPanel({
             <Tooltip
               active={chartHoverActive ? undefined : false}
               content={renderTooltip}
+              contentStyle={RECHARTS_TOOLTIP_CONTENT_STYLE}
+              wrapperStyle={RECHARTS_TOOLTIP_WRAPPER_STYLE}
               cursor={chartHoverActive ? { fill: "var(--accent-light)" } : false}
             />
             <Bar
@@ -364,6 +375,7 @@ export default function BarChartPanel({
               radius={[0, 3, 3, 0]}
               maxBarSize={24}
               shape={barShape}
+              background={onBarClick ? COLUMN_CLICK_BACKGROUND : false}
               onClick={onBarClick ? handleBarClick : undefined}
             />
           </BarChart>
@@ -402,6 +414,8 @@ export default function BarChartPanel({
             <Tooltip
               active={chartHoverActive ? undefined : false}
               content={renderTooltip}
+              contentStyle={RECHARTS_TOOLTIP_CONTENT_STYLE}
+              wrapperStyle={RECHARTS_TOOLTIP_WRAPPER_STYLE}
               cursor={chartHoverActive ? { fill: "var(--accent-light)" } : false}
             />
             <Bar
@@ -410,6 +424,7 @@ export default function BarChartPanel({
               radius={[3, 3, 0, 0]}
               isAnimationActive={!useVerticalBarAnimation && animateBars}
               shape={barShape}
+              background={onBarClick ? COLUMN_CLICK_BACKGROUND : false}
               onClick={onBarClick ? handleBarClick : undefined}
               {...(resolvedBarSize != null
                 ? { barSize: resolvedBarSize }

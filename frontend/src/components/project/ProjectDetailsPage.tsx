@@ -6,6 +6,7 @@ import { getProjectOtherYears, searchSimilarToProjectId } from "../../api";
 import { getOrderedPiNames } from "../../utils/piNames";
 import { groupSimilarNeighbors } from "../../utils/recurrenceGrouping";
 import { formatDollarsFull } from "../../utils/format";
+import { formatAllCapsLabel, formatDropdownLabel } from "../../utils/filterLabels";
 import { cn } from "../../utils/cn";
 const CLS_LINK_BTN = "p-0 border-none bg-transparent text-accent font-sans text-[0.8125rem] font-semibold cursor-pointer hover:underline";
 import FiscalYearTag from "./FiscalYearTag";
@@ -36,8 +37,14 @@ type ProjectDetailsPageProps = {
 
 const ABSTRACT_PREVIEW_LENGTH = 1500;
 const SIMILAR_PANEL_K = 10;
+const SIMILAR_PROJECT_IC_NAME_MAX = 60;
 
 const CLS_SECTION_H2 = "text-[0.86rem] uppercase tracking-[0.05em] text-text-muted mb-[0.35rem]";
+
+function truncateWithEllipsis(text: string, maxLength: number): string {
+  if (text.length <= maxLength) return text;
+  return `${text.slice(0, maxLength)}...`;
+}
 
 function KeywordTag({ mode, onClick, children }: {
   mode: TermFilterMode | null;
@@ -767,30 +774,77 @@ export default function ProjectDetailsPage({
             const yearVariants = dedupeYearVariants(getYearVariants(neighbor));
             const listKey = yearVariants.map((variant) => variant.project_id).join("-") || String(index);
             const primaryId = yearVariants[0]?.project_id ?? neighbor._id ?? neighbor.id ?? "";
+            const canOpen = Boolean(onOpenDetails && primaryId);
+            const title = neighbor.PROJECT_TITLE ?? "Untitled";
+            const instituteLabel = neighbor.IC_NAME
+              ? formatAllCapsLabel(formatDropdownLabel(neighbor.IC_NAME))
+              : "";
+            const handleOpenNeighbor = (): void => {
+              onOpenDetails?.(neighbor);
+            };
             return (
               <li key={listKey} className="pb-[0.75rem] border-b border-border last:pb-0 last:border-b-0">
-                <div className="flex items-start justify-between gap-2 mb-[0.45rem]">
-                  <SimilarProjectYearTags
-                    variants={yearVariants}
-                    onSelect={handleOpenYearVariant}
-                  />
-                  <div className="flex items-center justify-end gap-[0.4rem] flex-shrink-0 ml-auto">
-                    {neighbor.ACTIVITY ? <span className="inline-block px-[0.42rem] py-[0.12rem] rounded-full text-[0.72rem] font-semibold leading-[1.3] bg-accent-light text-accent-text">{neighbor.ACTIVITY}</span> : null}
-                    <span className="font-mono text-[0.78rem] font-medium text-text-secondary whitespace-nowrap">
-                      {formatDollarsFull(neighbor.TOTAL_COST)}
-                    </span>
+                <div
+                  className={cn(
+                    "rounded-md px-[0.55rem] py-[0.5rem] -mx-[0.55rem]",
+                    canOpen &&
+                      "group cursor-pointer transition-[background] duration-100 hover:bg-surface-hover focus-visible:outline-2 focus-visible:outline-accent focus-visible:outline-offset-[-2px]",
+                  )}
+                  role={canOpen ? "button" : undefined}
+                  tabIndex={canOpen ? 0 : undefined}
+                  onClick={canOpen ? handleOpenNeighbor : undefined}
+                  onKeyDown={
+                    canOpen
+                      ? (event) => {
+                          if (event.key === "Enter" || event.key === " ") {
+                            event.preventDefault();
+                            handleOpenNeighbor();
+                          }
+                        }
+                      : undefined
+                  }
+                  aria-label={canOpen ? `Project: ${title}` : undefined}
+                >
+                  <div className="flex items-start justify-between gap-2 mb-[0.45rem]">
+                    <div
+                      onClick={(event) => event.stopPropagation()}
+                      onKeyDown={(event) => event.stopPropagation()}
+                    >
+                      <SimilarProjectYearTags
+                        variants={yearVariants}
+                        onSelect={handleOpenYearVariant}
+                      />
+                    </div>
+                    <div className="flex items-center justify-end gap-[0.4rem] flex-shrink-0 ml-auto">
+                      {neighbor.ACTIVITY ? <span className="inline-block px-[0.42rem] py-[0.12rem] rounded-full text-[0.72rem] font-semibold leading-[1.3] bg-accent-light text-accent-text">{neighbor.ACTIVITY}</span> : null}
+                      <span className="font-mono text-[0.78rem] font-medium text-text-secondary whitespace-nowrap">
+                        {formatDollarsFull(neighbor.TOTAL_COST)}
+                      </span>
+                    </div>
                   </div>
-                </div>
-                <p className="text-[0.9rem] font-semibold text-text-primary leading-[1.4] mb-[0.35rem]">{neighbor.PROJECT_TITLE ?? "Untitled"}</p>
-                {onOpenDetails && primaryId ? (
-                  <button
-                    type="button"
-                    className={CLS_LINK_BTN}
-                    onClick={() => onOpenDetails(neighbor)}
+                  <p
+                    className={cn(
+                      "text-[0.9rem] font-semibold text-text-primary leading-[1.4] m-0",
+                      canOpen && "group-hover:text-accent",
+                    )}
                   >
-                    View project
-                  </button>
-                ) : null}
+                    {title}
+                  </p>
+                  {instituteLabel ? (
+                    <div className="flex justify-start mt-[0.3rem]">
+                      <span
+                        className="font-mono text-[0.78rem] font-medium text-text-secondary"
+                        title={
+                          instituteLabel.length > SIMILAR_PROJECT_IC_NAME_MAX
+                            ? instituteLabel
+                            : undefined
+                        }
+                      >
+                        {truncateWithEllipsis(instituteLabel, SIMILAR_PROJECT_IC_NAME_MAX)}
+                      </span>
+                    </div>
+                  ) : null}
+                </div>
               </li>
             );
           })}

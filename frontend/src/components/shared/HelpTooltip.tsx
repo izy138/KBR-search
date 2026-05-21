@@ -175,7 +175,7 @@ export default function HelpTooltip({
           maxHeight: panelCoords?.maxHeight,
           visibility: panelCoords ? "visible" : "hidden",
         }}
-        className="z-[100] overflow-y-auto rounded-md border border-border bg-surface px-3 py-2.5 text-left text-[0.8rem] leading-[1.45] text-text-secondary shadow-md"
+        className="z-[100] overflow-y-auto rounded-[--radius-md] border border-border bg-surface px-3 py-2.5 text-left text-[0.8rem] leading-[1.45] text-text-secondary shadow-md"
       >
         <p className="mb-1.5 text-[0.72rem] font-semibold uppercase tracking-[0.04em] text-text-muted">
           {label}

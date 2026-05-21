@@ -17,6 +17,7 @@ export type ParsedSearchUrl = {
   limit: number;
   pi: string;
   ic: string;
+  org: string;
   activity: string;
   state: string;
   fyMin: string;
@@ -113,6 +114,7 @@ export function parseSearchUrlParams(params: URLSearchParams): ParsedSearchUrl {
     limit: parsePositiveInt(params.get("limit"), DEFAULT_LIMIT),
     pi: params.get("pi") ?? "",
     ic: params.get("ic") ?? "",
+    org: params.get("org") ?? "",
     activity: params.get("activity") ?? "",
     state: params.get("state") ?? "",
     fyMin: params.get("fy_min") ?? "",
@@ -136,6 +138,7 @@ export type SearchUrlWriteInput = {
   limit: number;
   pi: string;
   ic: string;
+  org: string;
   activity: string;
   state: string;
   fyMin: string;
@@ -163,6 +166,7 @@ export function buildSearchUrlParams(input: SearchUrlWriteInput): URLSearchParam
 
   if (input.pi) params.set("pi", input.pi);
   if (input.ic) params.set("ic", input.ic);
+  if (input.org) params.set("org", input.org);
   if (input.activity) params.set("activity", input.activity);
   if (input.state) params.set("state", input.state);
   if (input.fyMin) params.set("fy_min", input.fyMin);
