@@ -1,4 +1,4 @@
-import { type MouseEvent, useCallback, useEffect, useRef, useState } from "react";
+import { useEffect, useState } from "react";
 import { scaleThreshold } from "d3-scale";
 import {
   ComposableMap,
@@ -6,14 +6,7 @@ import {
   Geography,
 } from "react-simple-maps";
 import type { Geography as GeographyType } from "react-simple-maps";
-import type { StateDataPoint } from "../../api";
-import { formatDollarsCompact } from "../../utils/format";
-import { cn } from "../../utils/cn";
-import {
-  CHART_TOOLTIP_ROUNDED_STYLE,
-  CLS_CHART_CURSOR_TOOLTIP,
-  getScrollableAncestors,
-} from "../../utils/chartStyles";
+import type { StateDataPoint } from "../api";
 
 /** TopoJSON source — US states at 1:10m resolution */
 const GEO_URL = "https://cdn.jsdelivr.net/npm/us-atlas@3/states-10m.json";
@@ -44,7 +37,7 @@ const MAP_COLOR_STOPS = [
 ] as const;
 const HOVER_FILL = "#ffe259";
 const HOVER_STROKE = "#f97316";
-/** Outline for the active state filter (map click or dropdown). */
+/** Outline for the state last clicked on the map (not hover). */
 const SELECTED_STROKE = "#1a56db";
 const HOVER_STROKE_WIDTH = 3;
 const SELECTED_STROKE_WIDTH = 2;
@@ -127,11 +120,18 @@ interface TooltipState {
 
 interface StateMapProps {
   data: StateDataPoint[];
-  /** Active state filter (USPS abbrev); highlights matching state on the map. */
+  /** Active state filter (USPS abbrev); used to clear map-click highlight when filters reset. */
   selectedStateAbbrev?: string;
   /** When set, clicking a state applies that USPS abbrev; click again to clear (passes ""). */
   onStateSelect?: (stateAbbrev: string) => void;
 }
+
+const formatFunding = (n: number): string => {
+  if (n >= 1e9) return `$${(n / 1e9).toFixed(1)}B`;
+  if (n >= 1e6) return `$${(n / 1e6).toFixed(1)}M`;
+  if (n >= 1e3) return `$${(n / 1e3).toFixed(1)}K`;
+  return `$${n}`;
+};
 
 /**
  * US choropleth map shaded by NIH project count per state.
@@ -144,83 +144,45 @@ export default function StateMap({
 }: StateMapProps) {
   const [tooltip, setTooltip] = useState<TooltipState | null>(null);
   const [hoveredState, setHoveredState] = useState<string | null>(null);
-  const mapCanvasRef = useRef<HTMLDivElement>(null);
-  const lastPointerRef = useRef<{ x: number; y: number } | null>(null);
+  const [mapClickedAbbrev, setMapClickedAbbrev] = useState<string | null>(null);
 
   const normalizedSelectedAbbrev = selectedStateAbbrev.trim().toUpperCase();
 
-  const selectedGeoName = normalizedSelectedAbbrev
-    ? (STATE_ABBREV_TO_NAME[normalizedSelectedAbbrev] ?? null)
-    : null;
+  useEffect(() => {
+    if (!normalizedSelectedAbbrev) {
+      setMapClickedAbbrev(null);
+    }
+  }, [normalizedSelectedAbbrev]);
 
-  const isSelectedState = (geoName: string): boolean => {
-    if (!normalizedSelectedAbbrev) return false;
+  const isMapClickedState = (geoName: string): boolean => {
+    if (!mapClickedAbbrev || mapClickedAbbrev !== normalizedSelectedAbbrev) {
+      return false;
+    }
     const abbrev = STATE_NAME_TO_ABBREV[geoName];
-    return abbrev?.toUpperCase() === normalizedSelectedAbbrev;
+    return abbrev?.toUpperCase() === mapClickedAbbrev;
   };
+
+  const selectedGeoName =
+    mapClickedAbbrev && mapClickedAbbrev === normalizedSelectedAbbrev
+      ? Object.entries(STATE_NAME_TO_ABBREV).find(
+          ([, abbrev]) => abbrev.toUpperCase() === mapClickedAbbrev,
+        )?.[0] ?? null
+      : null;
 
   const tooltipOffset = (clientX: number, clientY: number): { x: number; y: number } => ({
     x: clientX + 12,
     y: clientY - 8,
   });
 
-  const clearHover = useCallback((): void => {
-    lastPointerRef.current = null;
+  const clearHover = (): void => {
     setHoveredState(null);
     setTooltip(null);
-  }, []);
-
-  useEffect(() => {
-    if (tooltip == null) return;
-
-    const syncTooltipWithPointer = (): void => {
-      const canvas = mapCanvasRef.current;
-      const last = lastPointerRef.current;
-      if (canvas == null || last == null) {
-        clearHover();
-        return;
-      }
-      const rect = canvas.getBoundingClientRect();
-      if (
-        last.x < rect.left ||
-        last.x > rect.right ||
-        last.y < rect.top ||
-        last.y > rect.bottom
-      ) {
-        clearHover();
-        return;
-      }
-      const underPointer = document.elementFromPoint(last.x, last.y);
-      if (!(underPointer instanceof Node) || !canvas.contains(underPointer)) {
-        clearHover();
-        return;
-      }
-      const { x, y } = tooltipOffset(last.x, last.y);
-      setTooltip((prev) => (prev ? { ...prev, x, y } : null));
-    };
-
-    const scrollTargets = mapCanvasRef.current
-      ? getScrollableAncestors(mapCanvasRef.current)
-      : [];
-    for (const target of scrollTargets) {
-      target.addEventListener("scroll", syncTooltipWithPointer, { passive: true });
-    }
-    window.addEventListener("resize", syncTooltipWithPointer, { passive: true });
-    window.addEventListener("wheel", syncTooltipWithPointer, { passive: true });
-
-    return () => {
-      for (const target of scrollTargets) {
-        target.removeEventListener("scroll", syncTooltipWithPointer);
-      }
-      window.removeEventListener("resize", syncTooltipWithPointer);
-      window.removeEventListener("wheel", syncTooltipWithPointer);
-    };
-  }, [tooltip, clearHover]);
+  };
 
   const isPointerStillOverMap = (
-    event: MouseEvent<SVGPathElement>,
+    event: React.MouseEvent<SVGPathElement>,
   ): boolean => {
-    const canvas = event.currentTarget.closest("[data-map-canvas]");
+    const canvas = event.currentTarget.closest(".state-map-canvas");
     if (!canvas) return false;
 
     const related = event.relatedTarget;
@@ -259,10 +221,12 @@ export default function StateMap({
     const normalized = abbrev.toUpperCase();
     if (normalized === normalizedSelectedAbbrev) {
       onStateSelect("");
+      setMapClickedAbbrev(null);
       return;
     }
 
     onStateSelect(normalized);
+    setMapClickedAbbrev(normalized);
   };
 
   const getStroke = (geoName: string, isHovered: boolean, isSelected: boolean): string => {
@@ -292,7 +256,7 @@ export default function StateMap({
     const geoName = geo.properties.name as string;
     const point = stateByName.get(geoName);
     const isHovered = hoveredLayer || hoveredState === geoName;
-    const isSelected = isSelectedState(geoName);
+    const isSelected = isMapClickedState(geoName);
     const isInteractive = onStateSelect != null;
     const useScreenSpaceStroke = isHovered || isSelected || insetMap;
     const strokeStyle = useScreenSpaceStroke
@@ -323,7 +287,6 @@ export default function StateMap({
           handleStateClick(geoName);
         }}
         onMouseEnter={(e) => {
-          lastPointerRef.current = { x: e.clientX, y: e.clientY };
           const { x, y } = tooltipOffset(e.clientX, e.clientY);
           setHoveredState(geoName);
           setTooltip({
@@ -335,7 +298,6 @@ export default function StateMap({
           });
         }}
         onMouseMove={(e) => {
-          lastPointerRef.current = { x: e.clientX, y: e.clientY };
           const { x, y } = tooltipOffset(e.clientX, e.clientY);
           setTooltip((prev) => (prev ? { ...prev, x, y } : null));
         }}
@@ -398,9 +360,9 @@ export default function StateMap({
     ));
 
   return (
-    <div className="bg-surface border border-border rounded-[--radius-lg] w-full h-full min-h-[310px] relative flex flex-col px-4 py-[0.9rem]">
-      <div className="text-text-primary text-[0.9rem] font-semibold mb-1">Projects by State</div>
-      <div ref={mapCanvasRef} className="-mt-[0.2rem] relative" data-map-canvas onMouseLeave={clearHover}>
+    <div className="chart-panel state-map-panel">
+      <div className="chart-panel-title">Projects by State</div>
+      <div className="state-map-canvas" onMouseLeave={clearHover}>
         <ComposableMap
           projection="geoAlbersUsa"
           projectionConfig={{ scale: 900 }}
@@ -427,7 +389,7 @@ export default function StateMap({
           </Geographies>
         </ComposableMap>
 
-        <div className="absolute left-[90%] top-[90%] w-[14px] overflow-visible pointer-events-auto [&_svg]:block [&_svg]:w-full [&_svg]:h-auto [&_svg]:overflow-visible">
+        <div className="state-map-pr-inset">
           <ComposableMap
             projection="geoConicEqualArea"
             projectionConfig={{
@@ -461,12 +423,12 @@ export default function StateMap({
 
       {tooltip && (
         <div
-          className={cn(CLS_CHART_CURSOR_TOOLTIP, "fixed z-[1000]")}
-          style={{ ...CHART_TOOLTIP_ROUNDED_STYLE, left: tooltip.x, top: tooltip.y }}
+          className="map-tooltip"
+          style={{ left: tooltip.x, top: tooltip.y }}
         >
-          <div className="text-text-primary font-semibold mb-1 text-[0.82rem]">{tooltip.stateName}</div>
-          <div className="text-text-secondary">Projects: {tooltip.count.toLocaleString()}</div>
-          <div className="text-text-secondary">Funding: {formatDollarsCompact(tooltip.totalFunding)}</div>
+          <div className="map-tooltip-state">{tooltip.stateName}</div>
+          <div className="map-tooltip-row">Projects: {tooltip.count.toLocaleString()}</div>
+          <div className="map-tooltip-row">Funding: {formatFunding(tooltip.totalFunding)}</div>
         </div>
       )}
     </div>

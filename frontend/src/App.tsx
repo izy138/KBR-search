@@ -630,7 +630,7 @@ export default function App() {
             }
             onClick={() => navigate("/semantic")}
           >
-            Vector lab
+             Hybrid Search
           </button>
         </nav>
 
