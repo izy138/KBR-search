@@ -42,6 +42,7 @@ import {
   HELP_DASHBOARD_FILTER_IC,
   HELP_DASHBOARD_FILTER_ORG,
   HELP_DASHBOARD_FILTER_PI,
+  HELP_DASHBOARD_FILTER_STATE,
 } from "../../utils/helpContent";
 
 // ─── Formatting helpers ───────────────────────────────────────────────────────
@@ -203,6 +204,7 @@ type DashboardProps = {
   onApplyFilters: (filters: FilterValues) => void;
   onClearFilters: () => void;
   onTermSearchNavigate: (terms: string[]) => void;
+  onViewAllProjects: () => void;
   onYearSearchNavigate: (year: number) => void;
 };
 
@@ -211,15 +213,36 @@ type DashboardProps = {
 interface KpiCardProps {
   label: string;
   value: string;
+  onClick?: () => void;
 }
 
-function KpiCard({ label, value }: KpiCardProps) {
-  return (
-    <div className="bg-surface border border-border rounded-lg px-4 py-[0.9rem] text-center">
+function KpiCard({ label, value, onClick }: KpiCardProps) {
+  const content = (
+    <>
       <div className="text-accent text-[1.45rem] font-bold leading-[1.2] font-mono">{value}</div>
       <div className="text-text-secondary text-[0.8125rem] mt-[0.375rem]">{label}</div>
-    </div>
+    </>
   );
+  const className = cn(
+    "bg-surface border border-border rounded-lg px-4 py-[0.9rem] text-center w-full",
+    onClick
+      && "cursor-pointer transition-[border-color,background,box-shadow] duration-150 hover:border-accent hover:bg-surface-hover hover:shadow-sm focus-visible:outline-2 focus-visible:outline-accent focus-visible:outline-offset-2",
+  );
+
+  if (onClick) {
+    return (
+      <button
+        type="button"
+        className={className}
+        onClick={onClick}
+        aria-label={`${label}: ${value}. View all projects in search`}
+      >
+        {content}
+      </button>
+    );
+  }
+
+  return <div className={className}>{content}</div>;
 }
 
 // ─── Main Dashboard component ─────────────────────────────────────────────────
@@ -236,6 +259,7 @@ export default function Dashboard({
   onApplyFilters,
   onClearFilters,
   onTermSearchNavigate,
+  onViewAllProjects,
   onYearSearchNavigate,
 }: DashboardProps) {
   const hasLoadedOnceRef = useRef(false);
@@ -601,6 +625,7 @@ export default function Dashboard({
           ic: HELP_DASHBOARD_FILTER_IC,
           org: HELP_DASHBOARD_FILTER_ORG,
           activity: HELP_DASHBOARD_FILTER_ACTIVITY,
+          state: HELP_DASHBOARD_FILTER_STATE,
           fy: HELP_DASHBOARD_FILTER_FY,
         }}
         searchQuery={searchQuery}
@@ -618,7 +643,11 @@ export default function Dashboard({
       {/* KPI cards */}
       <div className="grid grid-cols-3 gap-3 my-3 max-[900px]:grid-cols-2 max-[500px]:grid-cols-1">
         <KpiCard label="Total Funding" value={formatDollarsCompact(summary.total_funding)} />
-        <KpiCard label="Total Projects" value={formatCount(summary.total_documents)} />
+        <KpiCard
+          label="Total Projects"
+          value={formatCount(summary.total_documents)}
+          onClick={onViewAllProjects}
+        />
         <KpiCard label="Avg Grant" value={formatDollarsCompact(avgGrantValue)} />
       </div>
 
