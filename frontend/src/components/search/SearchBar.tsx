@@ -98,7 +98,7 @@ const SearchBar: FC<SearchBarProps> = ({
 
   const modalInitialQuery = (() => {
     const parsed = parseUnifiedSearch(query);
-    return parsed.advanced ?? createDefaultAdvancedSearchQuery(parsed.plainQ);
+    return parsed.advanced ?? createDefaultAdvancedSearchQuery();
   })();
 
   const useExpandedLayout = showAdvancedToggle || showSemanticToggle;

@@ -71,7 +71,11 @@ export type ParsedUnifiedSearch = {
   plainQ: string;
 };
 
-export function parseUnifiedSearch(input: string): ParsedUnifiedSearch {
+function parseLeadingAdvancedBlock(input: string): {
+  clauses: AdvancedSearchClause[];
+  operators: AdvancedSearchOperator[];
+  remainder: string;
+} {
   let remaining = input.trim();
   const clauses: AdvancedSearchClause[] = [];
   const operators: AdvancedSearchOperator[] = [];
@@ -107,16 +111,64 @@ export function parseUnifiedSearch(input: string): ParsedUnifiedSearch {
     }
   }
 
-  const plainQ = remaining.trim();
+  return { clauses, operators, remainder: remaining.trim() };
+}
+
+function parseTrailingAdvancedBlock(input: string): {
+  clauses: AdvancedSearchClause[];
+  operators: AdvancedSearchOperator[];
+  plainQ: string;
+} | null {
+  const trimmed = input.trim();
+  for (let start = 0; start < trimmed.length; start += 1) {
+    if (trimmed[start] !== "(") {
+      continue;
+    }
+    const suffix = trimmed.slice(start).trim();
+    const { clauses, operators, remainder } = parseLeadingAdvancedBlock(suffix);
+    if (clauses.length === 0 || remainder.length > 0) {
+      continue;
+    }
+    const plainQ = trimmed.slice(0, start).trim();
+    return { clauses, operators, plainQ };
+  }
+  return null;
+}
+
+function advancedFromParsedParts(
+  clauses: AdvancedSearchClause[],
+  operators: AdvancedSearchOperator[],
+): AdvancedSearchQuery | null {
   if (clauses.length === 0) {
-    return { advanced: null, plainQ };
+    return null;
+  }
+  const advanced = normalizeAdvancedSearchQuery({ clauses, operators });
+  return hasAdvancedSearchContent(advanced) ? advanced : null;
+}
+
+export function parseUnifiedSearch(input: string): ParsedUnifiedSearch {
+  const trimmed = input.trim();
+  if (!trimmed) {
+    return { advanced: null, plainQ: "" };
   }
 
-  const advanced = normalizeAdvancedSearchQuery({ clauses, operators });
-  return {
-    advanced: hasAdvancedSearchContent(advanced) ? advanced : null,
-    plainQ,
-  };
+  const leading = parseLeadingAdvancedBlock(trimmed);
+  if (leading.clauses.length > 0) {
+    return {
+      advanced: advancedFromParsedParts(leading.clauses, leading.operators),
+      plainQ: leading.remainder,
+    };
+  }
+
+  const trailing = parseTrailingAdvancedBlock(trimmed);
+  if (trailing) {
+    return {
+      advanced: advancedFromParsedParts(trailing.clauses, trailing.operators),
+      plainQ: trailing.plainQ,
+    };
+  }
+
+  return { advanced: null, plainQ: trimmed };
 }
 
 export function composeUnifiedSearch(
@@ -124,12 +176,12 @@ export function composeUnifiedSearch(
   plainQ: string,
 ): string {
   const parts: string[] = [];
-  if (advanced && hasAdvancedSearchContent(advanced)) {
-    parts.push(formatAdvancedSearchQuery(advanced));
-  }
   const plain = plainQ.trim();
   if (plain) {
     parts.push(plain);
+  }
+  if (advanced && hasAdvancedSearchContent(advanced)) {
+    parts.push(formatAdvancedSearchQuery(advanced));
   }
   return parts.join(" ");
 }
