@@ -42,7 +42,6 @@ import {
   HELP_DASHBOARD_FILTER_IC,
   HELP_DASHBOARD_FILTER_ORG,
   HELP_DASHBOARD_FILTER_PI,
-  HELP_DASHBOARD_FILTER_STATE,
 } from "../../utils/helpContent";
 
 // ─── Formatting helpers ───────────────────────────────────────────────────────
@@ -123,14 +122,17 @@ const YEAR_LINE_CHART_HEIGHT = 320;
 /** Recharts box height for the activity funding pie (larger to fit scaled ring radii). */
 const ACTIVITY_PIE_CHART_HEIGHT = 360;
 
+/** Grid cell — stretches to match sibling in the map + main-chart row. */
+const MAP_CHART_ROW_CELL_CLASS = "flex h-full min-h-[310px] min-w-0 flex-col";
+
 /** Shared layout for the map-adjacent main chart slot (IC projects + top orgs when IC filtered). */
 const MAIN_CHART_SLOT_PANEL_CLASS =
-  "min-h-0 w-full max-w-full px-4 pt-[0.9rem] pb-[0.05rem] [&_.recharts-responsive-container]:-ml-3 [&_.recharts-responsive-container]:-mb-[0.35rem] [&_.recharts-responsive-container]:!w-[calc(100%+12px)]";
+  "flex h-full min-h-0 w-full max-w-full flex-1 flex-col px-4 pt-[0.9rem] pb-0 [&_.recharts-responsive-container]:-ml-3 [&_.recharts-responsive-container]:!w-[calc(100%+12px)]";
 
 const MAIN_CHART_SLOT_BAR_PROPS = {
   layout: "horizontal" as const,
   fillHeight: true,
-  xAxisHeight: 58,
+  xAxisHeight: 46,
   xAxisAngle: -45,
   xAxisFontSize: 12,
   yAxisFontSize: 12,
@@ -141,12 +143,16 @@ const MAIN_CHART_SLOT_BAR_PROPS = {
   maxBarSize: 30,
 };
 
-/** IC projects chart: extra bottom inset so angled x-axis labels clear the panel edge. */
+/** IC projects chart: minimal bottom padding; plot fills panel via fillHeight. */
 const IC_PROJECTS_PANEL_CLASS = cn(
   MAIN_CHART_SLOT_PANEL_CLASS,
-  "pb-2 [&_.recharts-responsive-container]:-mb-0",
+  "!pt-2 pb-0 [&_.recharts-responsive-container]:!mb-0",
 );
-const IC_PROJECTS_CHART_MARGIN = { top: 4, right: 4, bottom: 14, left: 0 };
+const IC_PROJECTS_CHART_MARGIN = { top: 4, right: 4, bottom: 0, left: 0 };
+const IC_PROJECTS_BAR_OVERRIDES = {
+  xAxisHeight: 68,
+  xAxisTickDy: -4,
+};
 
 /** Pie/year-trend row — same chart styling as main slot, sized to match LineChartPanel. */
 const SECONDARY_CHART_ROW_PANEL_CLASS = cn(
@@ -199,7 +205,7 @@ interface DashboardData {
 type DashboardProps = {
   searchQuery: string;
   onUpdateDashboard: (query: string) => void;
-  onSearchNavigate: (query: string) => void;
+  onSearchNavigate: (query: string, filters?: FilterValues) => void;
   appliedFilters: FilterValues;
   onApplyFilters: (filters: FilterValues) => void;
   onClearFilters: () => void;
@@ -235,7 +241,7 @@ function KpiCard({ label, value, onClick }: KpiCardProps) {
         type="button"
         className={className}
         onClick={onClick}
-        aria-label={`${label}: ${value}. View all projects in search`}
+        aria-label={`${label}: ${value}. View matching projects in search`}
       >
         {content}
       </button>
@@ -539,11 +545,8 @@ export default function Dashboard({
       labelKey="short_label"
       tooltipLabelKey="full_label"
       {...MAIN_CHART_SLOT_BAR_PROPS}
+      {...IC_PROJECTS_BAR_OVERRIDES}
       chartMargin={IC_PROJECTS_CHART_MARGIN}
-      barAnimation="vertical"
-      barAnimationSnapKey={
-        icProjectsUseLogScale ? `hybrid-log-${icChartHybridScale.linearMax}` : "linear"
-      }
       onBarClick={handleIcBarClick}
       {...(icProjectsUseLogScale
         ? {
@@ -625,7 +628,6 @@ export default function Dashboard({
           ic: HELP_DASHBOARD_FILTER_IC,
           org: HELP_DASHBOARD_FILTER_ORG,
           activity: HELP_DASHBOARD_FILTER_ACTIVITY,
-          state: HELP_DASHBOARD_FILTER_STATE,
           fy: HELP_DASHBOARD_FILTER_FY,
         }}
         searchQuery={searchQuery}
@@ -652,15 +654,25 @@ export default function Dashboard({
       </div>
 
       {/* State map + main chart slot (IC projects or top orgs when IC filtered) */}
-      <div className="grid grid-cols-3 gap-3 items-stretch w-full max-w-full min-w-0 max-[768px]:grid-cols-1">
-        <div className="col-start-1 row-start-1 flex min-h-0 min-w-0 flex-col h-full max-[768px]:col-auto max-[768px]:row-auto">
+      <div className="grid grid-cols-3 items-stretch gap-3 w-full max-w-full min-w-0 max-[768px]:grid-cols-1">
+        <div
+          className={cn(
+            MAP_CHART_ROW_CELL_CLASS,
+            "col-start-1 row-start-1 max-[768px]:col-auto max-[768px]:row-auto",
+          )}
+        >
           <StateMap
             data={stateData}
             selectedStateAbbrev={appliedFilters.state}
             onStateSelect={handleMapStateSelect}
           />
         </div>
-        <div className="col-start-2 col-end-[-1] row-start-1 flex min-h-0 min-w-0 h-full flex-col overflow-hidden w-full max-w-full max-[768px]:col-auto max-[768px]:row-auto">
+        <div
+          className={cn(
+            MAP_CHART_ROW_CELL_CLASS,
+            "col-start-2 col-end-[-1] row-start-1 overflow-hidden max-[768px]:col-auto max-[768px]:row-auto",
+          )}
+        >
           {hasIcFilter ? topOrgsPanelMainSlot : icProjectsPanel}
         </div>
         <div className="col-span-full row-start-2 grid grid-cols-2 gap-3 items-stretch min-w-0 max-[768px]:grid-cols-1 max-[768px]:col-auto max-[768px]:row-auto">

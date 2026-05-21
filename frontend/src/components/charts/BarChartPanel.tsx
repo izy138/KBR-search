@@ -1,5 +1,4 @@
 import { useCallback, useEffect, useMemo, useRef, useState, type MouseEvent, type ReactNode } from "react";
-import { useChartCursorTooltip } from "../../hooks/useChartCursorTooltip";
 import { cn } from "../../utils/cn";
 import {
   CHART_TOOLTIP_ROUNDED_STYLE,
@@ -26,8 +25,6 @@ import {
 } from "./VerticalOnlyBarShape";
 
 let lastBarAnimationSnapKey: string | undefined;
-
-const COLUMN_CLICK_BACKGROUND = { fill: "transparent" } as const;
 
 type ColoredBarShapeProps = {
   x?: number;
@@ -96,6 +93,8 @@ interface BarChartPanelProps {
   height?: number;
   /** Extra space reserved for angled category labels on horizontal charts */
   xAxisHeight?: number;
+  /** Nudge category tick labels vertically (negative moves up). */
+  xAxisTickDy?: number;
   xAxisAngle?: number;
   xAxisFontSize?: number;
   yAxisFontSize?: number;
@@ -152,6 +151,7 @@ export default function BarChartPanel({
   color = "#1a56db",
   barFillKey,
   xAxisHeight = 90,
+  xAxisTickDy,
   xAxisAngle = -40,
   xAxisFontSize = 10,
   yAxisFontSize = 11,
@@ -171,9 +171,6 @@ export default function BarChartPanel({
 }: BarChartPanelProps) {
   const chartBodyRef = useRef<HTMLDivElement>(null);
   const [measuredChartHeight, setMeasuredChartHeight] = useState(0);
-  const { chartHoverActive, cursorTooltipPos, handleChartMouseMove, handleChartMouseLeave } =
-    useChartCursorTooltip(chartBodyRef);
-
   useEffect(() => {
     if (!fillHeight) {
       setMeasuredChartHeight(0);
@@ -183,13 +180,15 @@ export default function BarChartPanel({
     const chartBody = chartBodyRef.current;
     if (!chartBody) return;
 
-    const updateHeight = (): void => {
-      setMeasuredChartHeight(chartBody.offsetHeight);
+    const updateHeight = (entries?: ResizeObserverEntry[]): void => {
+      const height =
+        entries?.[0]?.contentRect.height ?? chartBody.getBoundingClientRect().height;
+      setMeasuredChartHeight(Math.max(Math.round(height), 0));
     };
 
     updateHeight();
 
-    const observer = new ResizeObserver(updateHeight);
+    const observer = new ResizeObserver((entries) => updateHeight(entries));
     observer.observe(chartBody);
 
     return () => observer.disconnect();
@@ -197,14 +196,7 @@ export default function BarChartPanel({
 
   const chartHeight = fillHeight ? Math.max(measuredChartHeight, 1) : height;
   const renderTooltip = (props: TooltipContentProps<ValueType, NameType>) => {
-    if (
-      !chartHoverActive ||
-      !props.active ||
-      !props.payload?.length ||
-      cursorTooltipPos == null
-    ) {
-      return null;
-    }
+    if (!props.active || !props.payload?.length) return null;
     const entry = props.payload[0];
     const rawPayload = entry.payload as Record<string, unknown> | undefined;
     const rawFromPayload = rawPayload?.[`${dataKey}__raw`];
@@ -221,13 +213,8 @@ export default function BarChartPanel({
         ? formatter(numericValue)
       : numericValue.toLocaleString();
 
-    const tooltipPos = cursorTooltipPos;
-
     return (
-      <div
-        className={cn(CLS_CHART_CURSOR_TOOLTIP, "fixed z-[1000]")}
-        style={{ ...CHART_TOOLTIP_ROUNDED_STYLE, left: tooltipPos.x, top: tooltipPos.y }}
-      >
+      <div className={cn(CLS_CHART_CURSOR_TOOLTIP, "z-10")} style={CHART_TOOLTIP_ROUNDED_STYLE}>
         <div className="text-text-primary font-semibold mb-1 text-[0.82rem]">{label}</div>
         <div className="text-text-secondary">{displayValue}</div>
       </div>
@@ -282,12 +269,11 @@ export default function BarChartPanel({
       : undefined);
 
   const panelClass = cn(
-    "bg-surface border border-border rounded-[--radius-lg] w-full px-4 py-[0.9rem] min-h-[310px]",
+    "bg-surface border border-border rounded-[--radius-lg] w-full px-4 min-h-[310px]",
+    fillHeight ? "flex flex-col min-h-0 h-full overflow-visible py-0" : "py-[0.9rem]",
     panelClassName,
-    fillHeight && "flex flex-col min-h-0 h-full",
     CLS_RECHARTS_FOCUS_RESET,
-    onBarClick &&
-      "[&_.recharts-bar-background-rectangle]:cursor-pointer [&_.recharts-bar-rectangle]:cursor-pointer",
+    onBarClick && "[&_.recharts-bar-rectangle]:cursor-pointer",
   );
 
   const handleBarClick = (barEntry: { payload?: Record<string, unknown> }): void => {
@@ -323,6 +309,86 @@ export default function BarChartPanel({
     syncVerticalBarSnapKey(barAnimationSnapKey);
   }
 
+  const chartPlot = isVertical ? (
+    <BarChart
+      accessibilityLayer={false}
+      data={chartData}
+      layout="vertical"
+      margin={{ top: 4, right: 16, bottom: 4, left: 8 }}
+    >
+      <CartesianGrid strokeDasharray="3 3" horizontal={false} stroke="var(--border)" />
+      <XAxis type="number" {...valueAxisProps} />
+      <YAxis
+        type="category"
+        dataKey={labelKey}
+        width={140}
+        tick={{ fontSize: 11, fill: "var(--text-secondary)" }}
+        interval={0}
+        axisLine={false}
+        tickLine={false}
+      />
+      <Tooltip
+        content={renderTooltip}
+        contentStyle={RECHARTS_TOOLTIP_CONTENT_STYLE}
+        wrapperStyle={RECHARTS_TOOLTIP_WRAPPER_STYLE}
+        cursor={{ fill: "var(--accent-light)" }}
+      />
+      <Bar
+        dataKey={barDataKey}
+        fill={color}
+        radius={[0, 3, 3, 0]}
+        maxBarSize={24}
+        shape={barShape}
+        onClick={onBarClick ? handleBarClick : undefined}
+      />
+    </BarChart>
+  ) : (
+    <BarChart
+      accessibilityLayer={false}
+      key={chartKey}
+      data={chartData}
+      margin={chartMargin}
+      barCategoryGap={barCategoryGap}
+      {...(resolvedBarSize == null && !dynamicBarSize ? { maxBarSize } : {})}
+    >
+      <CartesianGrid strokeDasharray="3 3" vertical={false} stroke="var(--border)" />
+      <XAxis
+        type="category"
+        dataKey={labelKey}
+        height={xAxisHeight}
+        tick={{ fontSize: xAxisFontSize, fill: "var(--text-secondary)" }}
+        angle={xAxisAngle}
+        textAnchor="end"
+        interval={0}
+        axisLine={false}
+        tickLine={false}
+        tickMargin={4}
+        {...(xAxisTickDy != null ? { dy: xAxisTickDy } : {})}
+      />
+      <YAxis
+        width={yAxisWidth}
+        tickMargin={yAxisTickMargin}
+        type="number"
+        {...valueAxisProps}
+      />
+      <Tooltip
+        content={renderTooltip}
+        contentStyle={RECHARTS_TOOLTIP_CONTENT_STYLE}
+        wrapperStyle={RECHARTS_TOOLTIP_WRAPPER_STYLE}
+        cursor={{ fill: "var(--accent-light)" }}
+      />
+      <Bar
+        dataKey={barDataKey}
+        fill={color}
+        radius={[3, 3, 0, 0]}
+        isAnimationActive={!useVerticalBarAnimation && animateBars}
+        shape={barShape}
+        onClick={onBarClick ? handleBarClick : undefined}
+        {...(resolvedBarSize != null ? { barSize: resolvedBarSize } : { maxBarSize })}
+      />
+    </BarChart>
+  );
+
   return (
     <div className={panelClass}>
       {headerCenter != null || headerEnd != null ? (
@@ -338,101 +404,23 @@ export default function BarChartPanel({
       )}
       <div
         ref={chartBodyRef}
-        className={cn(fillHeight && "flex-1 min-h-0")}
-        onMouseDownCapture={handleChartMouseDownCapture}
-        onMouseMove={handleChartMouseMove}
-        onMouseLeave={handleChartMouseLeave}
-      >
-        <ResponsiveContainer width="100%" height={chartHeight}>
-        {isVertical ? (
-          <BarChart
-            accessibilityLayer={false}
-            data={chartData}
-            layout="vertical"
-            margin={{ top: 4, right: 16, bottom: 4, left: 8 }}
-          >
-            <CartesianGrid strokeDasharray="3 3" horizontal={false} stroke="var(--border)" />
-            <XAxis type="number" {...valueAxisProps} />
-            <YAxis
-              type="category"
-              dataKey={labelKey}
-              width={140}
-              tick={{ fontSize: 11, fill: "var(--text-secondary)" }}
-              interval={0}
-              axisLine={false}
-              tickLine={false}
-            />
-            <Tooltip
-              active={chartHoverActive ? undefined : false}
-              content={renderTooltip}
-              contentStyle={RECHARTS_TOOLTIP_CONTENT_STYLE}
-              wrapperStyle={RECHARTS_TOOLTIP_WRAPPER_STYLE}
-              cursor={chartHoverActive ? { fill: "var(--accent-light)" } : false}
-            />
-            <Bar
-              dataKey={barDataKey}
-              fill={color}
-              radius={[0, 3, 3, 0]}
-              maxBarSize={24}
-              shape={barShape}
-              background={onBarClick ? COLUMN_CLICK_BACKGROUND : false}
-              onClick={onBarClick ? handleBarClick : undefined}
-            />
-          </BarChart>
-        ) : (
-          <BarChart
-            accessibilityLayer={false}
-            key={chartKey}
-            data={chartData}
-            margin={chartMargin}
-            barCategoryGap={barCategoryGap}
-            {...(resolvedBarSize == null && !dynamicBarSize ? { maxBarSize } : {})}
-          >
-            <CartesianGrid
-              strokeDasharray="3 3"
-              vertical={false}
-              stroke="var(--border)"
-            />
-            <XAxis
-              type="category"
-              dataKey={labelKey}
-              height={xAxisHeight}
-              tick={{ fontSize: xAxisFontSize, fill: "var(--text-secondary)" }}
-              angle={xAxisAngle}
-              textAnchor="end"
-              interval={0}
-              axisLine={false}
-              tickLine={false}
-              tickMargin={4}
-            />
-            <YAxis
-              width={yAxisWidth}
-              tickMargin={yAxisTickMargin}
-              type="number"
-              {...valueAxisProps}
-            />
-            <Tooltip
-              active={chartHoverActive ? undefined : false}
-              content={renderTooltip}
-              contentStyle={RECHARTS_TOOLTIP_CONTENT_STYLE}
-              wrapperStyle={RECHARTS_TOOLTIP_WRAPPER_STYLE}
-              cursor={chartHoverActive ? { fill: "var(--accent-light)" } : false}
-            />
-            <Bar
-              dataKey={barDataKey}
-              fill={color}
-              radius={[3, 3, 0, 0]}
-              isAnimationActive={!useVerticalBarAnimation && animateBars}
-              shape={barShape}
-              background={onBarClick ? COLUMN_CLICK_BACKGROUND : false}
-              onClick={onBarClick ? handleBarClick : undefined}
-              {...(resolvedBarSize != null
-                ? { barSize: resolvedBarSize }
-                : { maxBarSize })}
-            />
-          </BarChart>
+        className={cn(
+          fillHeight && "relative min-h-0 w-full flex-1 overflow-visible",
         )}
-      </ResponsiveContainer>
+        onMouseDownCapture={handleChartMouseDownCapture}
+      >
+        {(!fillHeight || chartHeight > 0) &&
+          (fillHeight ? (
+            <div className="absolute inset-0 min-h-0 overflow-visible">
+              <ResponsiveContainer width="100%" height="100%">
+                {chartPlot}
+              </ResponsiveContainer>
+            </div>
+          ) : (
+            <ResponsiveContainer width="100%" height={chartHeight}>
+              {chartPlot}
+            </ResponsiveContainer>
+          ))}
       </div>
     </div>
   );

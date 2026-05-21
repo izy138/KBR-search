@@ -56,20 +56,26 @@ _index_embedding_dimension: int | None = None
 logger = logging.getLogger(__name__)
 
 
+def _cache_index_embedding_dimension(client: Any) -> None:
+    """Read embedding dimension from the index mapping (does not load the model)."""
+    global _index_embedding_dimension
+    if _index_embedding_dimension is not None:
+        return
+    try:
+        mapping = client.indices.get_mapping(index=INDEX_NAME)
+        index_block = mapping.get(INDEX_NAME, {})
+        properties = index_block.get("mappings", {}).get("properties", {})
+        embedding = properties.get(EMBEDDING_FIELD, {})
+        dimension = embedding.get("dimension")
+        if isinstance(dimension, int):
+            _index_embedding_dimension = dimension
+    except Exception:
+        return
+
+
 def _require_matching_embedding_dimension(client: Any) -> None:
     """Fail fast when the runtime model does not match the index mapping."""
-    global _index_embedding_dimension
-    if _index_embedding_dimension is None:
-        try:
-            mapping = client.indices.get_mapping(index=INDEX_NAME)
-            index_block = mapping.get(INDEX_NAME, {})
-            properties = index_block.get("mappings", {}).get("properties", {})
-            embedding = properties.get(EMBEDDING_FIELD, {})
-            dimension = embedding.get("dimension")
-            if isinstance(dimension, int):
-                _index_embedding_dimension = dimension
-        except Exception:
-            return
+    _cache_index_embedding_dimension(client)
 
     if _index_embedding_dimension is None:
         return
@@ -906,7 +912,8 @@ def search_similar_to_project(
     top-k nearest neighbours (excluding the source document itself).
     """
     client = get_client()
-    _require_matching_embedding_dimension(client)
+    # Stored vectors only — skip loading the embedding model on this hot path.
+    _cache_index_embedding_dimension(client)
     try:
         source_doc = client.get(index=INDEX_NAME, id=project_id)
     except Exception as exc:

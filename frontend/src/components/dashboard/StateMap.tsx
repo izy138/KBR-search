@@ -1,4 +1,4 @@
-import { type MouseEvent, useCallback, useEffect, useRef, useState } from "react";
+import { type MouseEvent, useCallback, useState } from "react";
 import { scaleThreshold } from "d3-scale";
 import {
   ComposableMap,
@@ -9,11 +9,7 @@ import type { Geography as GeographyType } from "react-simple-maps";
 import type { StateDataPoint } from "../../api";
 import { formatDollarsCompact } from "../../utils/format";
 import { cn } from "../../utils/cn";
-import {
-  CHART_TOOLTIP_ROUNDED_STYLE,
-  CLS_CHART_CURSOR_TOOLTIP,
-  getScrollableAncestors,
-} from "../../utils/chartStyles";
+import { CHART_TOOLTIP_ROUNDED_STYLE, CLS_CHART_CURSOR_TOOLTIP } from "../../utils/chartStyles";
 
 /** TopoJSON source — US states at 1:10m resolution */
 const GEO_URL = "https://cdn.jsdelivr.net/npm/us-atlas@3/states-10m.json";
@@ -121,8 +117,6 @@ interface TooltipState {
   stateName: string;
   count: number;
   totalFunding: number;
-  x: number;
-  y: number;
 }
 
 interface StateMapProps {
@@ -144,8 +138,6 @@ export default function StateMap({
 }: StateMapProps) {
   const [tooltip, setTooltip] = useState<TooltipState | null>(null);
   const [hoveredState, setHoveredState] = useState<string | null>(null);
-  const mapCanvasRef = useRef<HTMLDivElement>(null);
-  const lastPointerRef = useRef<{ x: number; y: number } | null>(null);
 
   const normalizedSelectedAbbrev = selectedStateAbbrev.trim().toUpperCase();
 
@@ -159,63 +151,10 @@ export default function StateMap({
     return abbrev?.toUpperCase() === normalizedSelectedAbbrev;
   };
 
-  const tooltipOffset = (clientX: number, clientY: number): { x: number; y: number } => ({
-    x: clientX + 12,
-    y: clientY - 8,
-  });
-
   const clearHover = useCallback((): void => {
-    lastPointerRef.current = null;
     setHoveredState(null);
     setTooltip(null);
   }, []);
-
-  useEffect(() => {
-    if (tooltip == null) return;
-
-    const syncTooltipWithPointer = (): void => {
-      const canvas = mapCanvasRef.current;
-      const last = lastPointerRef.current;
-      if (canvas == null || last == null) {
-        clearHover();
-        return;
-      }
-      const rect = canvas.getBoundingClientRect();
-      if (
-        last.x < rect.left ||
-        last.x > rect.right ||
-        last.y < rect.top ||
-        last.y > rect.bottom
-      ) {
-        clearHover();
-        return;
-      }
-      const underPointer = document.elementFromPoint(last.x, last.y);
-      if (!(underPointer instanceof Node) || !canvas.contains(underPointer)) {
-        clearHover();
-        return;
-      }
-      const { x, y } = tooltipOffset(last.x, last.y);
-      setTooltip((prev) => (prev ? { ...prev, x, y } : null));
-    };
-
-    const scrollTargets = mapCanvasRef.current
-      ? getScrollableAncestors(mapCanvasRef.current)
-      : [];
-    for (const target of scrollTargets) {
-      target.addEventListener("scroll", syncTooltipWithPointer, { passive: true });
-    }
-    window.addEventListener("resize", syncTooltipWithPointer, { passive: true });
-    window.addEventListener("wheel", syncTooltipWithPointer, { passive: true });
-
-    return () => {
-      for (const target of scrollTargets) {
-        target.removeEventListener("scroll", syncTooltipWithPointer);
-      }
-      window.removeEventListener("resize", syncTooltipWithPointer);
-      window.removeEventListener("wheel", syncTooltipWithPointer);
-    };
-  }, [tooltip, clearHover]);
 
   const isPointerStillOverMap = (
     event: MouseEvent<SVGPathElement>,
@@ -322,22 +261,13 @@ export default function StateMap({
           e.preventDefault();
           handleStateClick(geoName);
         }}
-        onMouseEnter={(e) => {
-          lastPointerRef.current = { x: e.clientX, y: e.clientY };
-          const { x, y } = tooltipOffset(e.clientX, e.clientY);
+        onMouseEnter={() => {
           setHoveredState(geoName);
           setTooltip({
             stateName: geoName,
             count: point?.count ?? 0,
             totalFunding: point?.total_funding ?? 0,
-            x,
-            y,
           });
-        }}
-        onMouseMove={(e) => {
-          lastPointerRef.current = { x: e.clientX, y: e.clientY };
-          const { x, y } = tooltipOffset(e.clientX, e.clientY);
-          setTooltip((prev) => (prev ? { ...prev, x, y } : null));
         }}
         onMouseLeave={(e) => {
           if (isPointerStillOverMap(e)) return;
@@ -398,12 +328,31 @@ export default function StateMap({
     ));
 
   return (
-    <div className="bg-surface border border-border rounded-[--radius-lg] w-full h-full min-h-[310px] relative flex flex-col px-4 py-[0.9rem]">
+    <div className="bg-surface border border-border rounded-[--radius-lg] relative flex h-full min-h-0 w-full flex-1 flex-col px-4 py-[0.9rem]">
       <div className="text-text-primary text-[0.9rem] font-semibold mb-1">Projects by State</div>
-      <div ref={mapCanvasRef} className="-mt-[0.2rem] relative" data-map-canvas onMouseLeave={clearHover}>
+      <div
+        className="-mt-[0.2rem] relative min-h-0 flex-1"
+        data-map-canvas
+        onMouseLeave={clearHover}
+      >
+        {tooltip != null ? (
+          <div
+            className={cn(
+              CLS_CHART_CURSOR_TOOLTIP,
+              "pointer-events-none absolute left-88 top-[-30px] z-10 -translate-x-1/2",
+            )}
+            style={CHART_TOOLTIP_ROUNDED_STYLE}
+          >
+            <div className="text-text-primary font-semibold mb-1 text-[0.82rem]">{tooltip.stateName}</div>
+            <div className="text-text-secondary">Projects: {tooltip.count.toLocaleString()}</div>
+            <div className="text-text-secondary">
+              Funding: {formatDollarsCompact(tooltip.totalFunding)}
+            </div>
+          </div>
+        ) : null}
         <ComposableMap
           projection="geoAlbersUsa"
-          projectionConfig={{ scale: 900 }}
+          projectionConfig={{ scale: 950 }}
           width={700}
           height={500}
           style={{ width: "100%", height: "auto" }}
@@ -458,17 +407,6 @@ export default function StateMap({
           </ComposableMap>
         </div>
       </div>
-
-      {tooltip && (
-        <div
-          className={cn(CLS_CHART_CURSOR_TOOLTIP, "fixed z-[1000]")}
-          style={{ ...CHART_TOOLTIP_ROUNDED_STYLE, left: tooltip.x, top: tooltip.y }}
-        >
-          <div className="text-text-primary font-semibold mb-1 text-[0.82rem]">{tooltip.stateName}</div>
-          <div className="text-text-secondary">Projects: {tooltip.count.toLocaleString()}</div>
-          <div className="text-text-secondary">Funding: {formatDollarsCompact(tooltip.totalFunding)}</div>
-        </div>
-      )}
     </div>
   );
 }

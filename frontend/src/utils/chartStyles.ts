@@ -35,11 +35,6 @@ export const RECHARTS_TOOLTIP_WRAPPER_STYLE = {
   boxShadow: "none",
 } as const;
 
-/** Offset for chart tooltips that follow the cursor (matches StateMap). */
-export function chartTooltipCursorPosition(clientX: number, clientY: number): { x: number; y: number } {
-  return { x: clientX + 12, y: clientY - 8 };
-}
-
 /** Scroll containers that can move a chart under a stationary pointer (e.g. app `<main>`). */
 export function getScrollableAncestors(node: HTMLElement): HTMLElement[] {
   const scrollables: HTMLElement[] = [];

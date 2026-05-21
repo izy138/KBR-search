@@ -10,6 +10,8 @@ import {
 } from "react";
 import { useTheme } from "./hooks/useTheme";
 import { useProjectDetails } from "./hooks/useProjectDetails";
+import { useSimilarProjects } from "./hooks/useSimilarProjects";
+import { stubProjectFromId } from "./utils/stubProject";
 import { useInvestigatorProjects, ENTITY_LIST_PER_PAGE } from "./hooks/useInvestigatorProjects";
 import { useOrganizationProjects } from "./hooks/useOrganizationProjects";
 import { useInstitutionProjects } from "./hooks/useInstitutionProjects";
@@ -41,7 +43,6 @@ import {
   HELP_SEARCH_FILTER_STATE,
 } from "./utils/helpContent";
 import {
-  formatAdvancedSearchQuery,
   hasAdvancedSearchContent,
   normalizeUnifiedSearch,
   parseUnifiedSearch,
@@ -241,6 +242,14 @@ export default function App() {
     selectedProjectId,
     results,
   );
+  const { similarNeighbors, similarLoading, similarError } =
+    useSimilarProjects(selectedProjectId);
+
+  useEffect(() => {
+    if (!selectedProjectId) return;
+    void import("./components/project/ProjectDetailsPage");
+  }, [selectedProjectId]);
+
   const {
     results: investigatorResults,
     loading: investigatorLoading,
@@ -345,13 +354,10 @@ export default function App() {
     }
   }, []);
 
-  const activeSearchLabel = useMemo(() => {
-    const { advanced, plainQ } = parseUnifiedSearch(searchQuery);
-    if (advanced && hasAdvancedSearchContent(advanced)) {
-      return formatAdvancedSearchQuery(advanced);
-    }
-    return plainQ.trim();
-  }, [searchQuery]);
+  const activeSearchLabel = useMemo(
+    () => normalizeUnifiedSearch(searchQuery).trim(),
+    [searchQuery],
+  );
 
   const handleDownloadCsv = useCallback(async (): Promise<void> => {
     setExportingCsv(true);
@@ -423,23 +429,40 @@ export default function App() {
   }, []);
 
   const handleDashboardSearchNavigate = useCallback(
-    (nextQuery: string) => {
+    (nextQuery: string, filters?: FilterValues) => {
       setSemanticSearchMode(false);
       setSemanticSearchCommitted(false);
       const unified = normalizeUnifiedSearch(nextQuery);
+      const f = filters ?? appliedFilters;
+      if (filters) {
+        setSelectedPI(f.pi);
+        setSelectedIC(f.ic);
+        setSelectedOrg(f.org);
+        setSelectedActivity(f.activity);
+        setSelectedState(f.state);
+        setFyMin(f.fyMin);
+        setFyMax(f.fyMax);
+      }
       setSearchQuery(unified);
       setProjectTermFilters([]);
       setExcludeProjectTermFilters([]);
       setCurrentPage(1);
       navigateToSearch({
         q: unified,
+        pi: f.pi,
+        ic: f.ic,
+        org: f.org,
+        activity: f.activity,
+        state: f.state,
+        fyMin: f.fyMin,
+        fyMax: f.fyMax,
         projectTerms: [],
         page: 1,
         semanticMode: false,
         semanticCommitted: false,
       });
     },
-    [navigateToSearch],
+    [navigateToSearch, appliedFilters],
   );
 
   const handleDashboardTermSearchNavigate = useCallback(
@@ -453,29 +476,15 @@ export default function App() {
   );
 
   const handleViewAllProjects = useCallback(() => {
-    setSelectedPI("");
-    setSelectedIC("");
-    setSelectedActivity("");
-    setSelectedState("");
-    setFyMin("");
-    setFyMax("");
     setProjectTermFilters([]);
     setExcludeProjectTermFilters([]);
     setColumnSort({ column: null, direction: "none" });
     setSortOption("relevant");
-    setSearchQuery("");
     setSemanticSearchMode(false);
     setSemanticSearchCommitted(false);
     setCurrentPage(1);
     navigateToSearch({
-      q: "",
       page: 1,
-      pi: "",
-      ic: "",
-      activity: "",
-      state: "",
-      fyMin: "",
-      fyMax: "",
       projectTerms: [],
       semanticMode: false,
       semanticCommitted: false,
@@ -699,11 +708,7 @@ export default function App() {
             ) : isSemanticHub ? (
               <SemanticVectorLabPage />
             ) : selectedProjectId ? (
-              projectLoading ? (
-                <div className="flex flex-col items-center justify-center px-6 py-12 text-center text-text-muted text-[0.92rem]" role="status" aria-live="polite">
-                  <strong className="text-text-secondary text-[15px]">Loading project…</strong>
-                </div>
-              ) : projectError ? (
+              projectError ? (
                 <div className="flex flex-col items-center justify-center px-6 py-12 text-center text-text-muted text-[0.92rem]" role="status" aria-live="polite">
                   <strong className="text-text-secondary text-[15px]">{projectError}</strong>
                   <BackToResultsButton
@@ -711,15 +716,7 @@ export default function App() {
                     className="mt-[0.85rem]"
                   />
                 </div>
-              ) : selectedProject ? (
-                <ProjectDetailsPage
-                  item={selectedProject}
-                  onBack={handleBackToSearch}
-                  onOpenInvestigator={handleOpenInvestigator}
-                  onOpenDetails={handleOpenDetails}
-                  onSearchWithProjectTerms={handleSearchFromProjectTerms}
-                />
-              ) : (
+              ) : !projectLoading && !selectedProject ? (
                 <div className="flex flex-col items-center justify-center px-6 py-12 text-center text-text-muted text-[0.92rem]" role="status" aria-live="polite">
                   <strong className="text-text-secondary text-[15px]">Project not found</strong>
                   <BackToResultsButton
@@ -727,6 +724,18 @@ export default function App() {
                     className="mt-[0.85rem]"
                   />
                 </div>
+              ) : (
+                <ProjectDetailsPage
+                  item={selectedProject ?? stubProjectFromId(selectedProjectId)}
+                  projectContentLoading={projectLoading && !selectedProject}
+                  similarNeighbors={similarNeighbors}
+                  similarLoading={similarLoading}
+                  similarError={similarError}
+                  onBack={handleBackToSearch}
+                  onOpenInvestigator={handleOpenInvestigator}
+                  onOpenDetails={handleOpenDetails}
+                  onSearchWithProjectTerms={handleSearchFromProjectTerms}
+                />
               )
             ) : selectedOrganizationName ? (
               <InvestigatorPage

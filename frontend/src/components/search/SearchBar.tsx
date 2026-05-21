@@ -64,7 +64,7 @@ const SearchBar: FC<SearchBarProps> = ({
   };
 
   const handleSearchClick = () => {
-    commitQuery(query);
+    onSearch(normalizeUnifiedSearch(query));
   };
 
   const handleClear = () => {
