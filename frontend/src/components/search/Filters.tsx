@@ -20,7 +20,7 @@ import { cn } from "../../utils/cn";
 import type { HelpTooltipContent } from "../../utils/helpContent";
 import SearchBar from "./SearchBar";
 
-export type FilterFieldHelpKey = "pi" | "ic" | "activity" | "state" | "fy";
+export type FilterFieldHelpKey = "pi" | "ic" | "org" | "activity" | "state" | "fy";
 export type FilterFieldHelp = Partial<Record<FilterFieldHelpKey, HelpTooltipContent>>;
 
 const FILTER_FIELD_WIDTH = {
@@ -271,11 +271,13 @@ function Filters({
             help={
               field.key === "ic"
                 ? fieldHelp?.ic
-                : field.key === "activity"
-                  ? fieldHelp?.activity
-                  : field.key === "state"
-                    ? fieldHelp?.state
-                    : undefined
+                : field.key === "org"
+                  ? fieldHelp?.org
+                  : field.key === "activity"
+                    ? fieldHelp?.activity
+                    : field.key === "state"
+                      ? fieldHelp?.state
+                      : undefined
             }
             className={layout === "mobile" ? MOBILE_FILTER_FIELD_WIDTH : field.width}
           >
@@ -348,8 +350,12 @@ function Filters({
   );
 
   const searchContent =
-    searchSlot ??
-    (onSearch != null ? (
+    searchSlot != null ? (
+      <div className="flex min-w-0 w-full items-start gap-2">
+        <div className="min-w-0 flex-1">{searchSlot}</div>
+        {mobileFiltersButton}
+      </div>
+    ) : onSearch != null ? (
       <SearchBar
         onSearch={onSearch}
         showAdvancedToggle={showAdvancedToggle}
@@ -361,7 +367,7 @@ function Filters({
         submitOnClear={searchSubmitOnClear}
         toolbarEnd={mobileFiltersButton}
       />
-    ) : null);
+    ) : null;
 
   return (
     <section className="relative -mt-1 flex flex-col items-stretch gap-[0.4rem] overflow-x-auto rounded-lg border border-border bg-surface px-3 pt-2.5 pb-3 max-[900px]:overflow-visible min-[1101px]:overflow-x-visible">
