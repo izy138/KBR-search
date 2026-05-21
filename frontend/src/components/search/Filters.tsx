@@ -101,7 +101,7 @@ type FiltersProps = {
   onApply: (filters: FilterValues) => void;
   onClear: () => void;
   searchQuery?: string;
-  onSearch?: (query: string) => void;
+  onSearch?: (query: string, filters?: FilterValues) => void;
   showAdvancedToggle?: boolean;
   semanticMode?: boolean;
   onSemanticModeChange?: (enabled: boolean) => void;
@@ -210,6 +210,15 @@ function Filters({
     onClear();
     setFiltersMenuOpen(false);
   }, [onClear, resetDraft]);
+
+  const handleSearchNavigate = useCallback(
+    (q: string) => {
+      const filters = normalizeFiltersOnApply(draft, fyChoices);
+      onApply(filters);
+      onSearch?.(q, filters);
+    },
+    [draft, fyChoices, onApply, onSearch],
+  );
 
   const filtersActive = hasActiveFilters(applied);
 
@@ -351,7 +360,7 @@ function Filters({
     searchSlot ??
     (onSearch != null ? (
       <SearchBar
-        onSearch={onSearch}
+        onSearch={handleSearchNavigate}
         showAdvancedToggle={showAdvancedToggle}
         semanticMode={semanticMode}
         onSemanticModeChange={onSemanticModeChange}

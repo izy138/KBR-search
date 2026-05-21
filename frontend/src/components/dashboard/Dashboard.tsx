@@ -205,7 +205,7 @@ interface DashboardData {
 type DashboardProps = {
   searchQuery: string;
   onUpdateDashboard: (query: string) => void;
-  onSearchNavigate: (query: string) => void;
+  onSearchNavigate: (query: string, filters?: FilterValues) => void;
   appliedFilters: FilterValues;
   onApplyFilters: (filters: FilterValues) => void;
   onClearFilters: () => void;
@@ -241,7 +241,7 @@ function KpiCard({ label, value, onClick }: KpiCardProps) {
         type="button"
         className={className}
         onClick={onClick}
-        aria-label={`${label}: ${value}. View all projects in search`}
+        aria-label={`${label}: ${value}. View matching projects in search`}
       >
         {content}
       </button>

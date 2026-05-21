@@ -43,7 +43,6 @@ import {
   HELP_SEARCH_FILTER_STATE,
 } from "./utils/helpContent";
 import {
-  formatAdvancedSearchQuery,
   hasAdvancedSearchContent,
   normalizeUnifiedSearch,
   parseUnifiedSearch,
@@ -355,13 +354,10 @@ export default function App() {
     }
   }, []);
 
-  const activeSearchLabel = useMemo(() => {
-    const { advanced, plainQ } = parseUnifiedSearch(searchQuery);
-    if (advanced && hasAdvancedSearchContent(advanced)) {
-      return formatAdvancedSearchQuery(advanced);
-    }
-    return plainQ.trim();
-  }, [searchQuery]);
+  const activeSearchLabel = useMemo(
+    () => normalizeUnifiedSearch(searchQuery).trim(),
+    [searchQuery],
+  );
 
   const handleDownloadCsv = useCallback(async (): Promise<void> => {
     setExportingCsv(true);
@@ -433,23 +429,40 @@ export default function App() {
   }, []);
 
   const handleDashboardSearchNavigate = useCallback(
-    (nextQuery: string) => {
+    (nextQuery: string, filters?: FilterValues) => {
       setSemanticSearchMode(false);
       setSemanticSearchCommitted(false);
       const unified = normalizeUnifiedSearch(nextQuery);
+      const f = filters ?? appliedFilters;
+      if (filters) {
+        setSelectedPI(f.pi);
+        setSelectedIC(f.ic);
+        setSelectedOrg(f.org);
+        setSelectedActivity(f.activity);
+        setSelectedState(f.state);
+        setFyMin(f.fyMin);
+        setFyMax(f.fyMax);
+      }
       setSearchQuery(unified);
       setProjectTermFilters([]);
       setExcludeProjectTermFilters([]);
       setCurrentPage(1);
       navigateToSearch({
         q: unified,
+        pi: f.pi,
+        ic: f.ic,
+        org: f.org,
+        activity: f.activity,
+        state: f.state,
+        fyMin: f.fyMin,
+        fyMax: f.fyMax,
         projectTerms: [],
         page: 1,
         semanticMode: false,
         semanticCommitted: false,
       });
     },
-    [navigateToSearch],
+    [navigateToSearch, appliedFilters],
   );
 
   const handleDashboardTermSearchNavigate = useCallback(
@@ -463,29 +476,15 @@ export default function App() {
   );
 
   const handleViewAllProjects = useCallback(() => {
-    setSelectedPI("");
-    setSelectedIC("");
-    setSelectedActivity("");
-    setSelectedState("");
-    setFyMin("");
-    setFyMax("");
     setProjectTermFilters([]);
     setExcludeProjectTermFilters([]);
     setColumnSort({ column: null, direction: "none" });
     setSortOption("relevant");
-    setSearchQuery("");
     setSemanticSearchMode(false);
     setSemanticSearchCommitted(false);
     setCurrentPage(1);
     navigateToSearch({
-      q: "",
       page: 1,
-      pi: "",
-      ic: "",
-      activity: "",
-      state: "",
-      fyMin: "",
-      fyMax: "",
       projectTerms: [],
       semanticMode: false,
       semanticCommitted: false,
