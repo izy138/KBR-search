@@ -12,12 +12,13 @@ import FiscalYearTag from "./FiscalYearTag";
 import ProjectActivityTermsChart from "./ProjectActivityTermsChart";
 import ProjectSimilarProjectsChart from "./ProjectSimilarProjectsChart";
 import SimilarProjectYearTags from "./SimilarProjectYearTags";
+import BackToResultsButton from "../shared/BackToResultsButton";
 import HelpTooltip from "../shared/HelpTooltip";
 import { HELP_PROJECT_KEYWORDS, HELP_PROJECT_SIMILAR } from "../../utils/helpContent";
 
 type TermFilterMode = "include" | "exclude";
 
-const PROJECT_TERMS_INITIAL_VISIBLE = 15;
+const PROJECT_TERMS_INITIAL_VISIBLE = 30;
 
 type ProjectSearchTermsPayload = {
   terms: string[];
@@ -507,9 +508,7 @@ export default function ProjectDetailsPage({
     <div className="flex flex-col gap-[1.25rem] min-w-0 w-full">
     <div className="bg-surface border border-border rounded-lg p-6 w-full min-w-0">
       <div className="grid grid-cols-[auto_1fr_auto] items-center gap-x-4 gap-y-3 mb-4">
-        <button type="button" className="inline-block p-0 border-none bg-transparent text-accent font-sans text-[15.5px] cursor-pointer hover:underline" onClick={onBack}>
-          Back to results
-        </button>
+        <BackToResultsButton onClick={onBack} />
         {displayProjectYears.length > 1 ? (
           <div className="flex flex-wrap justify-center items-center gap-[0.4rem] min-w-0" aria-label="Fiscal years for this project">
             {displayProjectYears.map((year) => {

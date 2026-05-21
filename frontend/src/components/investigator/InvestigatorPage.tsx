@@ -1,4 +1,5 @@
 import type { SearchResultRecord } from "../../api";
+import BackToResultsButton from "../shared/BackToResultsButton";
 import Pagination from "../shared/Pagination";
 import ResultsList from "../search/ResultsList";
 
@@ -39,9 +40,7 @@ export default function InvestigatorPage({
 }: InvestigatorPageProps) {
   return (
     <>
-      <button type="button" className="inline-block p-0 border-none bg-transparent text-accent font-sans text-[15.5px] cursor-pointer hover:underline" onClick={onBack}>
-        Back to results
-      </button>
+      <BackToResultsButton onClick={onBack} />
 
       <div className="flex items-baseline gap-3 flex-wrap mt-3 mb-2 px-1">
         <span className="text-[0.92rem] text-text-secondary">
