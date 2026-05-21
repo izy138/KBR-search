@@ -1,11 +1,11 @@
-import { type ReactNode, useCallback, useMemo } from "react";
+import { type ReactNode, useCallback, useEffect, useMemo, useRef, useState } from "react";
 import {
   normalizeStateFacetKey,
   useCascadingFilterAvailability,
 } from "../../hooks/useCascadingFilterAvailability";
 import { useFilterDraft } from "../../hooks/useFilterDraft";
 import type { FilterValues } from "../../types/filters";
-import { normalizeFiltersOnApply } from "../../types/filters";
+import { hasActiveFilters, normalizeFiltersOnApply } from "../../types/filters";
 import { buildCascadingSelectOptions } from "../../utils/cascadingFilterOptions";
 import {
   formatAllCapsLabel,
@@ -20,7 +20,7 @@ import { cn } from "../../utils/cn";
 import type { HelpTooltipContent } from "../../utils/helpContent";
 import SearchBar from "./SearchBar";
 
-export type FilterFieldHelpKey = "pi" | "ic" | "org" | "activity" | "fy";
+export type FilterFieldHelpKey = "pi" | "ic" | "activity" | "state" | "fy";
 export type FilterFieldHelp = Partial<Record<FilterFieldHelpKey, HelpTooltipContent>>;
 
 const FILTER_FIELD_WIDTH = {
@@ -31,6 +31,10 @@ const FILTER_FIELD_WIDTH = {
   state: "w-[145px] max-[1100px]:min-w-[100px]",
   fiscalYear: "w-[min(100%,220px)] shrink-0",
 } as const;
+
+const MOBILE_FILTER_FIELD_WIDTH = "box-border w-full min-w-0 p-0.50";
+const MOBILE_FILTERS_GRID_CLASS =
+  "grid w-full grid-cols-2 grid-rows-3 gap-2 [&>*]:min-w-0";
 
 export type { FilterValues } from "../../types/filters";
 
@@ -112,6 +116,23 @@ type FiltersProps = {
   onActivityCodeHover?: (code: string | null) => void;
 };
 
+function FiltersIcon() {
+  return (
+    <svg
+      className="h-4 w-4 shrink-0"
+      viewBox="0 0 16 16"
+      fill="none"
+      stroke="currentColor"
+      strokeWidth="1.5"
+      aria-hidden="true"
+    >
+      <path d="M2 4h12" strokeLinecap="round" />
+      <path d="M4 8h8" strokeLinecap="round" />
+      <path d="M6 12h4" strokeLinecap="round" />
+    </svg>
+  );
+}
+
 function Filters({
   applied,
   catalog,
@@ -132,6 +153,8 @@ function Filters({
 }: FiltersProps) {
   const { draft, patch, resetDraft } = useFilterDraft(applied);
   const cascadingAvailability = useCascadingFilterAvailability(draft);
+  const [filtersMenuOpen, setFiltersMenuOpen] = useState(false);
+  const mobileMenuRef = useRef<HTMLDivElement>(null);
 
   const fyChoices = useMemo(
     () => resolveFiscalYearChoices(catalog.fiscalYearOptions),
@@ -185,44 +208,45 @@ function Filters({
   const handleClear = useCallback(() => {
     resetDraft();
     onClear();
+    setFiltersMenuOpen(false);
   }, [onClear, resetDraft]);
 
-  const searchContent =
-    searchSlot ??
-    (onSearch != null ? (
-      <SearchBar
-        onSearch={onSearch}
-        showAdvancedToggle={showAdvancedToggle}
-        semanticMode={semanticMode}
-        onSemanticModeChange={onSemanticModeChange}
-        showSemanticToggle={showSemanticToggle}
-        onUpdateDashboard={onUpdateDashboard}
-        initialQuery={searchQuery ?? ""}
-        submitOnClear={searchSubmitOnClear}
-      />
-    ) : null);
+  const filtersActive = hasActiveFilters(applied);
 
-  return (
-    <section className="relative -mt-1 flex flex-col items-stretch gap-[0.4rem] overflow-x-auto rounded-lg border border-border bg-surface px-3 pt-2.5 pb-3 min-[1101px]:overflow-x-visible">
-      {helpTooltip ? (
-        <div className="absolute top-2.5 right-3 z-10">{helpTooltip}</div>
-      ) : null}
-      {searchContent ? (
-        <div
-          className={cn(
-            "min-w-0 w-full mx-auto pt-0.5 pb-1",
-            showSemanticToggle ? "max-w-[860px]" : "max-w-[720px]",
-          )}
-        >
-          {searchContent}
-        </div>
-      ) : null}
+  useEffect(() => {
+    if (!filtersMenuOpen) return;
+    const onPointerDown = (event: MouseEvent) => {
+      const target = event.target as Node;
+      if (mobileMenuRef.current?.contains(target)) return;
+      if (
+        target instanceof Element
+        && target.closest("[data-mobile-filters-trigger]")
+      ) {
+        return;
+      }
+      setFiltersMenuOpen(false);
+    };
+    const onKeyDown = (event: KeyboardEvent) => {
+      if (event.key === "Escape") setFiltersMenuOpen(false);
+    };
+    document.addEventListener("mousedown", onPointerDown);
+    document.addEventListener("keydown", onKeyDown);
+    return () => {
+      document.removeEventListener("mousedown", onPointerDown);
+      document.removeEventListener("keydown", onKeyDown);
+    };
+  }, [filtersMenuOpen]);
 
-      <div className="mx-auto flex min-w-0 w-full max-w-full flex-wrap items-end justify-center gap-5">
+  const renderFilterFields = (layout: "desktop" | "mobile") => {
+    const piWidth = layout === "mobile" ? MOBILE_FILTER_FIELD_WIDTH : FILTER_FIELD_WIDTH.pi;
+    const fyWidth = layout === "mobile" ? MOBILE_FILTER_FIELD_WIDTH : FILTER_FIELD_WIDTH.fiscalYear;
+
+    return (
+      <>
         <FilterField
           label="Principal Investigator"
           help={fieldHelp?.pi}
-          className={FILTER_FIELD_WIDTH.pi}
+          className={piWidth}
         >
           <input
             className="box-border w-full min-h-[2.5rem] rounded-sm border-2 border-accent-text/65 bg-bg px-[0.7rem] py-[0.48rem] font-sans text-[14px] leading-[1.35] text-text-primary outline-none transition-[border-color] duration-150 hover:border-accent-text/90 focus:border-accent placeholder:text-text-muted"
@@ -247,13 +271,13 @@ function Filters({
             help={
               field.key === "ic"
                 ? fieldHelp?.ic
-                : field.key === "org"
-                  ? fieldHelp?.org
-                  : field.key === "activity"
-                    ? fieldHelp?.activity
+                : field.key === "activity"
+                  ? fieldHelp?.activity
+                  : field.key === "state"
+                    ? fieldHelp?.state
                     : undefined
             }
-            className={field.width}
+            className={layout === "mobile" ? MOBILE_FILTER_FIELD_WIDTH : field.width}
           >
             <FilterSelect
               value={draft[field.key]}
@@ -285,7 +309,7 @@ function Filters({
         <FilterField
           label="Fiscal Year"
           help={fieldHelp?.fy}
-          className={FILTER_FIELD_WIDTH.fiscalYear}
+          className={fyWidth}
         >
           <FiscalYearRangeSlider
             choices={fyChoices}
@@ -299,6 +323,85 @@ function Filters({
             }}
           />
         </FilterField>
+      </>
+    );
+  };
+
+  const mobileFiltersButton = (
+    <button
+      type="button"
+      data-mobile-filters-trigger
+      className={cn(
+        "inline-flex min-[901px]:hidden shrink-0 cursor-pointer select-none items-center gap-[0.35rem] rounded-sm border px-[0.55rem] py-[0.48rem] font-sans text-[14px] font-medium transition-colors duration-150",
+        filtersMenuOpen || filtersActive
+          ? "border-accent-hover bg-accent-hover text-white hover:bg-accent"
+          : "border-accent bg-accent/30 text-black hover:border-accent-hover hover:bg-accent/40",
+      )}
+      onClick={() => setFiltersMenuOpen((open) => !open)}
+      aria-expanded={filtersMenuOpen}
+      aria-haspopup="dialog"
+      aria-label="Search filters"
+    >
+      <FiltersIcon />
+      Filters
+    </button>
+  );
+
+  const searchContent =
+    searchSlot ??
+    (onSearch != null ? (
+      <SearchBar
+        onSearch={onSearch}
+        showAdvancedToggle={showAdvancedToggle}
+        semanticMode={semanticMode}
+        onSemanticModeChange={onSemanticModeChange}
+        showSemanticToggle={showSemanticToggle}
+        onUpdateDashboard={onUpdateDashboard}
+        initialQuery={searchQuery ?? ""}
+        submitOnClear={searchSubmitOnClear}
+        toolbarEnd={mobileFiltersButton}
+      />
+    ) : null);
+
+  return (
+    <section className="relative -mt-1 flex flex-col items-stretch gap-[0.4rem] overflow-x-auto rounded-lg border border-border bg-surface px-3 pt-2.5 pb-3 max-[900px]:overflow-visible min-[1101px]:overflow-x-visible">
+      {helpTooltip ? (
+        <div className="absolute top-2.5 right-3 z-10">{helpTooltip}</div>
+      ) : null}
+      {searchContent ? (
+        <div
+          className={cn(
+            "relative min-w-0 w-full mx-auto pt-0.5 pb-1",
+            showSemanticToggle ? "max-w-[860px]" : "max-w-[720px]",
+          )}
+        >
+          {searchContent}
+          {filtersMenuOpen ? (
+            <div
+              ref={mobileMenuRef}
+              className="absolute inset-x-0 top-full z-20 mt-2 hidden max-[900px]:block rounded-lg border border-border bg-surface p-3 shadow-md"
+              role="dialog"
+              aria-label="Search filters"
+            >
+              <div className={MOBILE_FILTERS_GRID_CLASS}>
+                {renderFilterFields("mobile")}
+              </div>
+              <div className="mt-3 flex justify-end border-t border-border pt-3">
+                <button
+                  type="button"
+                  className="box-border min-h-[2rem] min-w-[4rem] cursor-pointer whitespace-nowrap rounded-sm border border-red-200/90 bg-red-50 px-4 font-sans text-[13px] font-medium text-red-700 transition-all duration-150 hover:border-red-300 hover:bg-red-100 dark:border-red-900/50 dark:bg-red-950/45 dark:text-red-300 dark:hover:border-red-800/70 dark:hover:bg-red-950/70"
+                  onClick={handleClear}
+                >
+                  Clear All
+                </button>
+              </div>
+            </div>
+          ) : null}
+        </div>
+      ) : null}
+
+      <div className="mx-auto flex min-w-0 w-full max-w-full flex-wrap items-end justify-center gap-5 max-[900px]:hidden">
+        {renderFilterFields("desktop")}
 
         <div className="shrink-0">
           <button

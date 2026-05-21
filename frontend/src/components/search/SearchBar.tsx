@@ -1,4 +1,4 @@
-import { type FC, useEffect, useState } from "react";
+import { type FC, type ReactNode, useEffect, useState } from "react";
 import type { AdvancedSearchQuery } from "../../types/advancedSearch";
 import {
   composeUnifiedSearch,
@@ -25,6 +25,8 @@ type SearchBarProps = {
   onSemanticModeChange?: (enabled: boolean) => void;
   /** When false, hides the semantic-search checkbox (e.g. dashboard). */
   showSemanticToggle?: boolean;
+  /** Extra controls on the toolbar row (e.g. mobile Filters button). */
+  toolbarEnd?: ReactNode;
 };
 
 const SearchBar: FC<SearchBarProps> = ({
@@ -36,6 +38,7 @@ const SearchBar: FC<SearchBarProps> = ({
   semanticMode = false,
   onSemanticModeChange,
   showSemanticToggle = false,
+  toolbarEnd,
 }) => {
   const [query, setQuery] = useState(initialQuery);
   const [advancedOpen, setAdvancedOpen] = useState(false);
@@ -238,10 +241,13 @@ const SearchBar: FC<SearchBarProps> = ({
   return (
     <>
       {useExpandedLayout ? (
-        <div className="flex w-full min-w-0 items-center gap-2">
-          {semanticControl}
-          {advancedControl}
-          {searchForm}
+        <div className="flex w-full min-w-0 flex-col gap-2 min-[901px]:flex-row min-[901px]:items-center min-[901px]:gap-2">
+          <div className="flex w-full min-w-0 items-center justify-center gap-1 min-[901px]:contents min-[901px]:justify-start min-[901px]:gap-2">
+            {semanticControl}
+            {advancedControl}
+            {toolbarEnd}
+          </div>
+          <div className="min-w-0 w-full flex-1">{searchForm}</div>
         </div>
       ) : (
         searchForm
