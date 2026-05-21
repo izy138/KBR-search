@@ -20,7 +20,7 @@ import { cn } from "../../utils/cn";
 import type { HelpTooltipContent } from "../../utils/helpContent";
 import SearchBar from "./SearchBar";
 
-export type FilterFieldHelpKey = "pi" | "ic" | "org" | "activity" | "fy";
+export type FilterFieldHelpKey = "pi" | "ic" | "activity" | "state" | "fy";
 export type FilterFieldHelp = Partial<Record<FilterFieldHelpKey, HelpTooltipContent>>;
 
 const FILTER_FIELD_WIDTH = {
@@ -271,10 +271,10 @@ function Filters({
             help={
               field.key === "ic"
                 ? fieldHelp?.ic
-                : field.key === "org"
-                  ? fieldHelp?.org
-                  : field.key === "activity"
-                    ? fieldHelp?.activity
+                : field.key === "activity"
+                  ? fieldHelp?.activity
+                  : field.key === "state"
+                    ? fieldHelp?.state
                     : undefined
             }
             className={layout === "mobile" ? MOBILE_FILTER_FIELD_WIDTH : field.width}

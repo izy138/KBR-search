@@ -21,6 +21,7 @@ import Filters from "./components/search/Filters";
 import FilterSelect from "./components/search/FilterSelect";
 import InvestigatorPage from "./components/investigator/InvestigatorPage";
 import ResultsList, { type SortState as ResultsSortState } from "./components/search/ResultsList";
+import BackToResultsButton from "./components/shared/BackToResultsButton";
 import Pagination, { getPageNumbers } from "./components/shared/Pagination";
 import ErrorBoundary from "./components/shared/ErrorBoundary";
 import {
@@ -37,6 +38,7 @@ import {
   HELP_SEARCH_FILTER_IC,
   HELP_SEARCH_FILTER_ORG,
   HELP_SEARCH_FILTER_PI,
+  HELP_SEARCH_FILTER_STATE,
 } from "./utils/helpContent";
 import {
   formatAdvancedSearchQuery,
@@ -450,6 +452,35 @@ export default function App() {
     [navigateToSearch],
   );
 
+  const handleViewAllProjects = useCallback(() => {
+    setSelectedPI("");
+    setSelectedIC("");
+    setSelectedActivity("");
+    setSelectedState("");
+    setFyMin("");
+    setFyMax("");
+    setProjectTermFilters([]);
+    setExcludeProjectTermFilters([]);
+    setColumnSort({ column: null, direction: "none" });
+    setSortOption("relevant");
+    setSearchQuery("");
+    setSemanticSearchMode(false);
+    setSemanticSearchCommitted(false);
+    setCurrentPage(1);
+    navigateToSearch({
+      q: "",
+      page: 1,
+      pi: "",
+      ic: "",
+      activity: "",
+      state: "",
+      fyMin: "",
+      fyMax: "",
+      projectTerms: [],
+      semanticMode: false,
+      semanticCommitted: false,
+    });
+  }, [navigateToSearch]);
   const handleDashboardYearSearchNavigate = useCallback(
     (year: number) => {
       const yearStr = String(year);
@@ -653,6 +684,7 @@ export default function App() {
                 onApplyFilters={handleApplyFilters}
                 onClearFilters={handleClearFilters}
                 onTermSearchNavigate={handleDashboardTermSearchNavigate}
+                onViewAllProjects={handleViewAllProjects}
                 onYearSearchNavigate={handleDashboardYearSearchNavigate}
               />
             ) : semanticSimilarProjectId ? (
@@ -674,14 +706,10 @@ export default function App() {
               ) : projectError ? (
                 <div className="flex flex-col items-center justify-center px-6 py-12 text-center text-text-muted text-[0.92rem]" role="status" aria-live="polite">
                   <strong className="text-text-secondary text-[15px]">{projectError}</strong>
-                  <button
-                    type="button"
-                    className="inline-block p-0 border-none bg-transparent text-accent font-sans text-[15.5px] cursor-pointer hover:underline"
+                  <BackToResultsButton
                     onClick={handleBackToSearch}
-                    style={{ marginTop: "0.85rem" }}
-                  >
-                    Back to results
-                  </button>
+                    className="mt-[0.85rem]"
+                  />
                 </div>
               ) : selectedProject ? (
                 <ProjectDetailsPage
@@ -694,14 +722,10 @@ export default function App() {
               ) : (
                 <div className="flex flex-col items-center justify-center px-6 py-12 text-center text-text-muted text-[0.92rem]" role="status" aria-live="polite">
                   <strong className="text-text-secondary text-[15px]">Project not found</strong>
-                  <button
-                    type="button"
-                    className="inline-block p-0 border-none bg-transparent text-accent font-sans text-[15.5px] cursor-pointer hover:underline"
+                  <BackToResultsButton
                     onClick={handleBackToSearch}
-                    style={{ marginTop: "0.85rem" }}
-                  >
-                    Back to results
-                  </button>
+                    className="mt-[0.85rem]"
+                  />
                 </div>
               )
             ) : selectedOrganizationName ? (
@@ -768,6 +792,7 @@ export default function App() {
                     ic: HELP_SEARCH_FILTER_IC,
                     org: HELP_SEARCH_FILTER_ORG,
                     activity: HELP_SEARCH_FILTER_ACTIVITY,
+                    state: HELP_SEARCH_FILTER_STATE,
                     fy: HELP_SEARCH_FILTER_FY,
                   }}
                   searchQuery={searchQuery}

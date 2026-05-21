@@ -13,10 +13,13 @@ import FiscalYearTag from "./FiscalYearTag";
 import ProjectActivityTermsChart from "./ProjectActivityTermsChart";
 import ProjectSimilarProjectsChart from "./ProjectSimilarProjectsChart";
 import SimilarProjectYearTags from "./SimilarProjectYearTags";
+import BackToResultsButton from "../shared/BackToResultsButton";
 import HelpTooltip from "../shared/HelpTooltip";
 import { HELP_PROJECT_KEYWORDS, HELP_PROJECT_SIMILAR } from "../../utils/helpContent";
 
 type TermFilterMode = "include" | "exclude";
+
+const PROJECT_TERMS_INITIAL_VISIBLE = 30;
 
 type ProjectSearchTermsPayload = {
   terms: string[];
@@ -309,6 +312,21 @@ export default function ProjectDetailsPage({
   );
   const [termFilters, setTermFilters] = useState<Map<string, TermFilterMode>>(() => new Map());
   const [keywordExtra, setKeywordExtra] = useState<string>("");
+  const [termsExpanded, setTermsExpanded] = useState(false);
+  const projectRecordId = typeof item._id === "string" ? item._id : typeof item.id === "string" ? item.id : "";
+  const hasMoreTerms = dedupedProjectTerms.length > PROJECT_TERMS_INITIAL_VISIBLE;
+  const visibleProjectTerms = useMemo(
+    () =>
+      termsExpanded || !hasMoreTerms
+        ? dedupedProjectTerms
+        : dedupedProjectTerms.slice(0, PROJECT_TERMS_INITIAL_VISIBLE),
+    [dedupedProjectTerms, termsExpanded, hasMoreTerms],
+  );
+  const hiddenTermCount = Math.max(0, dedupedProjectTerms.length - PROJECT_TERMS_INITIAL_VISIBLE);
+
+  useEffect(() => {
+    setTermsExpanded(false);
+  }, [projectRecordId, item.PROJECT_TERMS]);
   const includedTerms = useMemo(
     () => [...termFilters.entries()].filter(([, mode]) => mode === "include").map(([term]) => term),
     [termFilters],
@@ -321,7 +339,7 @@ export default function ProjectDetailsPage({
   const [isAbstractExpanded, setIsAbstractExpanded] = useState<boolean>(false);
   const fiscalYears = item.FY != null ? String(item.FY) : "—";
   const projectDates = [item.PROJECT_START, item.PROJECT_END].filter(Boolean).join(" to ") || "—";
-  const projectId = typeof item._id === "string" ? item._id : typeof item.id === "string" ? item.id : "";
+  const projectId = projectRecordId;
   const [similarNeighbors, setSimilarNeighbors] = useState<SearchResultRecord[]>([]);
   const [similarLoading, setSimilarLoading] = useState<boolean>(false);
   const [similarError, setSimilarError] = useState<string>("");
@@ -497,9 +515,7 @@ export default function ProjectDetailsPage({
     <div className="flex flex-col gap-[1.25rem] min-w-0 w-full">
     <div className="bg-surface border border-border rounded-lg p-6 w-full min-w-0">
       <div className="grid grid-cols-[auto_1fr_auto] items-center gap-x-4 gap-y-3 mb-4">
-        <button type="button" className="inline-block p-0 border-none bg-transparent text-accent font-sans text-[15.5px] cursor-pointer hover:underline" onClick={onBack}>
-          Back to results
-        </button>
+        <BackToResultsButton onClick={onBack} />
         {displayProjectYears.length > 1 ? (
           <div className="flex flex-wrap justify-center items-center gap-[0.4rem] min-w-0" aria-label="Fiscal years for this project">
             {displayProjectYears.map((year) => {
@@ -615,8 +631,8 @@ export default function ProjectDetailsPage({
           </div>
           {dedupedProjectTerms.length > 0 ? (
             <>
-              <div className="flex flex-wrap gap-[0.4rem] w-full" role="group" aria-label="Project keyword tags">
-                {dedupedProjectTerms.map((term) => (
+              <div className="flex flex-wrap gap-[0.4rem] w-full items-center" role="group" aria-label="Project keyword tags">
+                {visibleProjectTerms.map((term) => (
                   <KeywordTag
                     key={term}
                     mode={termFilters.get(term) ?? null}
@@ -625,6 +641,16 @@ export default function ProjectDetailsPage({
                     {term}
                   </KeywordTag>
                 ))}
+                {hasMoreTerms ? (
+                  <button
+                    type="button"
+                    className="px-[0.55rem] py-[0.28rem] rounded-full border border-border bg-surface text-accent font-sans text-[0.78rem] font-medium cursor-pointer transition-[border-color,color,background] duration-150 hover:border-accent hover:bg-accent-light"
+                    onClick={() => setTermsExpanded((prev) => !prev)}
+                    aria-expanded={termsExpanded}
+                  >
+                    {termsExpanded ? "Show less" : `Show more (${hiddenTermCount} more)`}
+                  </button>
+                ) : null}
               </div>
               {onSearchWithProjectTerms ? (
                 <div className="mt-[0.85rem] pt-[0.85rem] border-t border-border">
