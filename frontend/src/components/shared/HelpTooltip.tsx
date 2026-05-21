@@ -12,8 +12,11 @@ import { cn } from "../../utils/cn";
 
 const HIDE_DELAY_MS = 120;
 const VIEWPORT_PAD = 12;
-const PANEL_GAP = 6;
+const PANEL_GAP = 20;
 const PANEL_MAX_WIDTH_PX = 296;
+
+const CLS_HELP_TRIGGER =
+  "border border-green bg-green-light text-[0.72rem] font-semibold leading-none text-green transition-[color,border-color,background] duration-150 hover:border-green hover:bg-green hover:text-white focus-visible:outline-2 focus-visible:outline-green focus-visible:outline-offset-2";
 
 type HelpTooltipPlacement = "below" | "after" | "before";
 
@@ -175,9 +178,9 @@ export default function HelpTooltip({
           maxHeight: panelCoords?.maxHeight,
           visibility: panelCoords ? "visible" : "hidden",
         }}
-        className="z-[100] overflow-y-auto rounded-[--radius-md] border border-border bg-surface px-3 py-2.5 text-left text-[0.8rem] leading-[1.45] text-text-secondary shadow-md"
+        className="z-[100] overflow-y-auto rounded-md border-2 border-accent-text/60 bg-accent-light px-3 py-2.5 text-left text-[0.8rem] leading-[1.45] text-text-primary shadow-md dark:bg-surface"
       >
-        <p className="mb-1.5 text-[0.72rem] font-semibold uppercase tracking-[0.04em] text-text-muted">
+        <p className="mb-1.5 text-[0.72rem] font-semibold uppercase tracking-[0.04em] text-text-primary">
           {label}
         </p>
         {children}
@@ -194,7 +197,10 @@ export default function HelpTooltip({
       >
         <button
           type="button"
-          className="inline-flex h-[1.35rem] w-[1.35rem] shrink-0 items-center justify-center rounded-full border border-border bg-surface text-[0.72rem] font-semibold leading-none text-text-muted transition-[color,border-color,background] duration-150 hover:border-border-strong hover:bg-surface-hover hover:text-text-primary focus-visible:outline-2 focus-visible:outline-accent focus-visible:outline-offset-2"
+          className={cn(
+            "inline-flex h-[1.35rem] w-[1.35rem] shrink-0 items-center justify-center rounded-full",
+            CLS_HELP_TRIGGER,
+          )}
           aria-label={label}
           aria-expanded={open}
           aria-controls={tooltipId}

@@ -44,7 +44,7 @@ const MAP_COLOR_STOPS = [
 ] as const;
 const HOVER_FILL = "#ffe259";
 const HOVER_STROKE = "#f97316";
-/** Outline for the state last clicked on the map (not hover). */
+/** Outline for the active state filter (map click or dropdown). */
 const SELECTED_STROKE = "#1a56db";
 const HOVER_STROKE_WIDTH = 3;
 const SELECTED_STROKE_WIDTH = 2;
@@ -127,7 +127,7 @@ interface TooltipState {
 
 interface StateMapProps {
   data: StateDataPoint[];
-  /** Active state filter (USPS abbrev); used to clear map-click highlight when filters reset. */
+  /** Active state filter (USPS abbrev); highlights matching state on the map. */
   selectedStateAbbrev?: string;
   /** When set, clicking a state applies that USPS abbrev; click again to clear (passes ""). */
   onStateSelect?: (stateAbbrev: string) => void;
@@ -144,32 +144,20 @@ export default function StateMap({
 }: StateMapProps) {
   const [tooltip, setTooltip] = useState<TooltipState | null>(null);
   const [hoveredState, setHoveredState] = useState<string | null>(null);
-  const [mapClickedAbbrev, setMapClickedAbbrev] = useState<string | null>(null);
   const mapCanvasRef = useRef<HTMLDivElement>(null);
   const lastPointerRef = useRef<{ x: number; y: number } | null>(null);
 
   const normalizedSelectedAbbrev = selectedStateAbbrev.trim().toUpperCase();
 
-  useEffect(() => {
-    if (!normalizedSelectedAbbrev) {
-      setMapClickedAbbrev(null);
-    }
-  }, [normalizedSelectedAbbrev]);
+  const selectedGeoName = normalizedSelectedAbbrev
+    ? (STATE_ABBREV_TO_NAME[normalizedSelectedAbbrev] ?? null)
+    : null;
 
-  const isMapClickedState = (geoName: string): boolean => {
-    if (!mapClickedAbbrev || mapClickedAbbrev !== normalizedSelectedAbbrev) {
-      return false;
-    }
+  const isSelectedState = (geoName: string): boolean => {
+    if (!normalizedSelectedAbbrev) return false;
     const abbrev = STATE_NAME_TO_ABBREV[geoName];
-    return abbrev?.toUpperCase() === mapClickedAbbrev;
+    return abbrev?.toUpperCase() === normalizedSelectedAbbrev;
   };
-
-  const selectedGeoName =
-    mapClickedAbbrev && mapClickedAbbrev === normalizedSelectedAbbrev
-      ? Object.entries(STATE_NAME_TO_ABBREV).find(
-          ([, abbrev]) => abbrev.toUpperCase() === mapClickedAbbrev,
-        )?.[0] ?? null
-      : null;
 
   const tooltipOffset = (clientX: number, clientY: number): { x: number; y: number } => ({
     x: clientX + 12,
@@ -271,12 +259,10 @@ export default function StateMap({
     const normalized = abbrev.toUpperCase();
     if (normalized === normalizedSelectedAbbrev) {
       onStateSelect("");
-      setMapClickedAbbrev(null);
       return;
     }
 
     onStateSelect(normalized);
-    setMapClickedAbbrev(normalized);
   };
 
   const getStroke = (geoName: string, isHovered: boolean, isSelected: boolean): string => {
@@ -306,7 +292,7 @@ export default function StateMap({
     const geoName = geo.properties.name as string;
     const point = stateByName.get(geoName);
     const isHovered = hoveredLayer || hoveredState === geoName;
-    const isSelected = isMapClickedState(geoName);
+    const isSelected = isSelectedState(geoName);
     const isInteractive = onStateSelect != null;
     const useScreenSpaceStroke = isHovered || isSelected || insetMap;
     const strokeStyle = useScreenSpaceStroke
