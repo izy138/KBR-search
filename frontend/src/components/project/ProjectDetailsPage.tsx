@@ -1,8 +1,8 @@
-import type { ReactNode } from "react";
+import type { JSX, ReactNode } from "react";
 import { useEffect, useMemo, useRef, useState } from "react";
 import { useNavigate } from "react-router-dom";
 import type { ProjectFiscalYear, ProjectYearVariant, SearchResultRecord } from "../../api";
-import { getProjectOtherYears, searchSimilarToProjectId } from "../../api";
+import { getProjectOtherYears } from "../../api";
 import { getOrderedPiNames } from "../../utils/piNames";
 import { groupSimilarNeighbors } from "../../utils/recurrenceGrouping";
 import { formatDollarsFull } from "../../utils/format";
@@ -29,6 +29,11 @@ type ProjectSearchTermsPayload = {
 
 type ProjectDetailsPageProps = {
   item: SearchResultRecord;
+  /** True while the full project document is still loading (sidebar can still render). */
+  projectContentLoading?: boolean;
+  similarNeighbors: SearchResultRecord[];
+  similarLoading: boolean;
+  similarError: string;
   onBack: () => void;
   onOpenInvestigator?: (name: string) => void;
   onOpenDetails?: (item: SearchResultRecord) => void;
@@ -36,7 +41,6 @@ type ProjectDetailsPageProps = {
 };
 
 const ABSTRACT_PREVIEW_LENGTH = 1500;
-const SIMILAR_PANEL_K = 10;
 const SIMILAR_PROJECT_IC_NAME_MAX = 60;
 
 const CLS_SECTION_H2 = "text-[0.86rem] uppercase tracking-[0.05em] text-text-muted mb-[0.35rem]";
@@ -296,8 +300,29 @@ function getYearVariants(record: SearchResultRecord): ProjectYearVariant[] {
   ];
 }
 
+function ProjectContentSkeleton(): JSX.Element {
+  return (
+    <div className="flex flex-col gap-4 animate-pulse" aria-hidden="true">
+      <div className="h-8 w-[85%] rounded-md bg-surface-hover" />
+      <div className="space-y-2">
+        <div className="h-3 w-full rounded bg-surface-hover" />
+        <div className="h-3 w-full rounded bg-surface-hover" />
+        <div className="h-3 w-[72%] rounded bg-surface-hover" />
+      </div>
+      <div className="grid grid-cols-[repeat(auto-fit,minmax(240px,1fr))] gap-4">
+        <div className="h-20 rounded-md bg-surface-hover" />
+        <div className="h-20 rounded-md bg-surface-hover" />
+      </div>
+    </div>
+  );
+}
+
 export default function ProjectDetailsPage({
   item,
+  projectContentLoading = false,
+  similarNeighbors,
+  similarLoading,
+  similarError,
   onBack,
   onOpenInvestigator,
   onOpenDetails,
@@ -340,9 +365,6 @@ export default function ProjectDetailsPage({
   const fiscalYears = item.FY != null ? String(item.FY) : "—";
   const projectDates = [item.PROJECT_START, item.PROJECT_END].filter(Boolean).join(" to ") || "—";
   const projectId = projectRecordId;
-  const [similarNeighbors, setSimilarNeighbors] = useState<SearchResultRecord[]>([]);
-  const [similarLoading, setSimilarLoading] = useState<boolean>(false);
-  const [similarError, setSimilarError] = useState<string>("");
   const [projectYears, setProjectYears] = useState<ProjectFiscalYear[]>([]);
   const familyYearsCacheRef = useRef<ProjectFiscalYear[]>([]);
   const familyKeyCacheRef = useRef<string | null>(null);
@@ -369,40 +391,6 @@ export default function ProjectDetailsPage({
     setTermFilters(new Map());
     setKeywordExtra("");
   }, [item._id, item.APPLICATION_ID]);
-
-  useEffect(() => {
-    if (!projectId) {
-      setSimilarNeighbors([]);
-      setSimilarError("");
-      setSimilarLoading(false);
-      return;
-    }
-    let cancelled = false;
-    setSimilarLoading(true);
-    setSimilarError("");
-    setSimilarNeighbors([]);
-    void (async () => {
-      try {
-        const payload = await searchSimilarToProjectId(projectId, SIMILAR_PANEL_K);
-        if (!cancelled) {
-          setSimilarNeighbors(payload.results ?? []);
-        }
-      } catch (err) {
-        if (!cancelled) {
-          const msg = err instanceof Error ? err.message : "Similarity search failed.";
-          setSimilarError(msg);
-          setSimilarNeighbors([]);
-        }
-      } finally {
-        if (!cancelled) {
-          setSimilarLoading(false);
-        }
-      }
-    })();
-    return () => {
-      cancelled = true;
-    };
-  }, [projectId]);
 
   useEffect(() => {
     if (!projectId) {
@@ -539,6 +527,10 @@ export default function ProjectDetailsPage({
         )}
       </div>
 
+      {projectContentLoading ? (
+        <ProjectContentSkeleton />
+      ) : (
+        <>
       <h1 className="text-[1.55rem] leading-[1.35] mb-4">{item.PROJECT_TITLE ?? "Untitled Project"}</h1>
 
       <section className="mb-[1.25rem] w-full">
@@ -715,9 +707,11 @@ export default function ProjectDetailsPage({
           )}
         </div>
       </section>
+        </>
+      )}
     </div>
 
-    {projectId ? (
+    {projectId && !projectContentLoading ? (
       <div className="bg-surface border border-border rounded-[--radius-lg] p-5 w-full min-w-0 [&>section]:!mb-0" role="region" aria-label="Similar projects funding comparison">
         <ProjectSimilarProjectsChart
           currentProject={item}
