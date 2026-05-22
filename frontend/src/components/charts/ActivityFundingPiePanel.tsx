@@ -1,5 +1,4 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
-import { useChartCursorTooltip } from "../../hooks/useChartCursorTooltip";
 import type { MouseEvent } from "react";
 import {
   Cell,
@@ -550,9 +549,6 @@ export default function ActivityFundingPiePanel({
   onActivitySelect,
   hoveredActivityCode = null,
 }: ActivityFundingPiePanelProps) {
-  const chartBodyRef = useRef<HTMLDivElement>(null);
-  const { chartHoverActive, handleChartMouseMove, handleChartMouseLeave } =
-    useChartCursorTooltip(chartBodyRef);
   const [tailHoverCode, setTailHoverCode] = useState<string | null>(null);
 
   const { innerChartData, outerChartData, tailDetailRows } = useMemo(() => {
@@ -644,7 +640,7 @@ export default function ActivityFundingPiePanel({
   );
 
   const renderTooltip = (props: TooltipContentProps<ValueType, NameType>) => {
-    if (!chartHoverActive || !props.active || !props.payload?.length) {
+    if (!props.active || !props.payload?.length) {
       return null;
     }
     const row = props.payload[0]?.payload as PieRow | undefined;
@@ -655,6 +651,7 @@ export default function ActivityFundingPiePanel({
     const codeMeaning = row.isOther ? undefined : getActivityCodeTitle(row.name);
     return (
       <ActivityCodeHoverCard
+        key={codeLabel}
         code={codeLabel}
         formatDollars={formatDollars}
         funding={row.value}
@@ -702,17 +699,14 @@ export default function ActivityFundingPiePanel({
       ) : null}
       <div className={showTailPanel ? "grid grid-cols-[minmax(0,1fr)_minmax(11rem,14rem)] gap-3 items-stretch min-h-[360px] px-1 pb-1" : "min-h-[360px] min-w-0 px-1 pb-1"}>
         <div
-          ref={chartBodyRef}
           className={cn(
             "relative w-full min-w-0 overflow-visible [&_svg]:overflow-visible [&_svg]:text-[inherit]",
             CLS_RECHARTS_FOCUS_RESET,
             showChartPreview && "[&_svg]:opacity-35",
           )}
           style={{ height: chartHeight, minHeight: chartHeight }}
-          onMouseMove={handleChartMouseMove}
-          onMouseLeave={handleChartMouseLeave}
         >
-          <ResponsiveContainer width="100%" height="100%" debounce={150}>
+          <ResponsiveContainer width="100%" height="100%">
             <PieChart margin={{ top: 8, right: 4, bottom: 8, left: 4 }}>
               {innerChartData.length > 0 ? (
                 <Pie
@@ -778,7 +772,6 @@ export default function ActivityFundingPiePanel({
                 </Pie>
               ) : null}
               <Tooltip
-                active={chartHoverActive ? undefined : false}
                 content={renderTooltip}
                 contentStyle={RECHARTS_TOOLTIP_CONTENT_STYLE}
                 wrapperStyle={{ ...RECHARTS_TOOLTIP_WRAPPER_STYLE, transition: "none" }}
