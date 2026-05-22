@@ -105,7 +105,7 @@ export default function SemanticSimilarProjectPage({
     <div className="w-full max-w-none m-0 pt-[0.35rem] pb-10">
       <div className="mb-3">
         <button type="button" className="inline-block p-0 border-none bg-transparent text-accent font-sans text-[15.5px] cursor-pointer hover:underline" onClick={onBackToLab}>
-          ← Vector search lab
+          ← Search results
         </button>
       </div>
 
