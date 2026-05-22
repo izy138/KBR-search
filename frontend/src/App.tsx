@@ -684,6 +684,9 @@ export default function App() {
                 onTermSearchNavigate={handleDashboardTermSearchNavigate}
                 onViewAllProjects={handleViewAllProjects}
                 onYearSearchNavigate={handleDashboardYearSearchNavigate}
+                onOpenProject={(projectId) =>
+                  navigate(`/projects/${encodeURIComponent(projectId)}`)
+                }
               />
             ) : semanticSimilarProjectId ? (
               <SemanticSimilarProjectPage
