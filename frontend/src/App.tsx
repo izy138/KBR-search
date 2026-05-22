@@ -629,18 +629,7 @@ export default function App() {
           >
             Search
           </button>
-          <button
-            type="button"
-            className={
-              "px-3 py-[0.35rem] rounded-sm border-none font-sans text-[13px] font-medium cursor-pointer transition-[color,background] duration-150 hover:text-text-primary hover:bg-surface-hover" +
-              (isSemanticRoute
-                ? " text-accent-text bg-accent-light"
-                : " bg-transparent text-text-muted")
-            }
-            onClick={() => navigate("/semantic")}
-          >
-             Hybrid Search
-          </button>
+         
         </nav>
 
         <div className="flex items-center justify-end gap-3 max-[900px]:gap-2">
@@ -699,7 +688,7 @@ export default function App() {
             ) : semanticSimilarProjectId ? (
               <SemanticSimilarProjectPage
                 projectId={decodeURIComponent(semanticSimilarProjectId)}
-                onBackToLab={() => navigate("/semantic")}
+                onBackToLab={() => navigate("/search")}
                 onOpenFullProject={(id) => navigate(`/projects/${encodeURIComponent(id)}`)}
                 onOpenInvestigator={handleOpenInvestigator}
                 onOpenOrganization={handleOpenOrganization}
