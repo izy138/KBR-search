@@ -1,4 +1,4 @@
-import { useMemo } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
 import {
   CartesianGrid,
   Legend,
@@ -35,6 +35,10 @@ interface LineChartPanelProps {
   /** Optional formatter for the funding axis/tooltip values */
   formatter?: (value: number) => string;
   height?: number;
+  /** When true, chart height follows the panel's flex area (ResizeObserver). */
+  fillHeight?: boolean;
+  /** Narrower Y axes and legend for tight columns (e.g. IC + activity dashboard row). */
+  compactWidth?: boolean;
   /** Extra class on the outer panel wrapper for chart-specific layout/CSS */
   panelClassName?: string;
   chartMargin?: { top?: number; right?: number; bottom?: number; left?: number };
@@ -76,11 +80,35 @@ export default function LineChartPanel({
   data,
   formatter,
   height = 300,
+  fillHeight = false,
+  compactWidth = false,
   panelClassName,
   chartMargin = { top: 12, right: 16, bottom: 4, left: 8 },
   onYearClick,
 }: LineChartPanelProps) {
+  const chartBodyRef = useRef<HTMLDivElement>(null);
+  const [measuredChartHeight, setMeasuredChartHeight] = useState(0);
   const fundingFmt = formatter ?? formatDollarsCompact;
+
+  useEffect(() => {
+    if (!fillHeight) {
+      setMeasuredChartHeight(0);
+      return;
+    }
+    const chartBody = chartBodyRef.current;
+    if (!chartBody) return;
+
+    const updateHeight = (entries?: ResizeObserverEntry[]): void => {
+      const nextHeight =
+        entries?.[0]?.contentRect.height ?? chartBody.getBoundingClientRect().height;
+      setMeasuredChartHeight(Math.max(Math.round(nextHeight), 0));
+    };
+
+    updateHeight();
+    const observer = new ResizeObserver((entries) => updateHeight(entries));
+    observer.observe(chartBody);
+    return () => observer.disconnect();
+  }, [fillHeight, data.length]);
 
   const { countAxisDomain, fundingAxisDomain } = useMemo(() => {
     let minCount = Number.POSITIVE_INFINITY;
@@ -132,18 +160,17 @@ export default function LineChartPanel({
     );
   };
 
+  const chartHeight = fillHeight ? Math.max(measuredChartHeight, 1) : height;
+
   const panelClass = cn(
-    "bg-surface border border-border rounded-[--radius-lg] w-full px-4 py-[0.9rem] min-h-[310px]",
+    "bg-surface border border-border rounded-[--radius-lg] w-full px-4 min-h-[310px]",
+    fillHeight ? "flex h-full min-h-0 flex-col overflow-visible py-0" : "py-[0.9rem]",
     CLS_RECHARTS_FOCUS_RESET,
     panelClassName,
   );
 
-  return (
-    <div className={panelClass}>
-      <div className="text-text-primary text-[0.9rem] font-semibold mb-[0.65rem]">{title}</div>
-      <div className={cn(CLS_RECHARTS_FOCUS_RESET, onYearClick && "[&_.recharts-layer]:cursor-pointer")}>
-        <ResponsiveContainer width="100%" height={height}>
-          <LineChart data={data} margin={chartMargin}>
+  const lineChart = (
+    <LineChart data={data} margin={chartMargin}>
             <CartesianGrid strokeDasharray="3 3" stroke="var(--border)" />
             <XAxis
               dataKey="year"
@@ -153,9 +180,10 @@ export default function LineChartPanel({
             />
             <YAxis
               yAxisId="left"
+              width={compactWidth ? 44 : undefined}
               domain={countAxisDomain}
               allowDataOverflow
-              tick={{ fontSize: 13, fill: "var(--text-secondary)" }}
+              tick={{ fontSize: compactWidth ? 12 : 14, fill: "var(--text-secondary)" }}
               tickFormatter={(v: number) => v.toLocaleString()}
               axisLine={false}
               tickLine={false}
@@ -163,9 +191,10 @@ export default function LineChartPanel({
             <YAxis
               yAxisId="right"
               orientation="right"
+              width={compactWidth ? 54 : undefined}
               domain={fundingAxisDomain}
               allowDataOverflow
-              tick={{ fontSize: 13, fill: "var(--text-secondary)" }}
+              tick={{ fontSize: compactWidth ? 12 : 14, fill: "var(--text-secondary)" }}
               tickFormatter={fundingFmt}
               axisLine={false}
               tickLine={false}
@@ -175,7 +204,13 @@ export default function LineChartPanel({
               contentStyle={RECHARTS_TOOLTIP_CONTENT_STYLE}
               wrapperStyle={RECHARTS_TOOLTIP_WRAPPER_STYLE}
             />
-            <Legend wrapperStyle={{ fontSize: 13, color: "var(--text-secondary)" }} />
+            <Legend
+              wrapperStyle={{
+                fontSize: compactWidth ? 11 : 13,
+                color: "var(--text-secondary)",
+                paddingTop: compactWidth ? 0 : undefined,
+              }}
+            />
             <Line
               yAxisId="left"
               type="monotone"
@@ -197,7 +232,38 @@ export default function LineChartPanel({
               activeDot={onYearClick ? false : { r: 5, strokeWidth: 0 }}
             />
           </LineChart>
-        </ResponsiveContainer>
+  );
+
+  return (
+    <div className={panelClass}>
+      <div
+        className={cn(
+          "shrink-0 text-text-primary text-[0.9rem] font-semibold mb-[0.65rem]",
+          fillHeight ? "pt-2" : "pt-[0.9rem]",
+        )}
+      >
+        {title}
+      </div>
+      <div
+        ref={chartBodyRef}
+        className={cn(
+          CLS_RECHARTS_FOCUS_RESET,
+          onYearClick && "[&_.recharts-layer]:cursor-pointer",
+          fillHeight && "relative min-h-0 w-full flex-1 overflow-visible",
+        )}
+      >
+        {(!fillHeight || chartHeight > 0) &&
+          (fillHeight ? (
+            <div className="absolute inset-0 min-h-0 overflow-visible">
+              <ResponsiveContainer width="100%" height="100%">
+                {lineChart}
+              </ResponsiveContainer>
+            </div>
+          ) : (
+            <ResponsiveContainer width="100%" height={chartHeight}>
+              {lineChart}
+            </ResponsiveContainer>
+          ))}
       </div>
     </div>
   );

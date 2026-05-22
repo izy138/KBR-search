@@ -485,6 +485,21 @@ export interface OrgDataPoint {
   total_funding: number;
 }
 
+export interface TopFundedProject {
+  project_id: string;
+  title: string;
+  pi_names: string;
+  total_funding: number;
+  fy?: number;
+  fy_has_duplicates?: boolean;
+  other_fiscal_years?: number[];
+  duplicate_fy_count?: number;
+  activity?: string;
+  state?: string;
+  institute?: string;
+  organization?: string;
+}
+
 export interface AvgGrantDataPoint {
   label: string;
   avg_grant: number;
@@ -650,6 +665,12 @@ export function getYearData(filters?: AnalyticsFilterOptions): Promise<YearDataP
 
 export function getTopOrgs(filters?: AnalyticsFilterOptions): Promise<OrgDataPoint[]> {
   return fetchAnalytics<OrgDataPoint[]>("/analytics/top-orgs", filters);
+}
+
+export function getTopFundedProjects(
+  filters?: AnalyticsFilterOptions,
+): Promise<TopFundedProject[]> {
+  return fetchAnalytics<TopFundedProject[]>("/analytics/top-funded-projects", filters);
 }
 
 export function getAvgGrantByIc(filters?: AnalyticsFilterOptions): Promise<AvgGrantDataPoint[]> {

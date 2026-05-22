@@ -8,6 +8,7 @@ import {
   getIcData,
   getProjectTermThemeCloud,
   getStateData,
+  getTopFundedProjects,
   getTopOrgs,
   getYearData,
 } from "../../api";
@@ -20,6 +21,7 @@ import type {
   OrgDataPoint,
   ProjectTermThemeCloudResponse,
   StateDataPoint,
+  TopFundedProject,
   YearDataPoint,
 } from "../../api";
 import ActivityFundingPiePanel from "../charts/ActivityFundingPiePanel";
@@ -31,6 +33,7 @@ import LineChartPanel from "../charts/LineChartPanel";
 import ProjectTermsThemeCloud from "./ProjectTermsThemeCloud";
 import TermCloud from "./TermCloud";
 import StateMap from "./StateMap";
+import TopFundedProjectsPanel from "./TopFundedProjectsPanel";
 import { buildIcProjectsHybridAxisScale } from "../../utils/chartAxis";
 import { formatDollarsCompact } from "../../utils/format";
 import { cn } from "../../utils/cn";
@@ -160,6 +163,13 @@ const SECONDARY_CHART_ROW_PANEL_CLASS = cn(
   "flex-1 min-h-[330px]",
 );
 
+/** IC + activity: wider third column; line chart bleeds into horizontal padding like bar charts. */
+const YEAR_CHART_IC_ACTIVITY_PANEL_CLASS = cn(
+  MAIN_CHART_SLOT_PANEL_CLASS,
+  "h-full min-h-0 !px-2 !pt-2 pb-0",
+  "[&_.recharts-responsive-container]:-ml-2 [&_.recharts-responsive-container]:!w-[calc(100%+16px)]",
+);
+
 /**
  * Shortens long institute or organization names for chart axes; pair with
  * `full_label` on the same row for tooltips.
@@ -200,6 +210,7 @@ interface DashboardData {
   yearData: YearDataPoint[];
   topOrgs: OrgDataPoint[];
   avgGrant: AvgGrantDataPoint[];
+  topFundedProjects: TopFundedProject[];
 }
 
 type DashboardProps = {
@@ -212,6 +223,7 @@ type DashboardProps = {
   onTermSearchNavigate: (terms: string[]) => void;
   onViewAllProjects: () => void;
   onYearSearchNavigate: (year: number) => void;
+  onOpenProject?: (projectId: string) => void;
 };
 
 // ─── KPI card subcomponent ────────────────────────────────────────────────────
@@ -267,6 +279,7 @@ export default function Dashboard({
   onTermSearchNavigate,
   onViewAllProjects,
   onYearSearchNavigate,
+  onOpenProject,
 }: DashboardProps) {
   const hasLoadedOnceRef = useRef(false);
   const [data, setData] = useState<DashboardData | null>(null);
@@ -278,7 +291,12 @@ export default function Dashboard({
   const [filterActivityHover, setFilterActivityHover] = useState<string | null>(null);
 
   const hasIcFilter = Boolean(appliedFilters.ic);
+  const hasOrgFilter = Boolean(appliedFilters.org);
+  const hasIcAndOrgFilter = hasIcFilter && hasOrgFilter;
   const hasActivityFilter = Boolean(appliedFilters.activity);
+  const hasOrgAndActivityFilter = hasOrgFilter && hasActivityFilter;
+  const hasIcAndActivityFilter = hasIcFilter && hasActivityFilter;
+  const omitMapAndMainChartRow = hasIcAndOrgFilter || hasOrgAndActivityFilter;
 
   const analyticsOptions = useMemo(
     () => toAnalyticsFilterOptions(appliedFilters, searchQuery),
@@ -397,6 +415,7 @@ export default function Dashboard({
           yearData,
           topOrgs,
           avgGrant,
+          topFundedProjects,
         ] = await Promise.all([
           getDashboardSummary(analyticsOptions),
           getStateData(analyticsOptions),
@@ -407,6 +426,7 @@ export default function Dashboard({
           getYearData(analyticsOptions),
           getTopOrgs(analyticsOptions),
           getAvgGrantByIc(analyticsOptions),
+          getTopFundedProjects(analyticsOptions),
         ]);
 
         if (!cancelled) {
@@ -420,6 +440,7 @@ export default function Dashboard({
             yearData,
             topOrgs,
             avgGrant,
+            topFundedProjects,
           });
           hasLoadedOnceRef.current = true;
           setError(null);
@@ -458,7 +479,7 @@ export default function Dashboard({
     );
   }
 
-  const { summary, stateData, activityPie, termThemeCloud, yearData, topOrgs, avgGrant } = data;
+  const { summary, stateData, activityPie, termThemeCloud, yearData, topOrgs, avgGrant, topFundedProjects } = data;
   const { icNames, orgNames, activityCodes, states } = filterCatalog;
 
   const avgGrantValue =
@@ -518,52 +539,59 @@ export default function Dashboard({
     />
   );
 
+  const icProjectsScaleToggle = (
+    <div className="inline-flex border border-border rounded-[--radius-sm] shrink-0 overflow-hidden" role="group" aria-label="Count axis scale">
+      <button
+        type="button"
+        className={cn("bg-surface border-none text-text-secondary cursor-pointer font-[inherit] text-[0.8125rem] font-medium px-[0.65rem] py-[0.35rem] transition-[background,color] duration-150 hover:bg-surface-hover hover:text-text-primary", !icProjectsUseLogScale && "!bg-accent !text-white")}
+        onClick={() => setIcProjectsLogScale(false)}
+      >
+        Linear
+      </button>
+      <button
+        type="button"
+        className={cn("bg-surface border-none text-text-secondary cursor-pointer font-[inherit] text-[0.8125rem] font-medium px-[0.65rem] py-[0.35rem] transition-[background,color] duration-150 hover:bg-surface-hover hover:text-text-primary border-l border-border", icProjectsUseLogScale && "!bg-accent !text-white")}
+        onClick={() => setIcProjectsLogScale(true)}
+      >
+        Log
+      </button>
+    </div>
+  );
+
+  const icProjectsBarChartProps = {
+    title: "Projects by Institute (IC)",
+    headerEnd: icProjectsScaleToggle,
+    data: icChartRows,
+    dataKey: "value",
+    labelKey: "short_label",
+    tooltipLabelKey: "full_label",
+    ...MAIN_CHART_SLOT_BAR_PROPS,
+    ...IC_PROJECTS_BAR_OVERRIDES,
+    chartMargin: IC_PROJECTS_CHART_MARGIN,
+    onBarClick: handleIcBarClick,
+    ...(icProjectsUseLogScale
+      ? {
+          valueTransform: (value: number) =>
+            icProjectsValueToPlot(value, icChartHybridScale.linearMax),
+          plotToValue: (plot: number) =>
+            icProjectsPlotToValue(plot, icChartHybridScale.linearMax),
+          valueTickValues: icChartHybridScale.tickValues,
+          formatter: formatHybridCountTick,
+          tooltipFormatter: formatCount,
+        }
+      : {
+          valueScale: "linear" as const,
+          formatter: formatCount,
+          tooltipFormatter: formatCount,
+        }),
+  };
+
   const icProjectsPanel = (
-    <BarChartPanel
-      title="Projects by Institute (IC)"
-      panelClassName={IC_PROJECTS_PANEL_CLASS}
-      headerEnd={
-        <div className="inline-flex border border-border rounded-[--radius-sm] shrink-0 overflow-hidden" role="group" aria-label="Count axis scale">
-          <button
-            type="button"
-            className={cn("bg-surface border-none text-text-secondary cursor-pointer font-[inherit] text-[0.8125rem] font-medium px-[0.65rem] py-[0.35rem] transition-[background,color] duration-150 hover:bg-surface-hover hover:text-text-primary", !icProjectsUseLogScale && "!bg-accent !text-white")}
-            onClick={() => setIcProjectsLogScale(false)}
-          >
-            Linear
-          </button>
-          <button
-            type="button"
-            className={cn("bg-surface border-none text-text-secondary cursor-pointer font-[inherit] text-[0.8125rem] font-medium px-[0.65rem] py-[0.35rem] transition-[background,color] duration-150 hover:bg-surface-hover hover:text-text-primary border-l border-border", icProjectsUseLogScale && "!bg-accent !text-white")}
-            onClick={() => setIcProjectsLogScale(true)}
-          >
-            Log
-          </button>
-        </div>
-      }
-      data={icChartRows}
-      dataKey="value"
-      labelKey="short_label"
-      tooltipLabelKey="full_label"
-      {...MAIN_CHART_SLOT_BAR_PROPS}
-      {...IC_PROJECTS_BAR_OVERRIDES}
-      chartMargin={IC_PROJECTS_CHART_MARGIN}
-      onBarClick={handleIcBarClick}
-      {...(icProjectsUseLogScale
-        ? {
-            valueTransform: (value: number) =>
-              icProjectsValueToPlot(value, icChartHybridScale.linearMax),
-            plotToValue: (plot: number) =>
-              icProjectsPlotToValue(plot, icChartHybridScale.linearMax),
-            valueTickValues: icChartHybridScale.tickValues,
-            formatter: formatHybridCountTick,
-            tooltipFormatter: formatCount,
-          }
-        : {
-            valueScale: "linear" as const,
-            formatter: formatCount,
-            tooltipFormatter: formatCount,
-          })}
-    />
+    <BarChartPanel panelClassName={IC_PROJECTS_PANEL_CLASS} {...icProjectsBarChartProps} />
+  );
+
+  const icProjectsPanelSecondary = (
+    <BarChartPanel panelClassName={SECONDARY_CHART_ROW_PANEL_CLASS} {...icProjectsBarChartProps} />
   );
 
   const activityPieFilterKey = [
@@ -610,7 +638,29 @@ export default function Dashboard({
     />
   );
 
-  const fundingByYearOrOrgsPanel = hasActivityFilter ? topOrgsPanelSecondary : activityPiePanel;
+  const yearRowSecondaryPanel = hasOrgAndActivityFilter
+    ? icProjectsPanelSecondary
+    : hasActivityFilter
+      ? topOrgsPanelSecondary
+      : activityPiePanel;
+
+  const projectsAndFundingByYearPanel = (
+    <LineChartPanel
+      title="Projects & Funding by Year"
+      panelClassName={
+        hasIcAndActivityFilter ? YEAR_CHART_IC_ACTIVITY_PANEL_CLASS : "min-h-[330px] flex-1"
+      }
+      compactWidth={hasIcAndActivityFilter}
+      fillHeight={hasIcAndActivityFilter}
+      data={yearData}
+      height={YEAR_LINE_CHART_HEIGHT}
+      formatter={formatDollarsCompact}
+      onYearClick={handleYearClick}
+      chartMargin={
+        hasIcAndActivityFilter ? { top: 8, right: 4, bottom: 0, left: 0 } : undefined
+      }
+    />
+  );
 
   return (
     <div className={cn("w-full px-6 py-[1.1rem] flex flex-col", refreshing && "opacity-[0.72] transition-opacity duration-200")}>
@@ -653,44 +703,63 @@ export default function Dashboard({
         <KpiCard label="Avg Grant" value={formatDollarsCompact(avgGrantValue)} />
       </div>
 
-      {/* State map + main chart slot (IC projects or top orgs when IC filtered) */}
-      <div className="grid grid-cols-3 items-stretch gap-3 w-full max-w-full min-w-0 max-[768px]:grid-cols-1">
-        <div
-          className={cn(
-            MAP_CHART_ROW_CELL_CLASS,
-            "col-start-1 row-start-1 max-[768px]:col-auto max-[768px]:row-auto",
-          )}
-        >
-          <StateMap
-            data={stateData}
-            selectedStateAbbrev={appliedFilters.state}
-            onStateSelect={handleMapStateSelect}
-          />
+      {/* Chart grid: layout varies by IC/org/activity filter combinations */}
+      {omitMapAndMainChartRow ? (
+        <div className="grid grid-cols-2 gap-3 items-stretch min-w-0 max-[768px]:grid-cols-1">
+          <div className="flex flex-col min-w-0">{projectsAndFundingByYearPanel}</div>
+          <div className="flex flex-col min-w-0">{yearRowSecondaryPanel}</div>
         </div>
-        <div
-          className={cn(
-            MAP_CHART_ROW_CELL_CLASS,
-            "col-start-2 col-end-[-1] row-start-1 overflow-hidden max-[768px]:col-auto max-[768px]:row-auto",
-          )}
-        >
-          {hasIcFilter ? topOrgsPanelMainSlot : icProjectsPanel}
-        </div>
-        <div className="col-span-full row-start-2 grid grid-cols-2 gap-3 items-stretch min-w-0 max-[768px]:grid-cols-1 max-[768px]:col-auto max-[768px]:row-auto">
-          <div className="flex flex-col min-w-0">
-            <LineChartPanel
-              title="Projects & Funding by Year"
-              panelClassName="min-h-[330px] flex-1"
-              data={yearData}
-              height={YEAR_LINE_CHART_HEIGHT}
-              formatter={formatDollarsCompact}
-              onYearClick={handleYearClick}
+      ) : hasIcAndActivityFilter ? (
+        <div className="grid grid-cols-3 items-stretch gap-3 w-full max-w-full min-w-0 max-[768px]:grid-cols-1">
+          <div className={cn(MAP_CHART_ROW_CELL_CLASS, "min-w-0")}>
+            <StateMap
+              data={stateData}
+              selectedStateAbbrev={appliedFilters.state}
+              onStateSelect={handleMapStateSelect}
             />
           </div>
-          <div className="flex flex-col min-w-0">{fundingByYearOrOrgsPanel}</div>
+          <div className={cn(MAP_CHART_ROW_CELL_CLASS, "overflow-hidden min-w-0")}>
+            {topOrgsPanelMainSlot}
+          </div>
+          <div className={cn(MAP_CHART_ROW_CELL_CLASS, "min-w-0")}>
+            {projectsAndFundingByYearPanel}
+          </div>
         </div>
-      </div>
+      ) : (
+        <div className="grid grid-cols-3 items-stretch gap-3 w-full max-w-full min-w-0 max-[768px]:grid-cols-1">
+          <div
+            className={cn(
+              MAP_CHART_ROW_CELL_CLASS,
+              "col-start-1 row-start-1 max-[768px]:col-auto max-[768px]:row-auto",
+            )}
+          >
+            <StateMap
+              data={stateData}
+              selectedStateAbbrev={appliedFilters.state}
+              onStateSelect={handleMapStateSelect}
+            />
+          </div>
+          <div
+            className={cn(
+              MAP_CHART_ROW_CELL_CLASS,
+              "col-start-2 col-end-[-1] row-start-1 overflow-hidden max-[768px]:col-auto max-[768px]:row-auto",
+            )}
+          >
+            {hasIcFilter ? topOrgsPanelMainSlot : icProjectsPanel}
+          </div>
+          <div className="col-span-full row-start-2 grid grid-cols-2 gap-3 items-stretch min-w-0 max-[768px]:grid-cols-1 max-[768px]:col-auto max-[768px]:row-auto">
+            <div className="flex flex-col min-w-0">{projectsAndFundingByYearPanel}</div>
+            <div className="flex flex-col min-w-0">{yearRowSecondaryPanel}</div>
+          </div>
+        </div>
+      )}
 
-      <div className="mt-[0.85rem] w-full">
+      <div className="mt-[0.85rem] w-full space-y-[0.85rem]">
+        <TopFundedProjectsPanel
+          projects={topFundedProjects}
+          loading={refreshing}
+          onOpenProject={onOpenProject}
+        />
         <ProjectTermsThemeCloud payload={termThemeCloud} onSearch={handleTermBrowseSearch} />
         <TermCloud onSearch={handleTermBrowseSearch} />
       </div>

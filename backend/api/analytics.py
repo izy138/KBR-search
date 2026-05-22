@@ -339,6 +339,174 @@ def get_funding_value(source: dict[str, object]) -> float:
   return 0.0
 
 
+_TOP_FUNDED_SOURCE_FIELDS = [
+  "PROJECT_TITLE",
+  "PI_NAMEs",
+  "TOTAL_COST",
+  "FY",
+  "ACTIVITY",
+  "ORG_STATE",
+  "IC_NAME",
+  "ORG_NAME",
+  "CORE_PROJECT_NUM",
+]
+_TOP_FUNDED_FETCH_CAP = 400
+
+
+def _parse_fy_value(raw: object) -> int | None:
+  if raw is None or raw == "":
+    return None
+  try:
+    return int(raw)
+  except (TypeError, ValueError):
+    return None
+
+
+def _normalize_core_num(core: str) -> str:
+  return " ".join(core.split()).casefold()
+
+
+def _normalize_recurrence_title(title: str) -> str:
+  return " ".join(title.split()).casefold()
+
+
+def _recurrence_title_from_source(source: dict[str, object]) -> str | None:
+  title = source.get("PROJECT_TITLE")
+  if isinstance(title, str):
+    stripped = title.strip()
+    if stripped:
+      return stripped
+  return None
+
+
+def _top_funded_recurrence_key(source: dict[str, object], doc_id: str) -> str:
+  """Match search recurrence: title first so year rows without CORE_PROJECT_NUM still merge."""
+  title = _recurrence_title_from_source(source)
+  if title:
+    return f"title:{_normalize_recurrence_title(title)}"
+  core = source.get("CORE_PROJECT_NUM")
+  if isinstance(core, str):
+    stripped = core.strip()
+    if stripped:
+      return f"core:{_normalize_core_num(stripped)}"
+  return f"id:{doc_id}"
+
+
+def _first_core_from_entries(entries: list[dict[str, object]]) -> str | None:
+  for entry in entries:
+    source = entry.get("source")
+    if not isinstance(source, dict):
+      continue
+    core = source.get("CORE_PROJECT_NUM")
+    if isinstance(core, str):
+      stripped = core.strip()
+      if stripped:
+        return stripped
+  return None
+
+
+def _top_funded_hit_entry(hit: dict[str, object]) -> dict[str, object]:
+  source = hit.get("_source", {})
+  if not isinstance(source, dict):
+    source = {}
+  doc_id = str(hit.get("_id", ""))
+  return {
+    "doc_id": doc_id,
+    "source": source,
+    "fy": _parse_fy_value(source.get("FY")),
+    "funding": get_funding_value(source),
+  }
+
+
+def _serialize_top_funded_project(entry: dict[str, object], *, group: list[dict[str, object]]) -> dict[str, object]:
+  source = entry.get("source", {})
+  if not isinstance(source, dict):
+    source = {}
+  display_fy = entry.get("fy")
+  fy_counts: dict[int, int] = {}
+  for item in group:
+    fy = item.get("fy")
+    if isinstance(fy, int):
+      fy_counts[fy] = fy_counts.get(fy, 0) + 1
+
+  fy_has_duplicates = isinstance(display_fy, int) and fy_counts.get(display_fy, 0) > 1
+  other_fiscal_years = sorted(
+    (fy for fy in fy_counts if fy != display_fy),
+    reverse=True,
+  )
+  duplicate_fy_count = fy_counts.get(display_fy, 0) if fy_has_duplicates else None
+
+  return {
+    "project_id": str(entry.get("doc_id", "")),
+    "title": str(source.get("PROJECT_TITLE") or "").strip()
+    or f"Project {entry.get('doc_id', '')}",
+    "pi_names": str(source.get("PI_NAMEs") or "").strip(),
+    "total_funding": entry.get("funding", 0.0),
+    "fy": display_fy,
+    "fy_has_duplicates": fy_has_duplicates,
+    "other_fiscal_years": other_fiscal_years,
+    "duplicate_fy_count": duplicate_fy_count,
+    "activity": str(source.get("ACTIVITY") or "").strip(),
+    "state": str(source.get("ORG_STATE") or "").strip(),
+    "institute": str(source.get("IC_NAME") or "").strip(),
+    "organization": str(source.get("ORG_NAME") or "").strip(),
+  }
+
+
+def _dedupe_top_funded_hits(hits: list[dict[str, object]], *, limit: int) -> list[dict[str, object]]:
+  """Collapse recurring awards; keep the highest-funded fiscal year row per grant."""
+  groups: dict[str, list[dict[str, object]]] = {}
+  order: list[str] = []
+  for hit in hits:
+    if not isinstance(hit, dict):
+      continue
+    source = hit.get("_source", {})
+    if not isinstance(source, dict):
+      source = {}
+    key = _top_funded_recurrence_key(source, str(hit.get("_id", "")))
+    if key not in groups:
+      order.append(key)
+    groups.setdefault(key, []).append(_top_funded_hit_entry(hit))
+
+  core_index: dict[str, str] = {}
+  remove_keys: set[str] = set()
+  for key in order:
+    if key in remove_keys:
+      continue
+    entries = groups.get(key, [])
+    core = _first_core_from_entries(entries)
+    if not core:
+      continue
+    norm_core = _normalize_core_num(core)
+    existing_key = core_index.get(norm_core)
+    if existing_key is not None and existing_key != key:
+      groups[existing_key].extend(entries)
+      remove_keys.add(key)
+      continue
+    core_index[norm_core] = key
+
+  merged_order = [key for key in order if key not in remove_keys]
+  rows: list[dict[str, object]] = []
+  for key in merged_order:
+    group = groups.get(key, [])
+    if not group:
+      continue
+    representative = max(
+      group,
+      key=lambda item: (
+        item.get("funding") if isinstance(item.get("funding"), (int, float)) else 0.0,
+        item.get("fy") if isinstance(item.get("fy"), int) else -1,
+      ),
+    )
+    rows.append(_serialize_top_funded_project(representative, group=group))
+
+  rows.sort(
+    key=lambda row: row.get("total_funding") if isinstance(row.get("total_funding"), (int, float)) else 0.0,
+    reverse=True,
+  )
+  return rows[:limit]
+
+
 @router.get("/summary")
 def analytics_summary(
   scope: Annotated[AnalyticsScope, Depends(analytics_scope)],
@@ -768,6 +936,30 @@ def analytics_top_orgs(
     }
     for b in buckets
   ]
+
+
+@router.get("/top-funded-projects")
+def analytics_top_funded_projects(
+  scope: Annotated[AnalyticsScope, Depends(analytics_scope)],
+  limit: int = Query(default=15, ge=1, le=15),
+) -> list[dict[str, object]]:
+  """Return the highest-funded projects matching dashboard filters and keyword scope."""
+  client = get_client()
+  fetch_size = min(_TOP_FUNDED_FETCH_CAP, max(limit * 30, 180))
+  body = with_query_filters(
+    {
+      "size": fetch_size,
+      "_source": _TOP_FUNDED_SOURCE_FIELDS,
+      "sort": [{"TOTAL_COST": {"order": "desc", "unmapped_type": "double"}}],
+    },
+    scope.filters,
+    **analytics_scope_keyword_kwargs(scope),
+  )
+  response = client.search(index=INDEX_NAME, body=body)
+  hits = response.get("hits", {}).get("hits", [])
+  if not isinstance(hits, list):
+    return []
+  return _dedupe_top_funded_hits(hits, limit=limit)
 
 
 @router.get("/avg-grant-by-ic")
