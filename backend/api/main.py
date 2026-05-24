@@ -1,5 +1,9 @@
 """FastAPI application entrypoint."""
 
+from __future__ import annotations
+
+import os
+
 from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
 
@@ -9,9 +13,11 @@ from .search import router as search_router
 
 app = FastAPI(title="KBR Internship API", version="0.1.0")
 
+_cors_origins = os.getenv("CORS_ORIGINS", "http://localhost:5173").split(",")
+
 app.add_middleware(
     CORSMiddleware,
-    allow_origins=["http://localhost:5173"],
+    allow_origins=_cors_origins,
     allow_credentials=True,
     allow_methods=["*"],
     allow_headers=["*"],

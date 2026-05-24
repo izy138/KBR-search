@@ -14,6 +14,8 @@ from .query_filters import (
   AnalyticsScope,
   analytics_scope,
   analytics_scope_keyword_kwargs,
+  normalize_core_num,
+  normalize_recurrence_title,
   with_query_filters,
 )
 
@@ -350,7 +352,7 @@ _TOP_FUNDED_SOURCE_FIELDS = [
   "ORG_NAME",
   "CORE_PROJECT_NUM",
 ]
-_TOP_FUNDED_FETCH_CAP = 400
+_TOP_FUNDED_FETCH_CAP = 100
 
 
 def _parse_fy_value(raw: object) -> int | None:
@@ -360,14 +362,6 @@ def _parse_fy_value(raw: object) -> int | None:
     return int(raw)
   except (TypeError, ValueError):
     return None
-
-
-def _normalize_core_num(core: str) -> str:
-  return " ".join(core.split()).casefold()
-
-
-def _normalize_recurrence_title(title: str) -> str:
-  return " ".join(title.split()).casefold()
 
 
 def _recurrence_title_from_source(source: dict[str, object]) -> str | None:
@@ -383,12 +377,12 @@ def _top_funded_recurrence_key(source: dict[str, object], doc_id: str) -> str:
   """Match search recurrence: title first so year rows without CORE_PROJECT_NUM still merge."""
   title = _recurrence_title_from_source(source)
   if title:
-    return f"title:{_normalize_recurrence_title(title)}"
+    return f"title:{normalize_recurrence_title(title)}"
   core = source.get("CORE_PROJECT_NUM")
   if isinstance(core, str):
     stripped = core.strip()
     if stripped:
-      return f"core:{_normalize_core_num(stripped)}"
+      return f"core:{normalize_core_num(stripped)}"
   return f"id:{doc_id}"
 
 
@@ -477,7 +471,7 @@ def _dedupe_top_funded_hits(hits: list[dict[str, object]], *, limit: int) -> lis
     core = _first_core_from_entries(entries)
     if not core:
       continue
-    norm_core = _normalize_core_num(core)
+    norm_core = normalize_core_num(core)
     existing_key = core_index.get(norm_core)
     if existing_key is not None and existing_key != key:
       groups[existing_key].extend(entries)
