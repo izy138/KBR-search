@@ -29,6 +29,23 @@ type SearchBarProps = {
   toolbarEnd?: ReactNode;
 };
 
+const SEARCH_MODE_TOGGLE_LABEL_BASE =
+  "flex cursor-pointer select-none items-center gap-[0.35rem] rounded-sm border px-[0.55rem] py-[0.48rem] font-sans text-[14px] font-medium transition-colors duration-150";
+
+function searchModeToggleLabelClass(active: boolean, disabled: boolean): string {
+  return cn(
+    SEARCH_MODE_TOGGLE_LABEL_BASE,
+    disabled && "cursor-not-allowed opacity-50",
+    active
+      ? "border-accent bg-accent text-white hover:bg-accent-hover"
+      : "border-accent-hover bg-accent/40 text-text-primary hover:border-accent-hover hover:bg-accent/60",
+  );
+}
+
+function searchModeToggleCheckboxClass(active: boolean): string {
+  return cn("h-[0.85rem] w-[0.85rem]", active ? "accent-white" : "accent-accent");
+}
+
 const SearchBar: FC<SearchBarProps> = ({
   onSearch,
   onUpdateDashboard,
@@ -109,20 +126,11 @@ const SearchBar: FC<SearchBarProps> = ({
   const advancedControl = showAdvancedToggle ? (
     <div className="flex shrink-0 items-center gap-1">
       <label
-        className={cn(
-          "flex cursor-pointer select-none items-center gap-[0.35rem] rounded-sm border px-[0.55rem] py-[0.48rem] font-sans text-[14px] font-medium transition-colors duration-150",
-          advancedToggleDisabled && "cursor-not-allowed opacity-50",
-          advancedActive
-            ? "border-accent-hover bg-accent-hover text-white hover:bg-accent"
-            : "border-accent bg-accent/30 text-black hover:border-accent-hover hover:bg-accent/40",
-        )}
+        className={searchModeToggleLabelClass(advancedActive, advancedToggleDisabled)}
       >
         <input
           type="checkbox"
-          className={cn(
-            "h-[0.85rem] w-[0.85rem]",
-            advancedActive ? "accent-white" : "accent-accent",
-          )}
+          className={searchModeToggleCheckboxClass(advancedActive)}
           checked={advancedActive}
           disabled={advancedToggleDisabled}
           onChange={(e) => handleAdvancedCheckboxChange(e.target.checked)}
@@ -139,20 +147,11 @@ const SearchBar: FC<SearchBarProps> = ({
     showSemanticToggle && onSemanticModeChange != null ? (
       <div className="flex shrink-0 items-center gap-1">
         <label
-          className={cn(
-            "flex cursor-pointer select-none items-center gap-[0.35rem] rounded-sm border px-[0.55rem] py-[0.48rem] font-sans text-[14px] font-medium transition-colors duration-150",
-            semanticToggleDisabled && "cursor-not-allowed opacity-50",
-            semanticMode
-              ? "border-accent-hover bg-accent-hover text-white hover:bg-accent"
-              : "border-accent bg-accent/30 text-black hover:border-accent-hover hover:bg-accent/40",
-          )}
+          className={searchModeToggleLabelClass(semanticMode, semanticToggleDisabled)}
         >
           <input
             type="checkbox"
-            className={cn(
-              "h-[0.85rem] w-[0.85rem]",
-              semanticMode ? "accent-white" : "accent-accent",
-            )}
+            className={searchModeToggleCheckboxClass(semanticMode)}
             checked={semanticMode}
             disabled={semanticToggleDisabled}
             onChange={(e) => onSemanticModeChange(e.target.checked)}
@@ -168,7 +167,7 @@ const SearchBar: FC<SearchBarProps> = ({
   const searchForm = (
     <form
         onSubmit={handleSubmit}
-        className="flex min-w-0 flex-1 items-center gap-2 rounded-md border-2 border-accent-text/60 bg-bg px-2 py-[0.3rem] transition-[border-color,box-shadow] duration-150 hover:border-accent-text/90 focus-within:border-accent focus-within:shadow-[0_0_0_3px_rgba(26,86,219,0.1)]"
+        className="flex min-w-0 flex-1 items-center gap-2 rounded-md border-2 border-border-input bg-bg px-2 py-[0.3rem] transition-[border-color,box-shadow] duration-150 hover:border-border-strong focus-within:border-accent focus-within:shadow-[0_0_0_3px_rgba(26,86,219,0.1)]"
       >
         <svg
           className="h-4 w-4 shrink-0 text-text-muted"

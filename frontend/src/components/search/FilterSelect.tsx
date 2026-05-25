@@ -201,7 +201,7 @@ const FilterSelect: FC<FilterSelectProps> = ({
         ref={triggerRef}
         type="button"
         className={cn(
-          "box-border w-full rounded-sm border-2 border-accent-text/60 bg-bg font-sans leading-[1.35] text-text-primary outline-none transition-[border-color] duration-150 hover:border-accent-text/90 focus:border-accent disabled:cursor-not-allowed disabled:opacity-50 relative flex cursor-pointer appearance-none pr-8 text-left",
+          "box-border w-full rounded-sm border-2 border-border-input bg-bg font-sans leading-[1.35] text-text-primary outline-none transition-[border-color] duration-150 hover:border-border-strong focus:border-accent disabled:cursor-not-allowed disabled:opacity-50 relative flex cursor-pointer appearance-none pr-8 text-left",
           compact
             ? "min-h-[2rem] px-[1.25rem] py-[0.5rem] text-[12px]"
             : "min-h-[2.5rem] px-[0.7rem] py-[0.48rem] text-[14px]",

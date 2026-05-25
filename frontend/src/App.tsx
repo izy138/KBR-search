@@ -430,8 +430,7 @@ export default function App() {
 
   const handleDashboardSearchNavigate = useCallback(
     (nextQuery: string, filters?: FilterValues) => {
-      setSemanticSearchMode(false);
-      setSemanticSearchCommitted(false);
+      setSemanticSearchCommitted(semanticSearchMode);
       const unified = normalizeUnifiedSearch(nextQuery);
       const f = filters ?? appliedFilters;
       if (filters) {
@@ -458,11 +457,11 @@ export default function App() {
         fyMax: f.fyMax,
         projectTerms: [],
         page: 1,
-        semanticMode: false,
-        semanticCommitted: false,
+        semanticMode: semanticSearchMode,
+        semanticCommitted: semanticSearchMode,
       });
     },
-    [navigateToSearch, appliedFilters],
+    [navigateToSearch, appliedFilters, semanticSearchMode],
   );
 
   const handleDashboardTermSearchNavigate = useCallback(
@@ -676,6 +675,8 @@ export default function App() {
             {isDashboardVisible ? (
               <Dashboard
                 searchQuery={searchQuery}
+                semanticMode={semanticSearchMode}
+                onSemanticModeChange={handleSemanticModeChange}
                 onUpdateDashboard={handleDashboardQueryUpdate}
                 onSearchNavigate={handleDashboardSearchNavigate}
                 appliedFilters={appliedFilters}
@@ -836,7 +837,7 @@ export default function App() {
                               </span>
                             ))}
                             {excludeProjectTermFilters.map((term) => (
-                              <span key={`exclude-${term}`} className="inline-flex items-center gap-[0.2rem] px-[0.5rem] py-[0.2rem] rounded-md border border-red-200/90 bg-red-50 text-red-700 text-[0.78rem] font-medium dark:border-red-900/50 dark:bg-red-950/45 dark:text-red-300">
+                              <span key={`exclude-${term}`} className="inline-flex items-center px-[0.5rem] py-[0.2rem] rounded-md border border-red-200/90 bg-red-50 text-red-700 text-[0.78rem] font-medium dark:border-red-900/50 dark:bg-red-950/45 dark:text-red-300">
                                 NOT {term}
                                 <button
                                   type="button"
@@ -869,8 +870,8 @@ export default function App() {
                       <button
                         type="button"
                         className={cn(
-                          "box-border w-full min-h-[2rem] rounded-sm border-2 border-accent-text/60 bg-bg px-[1rem] py-[0.5rem] font-sans text-[12px] leading-[1.35] text-text-primary outline-none transition-[border-color] duration-150",
-                          "inline-flex items-center justify-center gap-[0.35rem] cursor-pointer hover:border-accent-text/90 focus:border-accent",
+                          "box-border w-full min-h-[2rem] rounded-sm border-2 border-border-input bg-bg px-[1rem] py-[0.5rem] font-sans text-[12px] leading-[1.35] text-text-primary outline-none transition-[border-color] duration-150",
+                          "inline-flex items-center justify-center gap-[0.35rem] cursor-pointer hover:border-border-strong focus:border-accent",
                           "disabled:cursor-not-allowed disabled:opacity-50",
                         )}
                         onClick={() => void handleDownloadCsv()}
@@ -917,21 +918,23 @@ export default function App() {
                   </p>
                 )}
 
-                <ResultsList
-                  results={results}
-                  primarySort={sortOption}
-                  loading={loading}
-                  onOpenDetails={handleOpenDetails}
-                  onOpenInvestigator={handleOpenInvestigator}
-                  onOpenOrganization={handleOpenOrganization}
-                  onOpenInstitution={handleOpenInstitution}
-                  sort={columnSort}
-                  onSortChange={
-                    semanticSearchMode && semanticSearchCommitted
-                      ? undefined
-                      : handleColumnSortChange
-                  }
-                />
+                <div className="mt-1.75">
+                  <ResultsList
+                    results={results}
+                    primarySort={sortOption}
+                    loading={loading}
+                    onOpenDetails={handleOpenDetails}
+                    onOpenInvestigator={handleOpenInvestigator}
+                    onOpenOrganization={handleOpenOrganization}
+                    onOpenInstitution={handleOpenInstitution}
+                    sort={columnSort}
+                    onSortChange={
+                      semanticSearchMode && semanticSearchCommitted
+                        ? undefined
+                        : handleColumnSortChange
+                    }
+                  />
+                </div>
 
                 {totalPages > 1 && (
                   <Pagination

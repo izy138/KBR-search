@@ -31,7 +31,6 @@ import type { FilterValues } from "../../types/filters";
 import { toAnalyticsFilterOptions } from "../../utils/analyticsFilters";
 import LineChartPanel from "../charts/LineChartPanel";
 import ProjectTermsThemeCloud from "./ProjectTermsThemeCloud";
-import TermCloud from "./TermCloud";
 import StateMap from "./StateMap";
 import TopFundedProjectsPanel from "./TopFundedProjectsPanel";
 import { buildIcProjectsHybridAxisScale } from "../../utils/chartAxis";
@@ -124,6 +123,10 @@ const IC_HYBRID_TICK_VALUES_ALL = [
 const YEAR_LINE_CHART_HEIGHT = 320;
 /** Recharts box height for the activity funding pie (larger to fit scaled ring radii). */
 const ACTIVITY_PIE_CHART_HEIGHT = 360;
+/** Top organizations shown when dashboard filters are empty. */
+const TOP_ORGS_UNFILTERED_LIMIT = 40;
+/** Top organizations shown when any dashboard filter is active. */
+const TOP_ORGS_FILTERED_LIMIT = 20;
 
 /** Grid cell — stretches to match sibling in the map + main-chart row. */
 const MAP_CHART_ROW_CELL_CLASS = "flex h-full min-h-[310px] min-w-0 flex-col";
@@ -214,6 +217,8 @@ interface DashboardData {
 
 type DashboardProps = {
   searchQuery: string;
+  semanticMode?: boolean;
+  onSemanticModeChange?: (enabled: boolean) => void;
   onUpdateDashboard: (query: string) => void;
   onSearchNavigate: (query: string, filters?: FilterValues) => void;
   appliedFilters: FilterValues;
@@ -270,6 +275,8 @@ function KpiCard({ label, value, onClick }: KpiCardProps) {
  */
 export default function Dashboard({
   searchQuery,
+  semanticMode = false,
+  onSemanticModeChange,
   onUpdateDashboard,
   onSearchNavigate,
   appliedFilters,
@@ -290,8 +297,9 @@ export default function Dashboard({
   const [icProjectsLogScale, setIcProjectsLogScale] = useState(true);
   const [filterActivityHover, setFilterActivityHover] = useState<string | null>(null);
 
-  const hasIcFilter = Boolean(appliedFilters.ic);
-  const hasOrgFilter = Boolean(appliedFilters.org);
+  const hasIcFilter = Boolean(appliedFilters.ic.trim());
+  const hasOrgFilter = appliedFilters.org.trim() !== "";
+  const showTopOrgsChart = !hasOrgFilter;
   const hasIcAndOrgFilter = hasIcFilter && hasOrgFilter;
   const hasActivityFilter = Boolean(appliedFilters.activity);
   const hasOrgAndActivityFilter = hasOrgFilter && hasActivityFilter;
@@ -422,7 +430,13 @@ export default function Dashboard({
           getActivityData(80, analyticsOptions, controller.signal),
           getActivityFundingPie({ limit: 500, pieSlices: 20 }, analyticsOptions, controller.signal),
           getYearData(analyticsOptions, controller.signal),
-          getTopOrgs(analyticsOptions, controller.signal),
+          showTopOrgsChart
+            ? getTopOrgs(
+                hasActiveFilters ? TOP_ORGS_FILTERED_LIMIT : TOP_ORGS_UNFILTERED_LIMIT,
+                analyticsOptions,
+                controller.signal,
+              )
+            : Promise.resolve([]),
           getAvgGrantByIc(analyticsOptions, controller.signal),
           getTopFundedProjects(analyticsOptions, controller.signal),
         ]);
@@ -458,7 +472,7 @@ export default function Dashboard({
     return () => {
       controller.abort();
     };
-  }, [analyticsOptions]);
+  }, [analyticsOptions, hasActiveFilters, showTopOrgsChart]);
 
   useEffect(() => {
     const controller = new AbortController();
@@ -508,42 +522,47 @@ export default function Dashboard({
     ? `Top Organizations by Funding — ${appliedFilters.activity}`
     : "Top Organizations by Funding";
 
-  const topOrgsBarChartBase = {
-    data: topOrgsChartData,
-    dataKey: "total_funding",
-    labelKey: "short_label",
-    tooltipLabelKey: "full_label",
-    formatter: formatDollarsCompact,
-    onBarClick: handleTopOrgBarClick,
-    animateBars: !refreshing,
-  };
+  const topOrgsBarChartBase = showTopOrgsChart
+    ? {
+        data: topOrgsChartData,
+        dataKey: "total_funding",
+        labelKey: "short_label",
+        tooltipLabelKey: "full_label",
+        formatter: formatDollarsCompact,
+        onBarClick: handleTopOrgBarClick,
+        animateBars: !refreshing,
+      }
+    : null;
 
-  const topOrgsPanelMainSlot = (
+  const topOrgsPanelMainSlot = topOrgsBarChartBase ? (
     <BarChartPanel
       title={topOrgsTitle}
       panelClassName={MAIN_CHART_SLOT_PANEL_CLASS}
       {...topOrgsBarChartBase}
       {...MAIN_CHART_SLOT_BAR_PROPS}
     />
-  );
+  ) : null;
 
-  const topOrgsPanelSecondary = (
+  const topOrgsPanelSecondary = topOrgsBarChartBase ? (
     <BarChartPanel
       title={topOrgsTitle}
       panelClassName={SECONDARY_CHART_ROW_PANEL_CLASS}
       {...topOrgsBarChartBase}
       {...MAIN_CHART_SLOT_BAR_PROPS}
     />
-  );
+  ) : null;
 
-  const topOrgsPanelFooter = (
+  const topOrgsPanelFooter = topOrgsBarChartBase ? (
     <BarChartPanel
       title={topOrgsTitle}
       panelClassName="min-h-[310px]"
       {...topOrgsBarChartBase}
       layout="horizontal"
+      xAxisFontSize={12}
+      yAxisFontSize={12}
+      animateBars={!refreshing}
     />
-  );
+  ) : null;
 
   const icProjectsScaleToggle = (
     <div className="inline-flex border border-border rounded-[--radius-sm] shrink-0 overflow-hidden" role="group" aria-label="Count axis scale">
@@ -648,7 +667,7 @@ export default function Dashboard({
   const yearRowSecondaryPanel = hasOrgAndActivityFilter
     ? icProjectsPanelSecondary
     : hasActivityFilter
-      ? topOrgsPanelSecondary
+      ? (showTopOrgsChart ? topOrgsPanelSecondary : activityPiePanel)
       : activityPiePanel;
 
   const projectsAndFundingByYearPanel = (
@@ -688,6 +707,9 @@ export default function Dashboard({
           fy: HELP_DASHBOARD_FILTER_FY,
         }}
         searchQuery={searchQuery}
+        semanticMode={semanticMode}
+        onSemanticModeChange={onSemanticModeChange}
+        showSemanticToggle
         onSearch={onSearchNavigate}
         onUpdateDashboard={onUpdateDashboard}
         searchSubmitOnClear
@@ -726,7 +748,7 @@ export default function Dashboard({
             />
           </div>
           <div className={cn(MAP_CHART_ROW_CELL_CLASS, "overflow-hidden min-w-0")}>
-            {topOrgsPanelMainSlot}
+            {showTopOrgsChart ? topOrgsPanelMainSlot : icProjectsPanel}
           </div>
           <div className={cn(MAP_CHART_ROW_CELL_CLASS, "min-w-0")}>
             {projectsAndFundingByYearPanel}
@@ -752,7 +774,7 @@ export default function Dashboard({
               "col-start-2 col-end-[-1] row-start-1 overflow-hidden max-[768px]:col-auto max-[768px]:row-auto",
             )}
           >
-            {hasIcFilter ? topOrgsPanelMainSlot : icProjectsPanel}
+            {hasIcFilter && !hasOrgFilter ? topOrgsPanelMainSlot : icProjectsPanel}
           </div>
           <div className="col-span-full row-start-2 grid grid-cols-2 gap-3 items-stretch min-w-0 max-[768px]:grid-cols-1 max-[768px]:col-auto max-[768px]:row-auto">
             <div className="flex flex-col min-w-0">{projectsAndFundingByYearPanel}</div>
@@ -768,26 +790,34 @@ export default function Dashboard({
           onOpenProject={onOpenProject}
         />
         <ProjectTermsThemeCloud payload={termThemeCloud} onSearch={handleTermBrowseSearch} />
-        <TermCloud onSearch={handleTermBrowseSearch} />
       </div>
 
-      <div className="grid grid-cols-2 gap-[0.85rem] [&>*:last-child]:col-span-full max-[768px]:grid-cols-1">
-        {!hasIcFilter && !hasActivityFilter && topOrgsPanelFooter}
-        <BarChartPanel
-          title="Average Grant by Institute (IC)"
-          panelClassName="min-h-[310px]"
-          data={avgGrantChartData}
-          dataKey="avg_grant"
-          labelKey="short_label"
-          tooltipLabelKey="full_label"
-          layout="horizontal"
-          formatter={formatDollarsCompact}
-          xAxisFontSize={12}
-          yAxisFontSize={12}
-          color="#7c3aed"
-          animateBars={!refreshing}
-        />
-      </div>
+      {!hasIcFilter && (
+        <div
+          className={cn(
+            "grid gap-[0.85rem]",
+            !hasActiveFilters
+              ? "grid-cols-1"
+              : "grid-cols-2 [&>*:last-child]:col-span-full max-[768px]:grid-cols-1",
+          )}
+        >
+          {showTopOrgsChart && !hasActivityFilter && topOrgsPanelFooter}
+          <BarChartPanel
+            title="Average Grant by Institute (IC)"
+            panelClassName="min-h-[310px]"
+            data={avgGrantChartData}
+            dataKey="avg_grant"
+            labelKey="short_label"
+            tooltipLabelKey="full_label"
+            layout="horizontal"
+            formatter={formatDollarsCompact}
+            xAxisFontSize={12}
+            yAxisFontSize={12}
+            color="#7c3aed"
+            animateBars={!refreshing}
+          />
+        </div>
+      )}
     </div>
   );
 }

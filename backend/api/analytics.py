@@ -899,6 +899,7 @@ def analytics_by_year(
 @router.get("/top-orgs")
 def analytics_top_orgs(
   scope: Annotated[AnalyticsScope, Depends(analytics_scope)],
+  limit: int = Query(default=15, ge=1, le=50),
 ) -> list[dict[str, object]]:
   client = get_client()
   body = with_query_filters(
@@ -908,7 +909,7 @@ def analytics_top_orgs(
         "top_orgs": {
           "terms": {
             "field": "ORG_NAME.keyword",
-            "size": 15,
+            "size": limit,
             "order": {"total_funding": "desc"},
           },
           "aggs": {

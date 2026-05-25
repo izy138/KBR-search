@@ -20,7 +20,7 @@ export function useInstitutionProjects(
   const [visibleTotal, setVisibleTotal] = useState(0);
 
   useEffect(() => {
-    const controller = new AbortController();
+    // const controller = new AbortController();
 
     if (!name) {
       setResults([]);
@@ -28,6 +28,7 @@ export function useInstitutionProjects(
       setLoading(false);
       return;
     }
+    const controller = new AbortController();
 
     setLoading(true);
     setError("");
