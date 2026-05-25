@@ -27,7 +27,7 @@ export const HELP_DASHBOARD_FILTER_IC: HelpTooltipContent = {
   label: "NIH Institute / Center",
   body: (
     <p>
-      Show only projects funded by the NIH office you pick (for example NCI or NIAID). Charts update right away, or click a bar in <strong className="font-medium text-text-primary">Projects by Institute (IC)</strong>.
+      Show only projects funded by the NIH office you pick (for example NCI or NIAID). Charts update right away, or click a bar in <strong className="font-medium text-text-primary">Projects by Institute</strong>.
     </p>
   ),
 };
@@ -74,7 +74,7 @@ export const HELP_DASHBOARD_FILTER_FY: HelpTooltipContent = {
 };
 
 export const HELP_DASHBOARD_TERM_THEMES: HelpTooltipContent = {
-  label: "Project term themes",
+  label: "Project Term Themes",
   body: (
     <>
       <p className="mb-2">

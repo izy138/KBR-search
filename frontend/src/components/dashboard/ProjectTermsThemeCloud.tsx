@@ -12,6 +12,7 @@ import {
 import type { ProjectTermThemeCloudResponse, TermNode } from "../../api";
 import HelpTooltip from "../shared/HelpTooltip";
 import { cn } from "../../utils/cn";
+import { CLS_DASHBOARD_PANEL_HEADER, CLS_DASHBOARD_PANEL_SHELL } from "../../utils/chartStyles";
 import { HELP_DASHBOARD_TERM_THEMES } from "../../utils/helpContent";
 
 type Props = {
@@ -712,9 +713,9 @@ export default function ProjectTermsThemeCloud({ payload, onSearch }: Props): Re
   };
 
   return (
-    <div className="bg-surface border border-border rounded-[--radius-lg] w-full px-4 py-[0.9rem] min-h-0">
-      <div className="flex items-center gap-2 flex-wrap mb-5">
-        <h3 className="text-text-primary text-[0.9rem] font-semibold mb-0">Project term themes</h3>
+    <div className={cn(CLS_DASHBOARD_PANEL_SHELL, "pb-[0.9rem] min-h-0")}>
+      <div className="flex items-center gap-2 flex-wrap mb-[0.65rem]">
+        <div className={cn(CLS_DASHBOARD_PANEL_HEADER, "mb-0")}>Project Term Themes</div>
         <HelpTooltip label={HELP_DASHBOARD_TERM_THEMES.label}>
           {HELP_DASHBOARD_TERM_THEMES.body}
         </HelpTooltip>

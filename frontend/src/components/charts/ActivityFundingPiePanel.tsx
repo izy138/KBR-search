@@ -16,6 +16,8 @@ import { getActivityCodeTitle } from "../../utils/activityCodeTitles";
 import {
   CHART_TOOLTIP_ROUNDED_STYLE,
   CLS_CHART_HOVER_TOOLTIP,
+  CLS_DASHBOARD_PANEL_HEADER,
+  CLS_DASHBOARD_PANEL_SHELL,
   CLS_RECHARTS_FOCUS_RESET,
   RECHARTS_TOOLTIP_CONTENT_STYLE,
   RECHARTS_TOOLTIP_WRAPPER_STYLE,
@@ -666,13 +668,12 @@ export default function ActivityFundingPiePanel({
     return (
       <div
       className={cn(
-        "bg-surface border border-border rounded-[--radius-lg] w-full px-4 py-[0.9rem] text-[14px] min-h-0 transition-opacity duration-200",
+        CLS_DASHBOARD_PANEL_SHELL,
+        "pb-[0.9rem] text-[14px] min-h-0 transition-opacity duration-200",
         loading && "opacity-50 pointer-events-none",
       )}
     >
-        <div className="grid grid-cols-[auto_minmax(0,1fr)_auto] items-center gap-3 mb-[0.65rem]">
-          <div className="text-text-primary text-[0.9rem] font-semibold mb-0">{title}</div>
-        </div>
+        <div className={CLS_DASHBOARD_PANEL_HEADER}>{title}</div>
         <p className="text-text-muted text-[0.875rem] mt-2 m-0">No activity funding data.</p>
       </div>
     );
@@ -681,13 +682,12 @@ export default function ActivityFundingPiePanel({
   return (
     <div
       className={cn(
-        "bg-surface border border-border rounded-[--radius-lg] w-full px-4 py-[0.9rem] text-[14px] min-h-0 transition-opacity duration-200",
+        CLS_DASHBOARD_PANEL_SHELL,
+        "pb-[0.9rem] text-[14px] min-h-0 transition-opacity duration-200",
         loading && "opacity-50 pointer-events-none",
       )}
     >
-      <div className="grid grid-cols-[auto_minmax(0,1fr)_auto] items-center gap-3 mb-[0.65rem]">
-        <div className="text-text-primary text-[0.9rem] font-semibold mb-0">{title}</div>
-      </div>
+      <div className={CLS_DASHBOARD_PANEL_HEADER}>{title}</div>
 
       {pie.more_activities_than_buckets ? (
         <p className="text-text-secondary text-[0.75rem] leading-[1.45] m-0 mb-2 font-[inherit]">

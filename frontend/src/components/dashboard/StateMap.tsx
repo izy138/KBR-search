@@ -9,7 +9,7 @@ import type { Geography as GeographyType } from "react-simple-maps";
 import type { StateDataPoint } from "../../api";
 import { formatDollarsCompact } from "../../utils/format";
 import { cn } from "../../utils/cn";
-import { CHART_TOOLTIP_ROUNDED_STYLE, CLS_CHART_CURSOR_TOOLTIP } from "../../utils/chartStyles";
+import { CHART_TOOLTIP_ROUNDED_STYLE, CLS_CHART_CURSOR_TOOLTIP, CLS_DASHBOARD_PANEL_HEADER, CLS_DASHBOARD_PANEL_SHELL } from "../../utils/chartStyles";
 
 /** TopoJSON source — US states at 1:10m resolution */
 const GEO_URL = "https://cdn.jsdelivr.net/npm/us-atlas@3/states-10m.json";
@@ -328,8 +328,8 @@ export default function StateMap({
     ));
 
   return (
-    <div className="bg-surface border border-border rounded-[--radius-lg] relative flex h-full min-h-0 w-full flex-1 flex-col px-4 py-[0.9rem]">
-      <div className="text-text-primary text-[0.9rem] font-semibold mb-1">Projects by State</div>
+    <div className={cn(CLS_DASHBOARD_PANEL_SHELL, "pb-[0.9rem] relative flex h-full min-h-0 w-full flex-1 flex-col")}>
+      <div className={CLS_DASHBOARD_PANEL_HEADER}>Projects by State</div>
       <div
         className="-mt-[0.2rem] relative min-h-0 flex-1"
         data-map-canvas
