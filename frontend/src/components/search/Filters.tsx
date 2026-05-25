@@ -258,7 +258,7 @@ function Filters({
           className={piWidth}
         >
           <input
-            className="box-border w-full min-h-[2.5rem] rounded-sm border-2 border-accent-text/65 bg-bg px-[0.7rem] py-[0.48rem] font-sans text-[14px] leading-[1.35] text-text-primary outline-none transition-[border-color] duration-150 hover:border-accent-text/90 focus:border-accent placeholder:text-text-muted"
+            className="box-border w-full min-h-[2.5rem] rounded-sm border-2 border-border-input bg-bg px-[0.7rem] py-[0.48rem] font-sans text-[14px] leading-[1.35] text-text-primary outline-none transition-[border-color] duration-150 hover:border-border-strong focus:border-accent placeholder:text-text-muted"
             type="text"
             placeholder="Type PI name"
             value={draft.pi}

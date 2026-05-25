@@ -591,14 +591,14 @@ export function getStateData(
 
 export function getOrgData(options?: {
   limit?: number;
-  /** Indexed awards per org; default 1001 means more than 1,000 projects. */
+  /** Indexed awards per org; default 500 for the filter dropdown (~180 orgs). */
   minProjects?: number;
   filters?: AnalyticsFilterOptions;
   signal?: AbortSignal;
 }): Promise<OrgCatalogDataPoint[]> {
   const params = new URLSearchParams();
-  params.set("limit", String(options?.limit ?? 100));
-  params.set("min_projects", String(options?.minProjects ?? 1001));
+  params.set("limit", String(options?.limit ?? 200));
+  params.set("min_projects", String(options?.minProjects ?? 500));
   appendAnalyticsFilters(params, options?.filters);
   const qs = params.toString();
   const path = qs ? `/analytics/by-org?${qs}` : "/analytics/by-org";
@@ -666,10 +666,6 @@ export interface TermNode {
   children?: TermNode[];
 }
 
-export function getTermTree(): Promise<TermNode[]> {
-  return fetchAnalytics<TermNode[]>("/analytics/term-tree");
-}
-
 export function getYearData(
   filters?: AnalyticsFilterOptions,
   signal?: AbortSignal,
@@ -678,10 +674,13 @@ export function getYearData(
 }
 
 export function getTopOrgs(
+  limit = 15,
   filters?: AnalyticsFilterOptions,
   signal?: AbortSignal,
 ): Promise<OrgDataPoint[]> {
-  return fetchAnalytics<OrgDataPoint[]>("/analytics/top-orgs", filters, signal);
+  const params = new URLSearchParams({ limit: String(limit) });
+  appendAnalyticsFilters(params, filters);
+  return fetchAnalytics<OrgDataPoint[]>(`/analytics/top-orgs?${params.toString()}`, undefined, signal);
 }
 
 export function getTopFundedProjects(

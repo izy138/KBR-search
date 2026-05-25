@@ -41,14 +41,8 @@ type ProjectDetailsPageProps = {
 };
 
 const ABSTRACT_PREVIEW_LENGTH = 1500;
-const SIMILAR_PROJECT_IC_NAME_MAX = 60;
 
-const CLS_SECTION_H2 = "text-[0.86rem] uppercase tracking-[0.05em] text-text-muted mb-[0.35rem]";
-
-function truncateWithEllipsis(text: string, maxLength: number): string {
-  if (text.length <= maxLength) return text;
-  return `${text.slice(0, maxLength)}...`;
-}
+const CLS_SECTION_H2 = "text-[0.86rem] uppercase tracking-[0.05em] text-text-secondary mb-[0.35rem]";
 
 function KeywordTag({ mode, onClick, children }: {
   mode: TermFilterMode | null;
@@ -744,7 +738,7 @@ export default function ProjectDetailsPage({
           <HelpTooltip label={HELP_PROJECT_SIMILAR.label}>{HELP_PROJECT_SIMILAR.body}</HelpTooltip>
         ) : null}
       </div>
-      <hr className="h-0 m-0 mb-[0.75rem] border-0 border-b border-border" role="presentation" aria-hidden="true" />
+      <hr className="h-0 m-0 mb-[0.55rem] border-0 border-b border-text-secondary/60" role="presentation" aria-hidden="true" />
       {!projectId ? (
         <p className="text-[0.84rem] text-text-secondary leading-[1.45]">No document id on this record; vector similarity is unavailable.</p>
       ) : similarLoading ? (
@@ -763,7 +757,7 @@ export default function ProjectDetailsPage({
       ) : groupedSimilarNeighbors.length === 0 ? (
         <p className="text-[0.84rem] text-text-secondary leading-[1.45]">No similar projects returned.</p>
       ) : (
-        <ol className="list-none flex flex-col gap-[0.75rem]">
+        <ol className="list-none flex min-w-0 flex-col gap-[0.6rem]">
           {groupedSimilarNeighbors.map((neighbor, index) => {
             const yearVariants = dedupeYearVariants(getYearVariants(neighbor));
             const listKey = yearVariants.map((variant) => variant.project_id).join("-") || String(index);
@@ -777,28 +771,29 @@ export default function ProjectDetailsPage({
               onOpenDetails?.(neighbor);
             };
             return (
-              <li key={listKey} className="pb-[0.75rem] border-b border-border last:pb-0 last:border-b-0">
-                <div
-                  className={cn(
-                    "rounded-md px-[0.55rem] py-[0.5rem] -mx-[0.55rem]",
-                    canOpen &&
-                      "group cursor-pointer transition-[background] duration-100 hover:bg-surface-hover focus-visible:outline-2 focus-visible:outline-accent focus-visible:outline-offset-[-2px]",
-                  )}
-                  role={canOpen ? "button" : undefined}
-                  tabIndex={canOpen ? 0 : undefined}
-                  onClick={canOpen ? handleOpenNeighbor : undefined}
-                  onKeyDown={
-                    canOpen
-                      ? (event) => {
-                          if (event.key === "Enter" || event.key === " ") {
-                            event.preventDefault();
-                            handleOpenNeighbor();
-                          }
+              <li
+                key={listKey}
+                className={cn(
+                  "pb-[0.35rem] border-b border-text-secondary/60 last:pb-0 last:border-b-0",
+                  canOpen &&
+                    "group -mx-[0.55rem] rounded-md px-[0.55rem] cursor-pointer transition-[background] duration-100 hover:bg-surface-hover focus-visible:outline-2 focus-visible:outline-accent focus-visible:outline-offset-[-2px]",
+                )}
+                role={canOpen ? "button" : undefined}
+                tabIndex={canOpen ? 0 : undefined}
+                onClick={canOpen ? handleOpenNeighbor : undefined}
+                onKeyDown={
+                  canOpen
+                    ? (event) => {
+                        if (event.key === "Enter" || event.key === " ") {
+                          event.preventDefault();
+                          handleOpenNeighbor();
                         }
-                      : undefined
-                  }
-                  aria-label={canOpen ? `Project: ${title}` : undefined}
-                >
+                      }
+                    : undefined
+                }
+                aria-label={canOpen ? `Project: ${title}` : undefined}
+              >
+                <div className="min-w-0 py-[0.3rem]">
                   <div className="flex items-start justify-between gap-2 mb-[0.45rem]">
                     <div
                       onClick={(event) => event.stopPropagation()}
@@ -807,10 +802,15 @@ export default function ProjectDetailsPage({
                       <SimilarProjectYearTags
                         variants={yearVariants}
                         onSelect={handleOpenYearVariant}
+                        matchRowHover={canOpen}
                       />
                     </div>
                     <div className="flex items-center justify-end gap-[0.4rem] flex-shrink-0 ml-auto">
-                      {neighbor.ACTIVITY ? <span className="inline-block px-[0.42rem] py-[0.12rem] rounded-full text-[0.72rem] font-semibold leading-[1.3] bg-accent-light text-accent-text">{neighbor.ACTIVITY}</span> : null}
+                      {neighbor.ACTIVITY ? (
+                        <span className="inline-block px-[0.42rem] py-[0.12rem] rounded-full border border-transparent text-[0.72rem] font-semibold leading-[1.3] bg-accent-light text-accent-text group-hover:bg-surface-hover group-hover:border-border-strong">
+                          {neighbor.ACTIVITY}
+                        </span>
+                      ) : null}
                       <span className="font-mono text-[0.78rem] font-medium text-text-secondary whitespace-nowrap">
                         {formatDollarsFull(neighbor.TOTAL_COST)}
                       </span>
@@ -819,22 +819,23 @@ export default function ProjectDetailsPage({
                   <p
                     className={cn(
                       "text-[0.9rem] font-semibold text-text-primary leading-[1.4] m-0",
-                      canOpen && "group-hover:text-accent",
+                      canOpen && "group-hover:text-accent-hover",
                     )}
                   >
                     {title}
                   </p>
                   {instituteLabel ? (
-                    <div className="flex justify-start mt-[0.3rem]">
+                    <div className="mt-[0.3rem] min-w-0 w-full overflow-hidden">
                       <span
-                        className="font-mono text-[0.78rem] font-medium text-text-secondary"
-                        title={
-                          instituteLabel.length > SIMILAR_PROJECT_IC_NAME_MAX
-                            ? instituteLabel
-                            : undefined
-                        }
+                        className={cn(
+                          "block max-w-full truncate font-mono text-[0.78rem] font-medium",
+                          canOpen
+                            ? "text-accent-text group-hover:text-accent-hover"
+                            : "text-text-secondary",
+                        )}
+                        title={instituteLabel}
                       >
-                        {truncateWithEllipsis(instituteLabel, SIMILAR_PROJECT_IC_NAME_MAX)}
+                        {instituteLabel}
                       </span>
                     </div>
                   ) : null}

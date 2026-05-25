@@ -22,7 +22,7 @@ function fetchFilterCatalog(): Promise<FilterCatalog> {
     cachedPromise = Promise.all([
       getIcData(),
       getOrgData(),
-      getActivityData(80),
+      getActivityData(200),
       getStateData(),
       getYearData(),
     ])

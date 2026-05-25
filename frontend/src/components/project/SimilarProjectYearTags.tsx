@@ -6,6 +6,7 @@ import FiscalYearTag from "./FiscalYearTag";
 type SimilarProjectYearTagsProps = {
   variants: ProjectYearVariant[];
   onSelect: (variant: ProjectYearVariant) => void;
+  matchRowHover?: boolean;
 };
 
 const VISIBLE_RECENT_COUNT = 2;
@@ -23,9 +24,13 @@ function formatFyLabel(fy: number | undefined): string {
   return fy != null ? `FY ${fy}` : "Year";
 }
 
+const ROW_HOVER_CHIP =
+  "group-hover:bg-surface-hover group-hover:border-border-strong";
+
 export default function SimilarProjectYearTags({
   variants,
   onSelect,
+  matchRowHover = false,
 }: SimilarProjectYearTagsProps) {
   const [menuOpen, setMenuOpen] = useState(false);
   const rootRef = useRef<HTMLDivElement>(null);
@@ -78,6 +83,7 @@ export default function SimilarProjectYearTags({
         <FiscalYearTag
           key={`${variant.fy ?? "na"}-${variant.project_id}`}
           compact
+          className={matchRowHover ? ROW_HOVER_CHIP : undefined}
           onClick={() => handleSelect(variant)}
         >
           {formatFyLabel(variant.fy)}
@@ -87,7 +93,7 @@ export default function SimilarProjectYearTags({
         <div className="relative">
           <button
             type="button"
-            className={cn(moreBtn, menuOpen && moreBtnOpen)}
+            className={cn(moreBtn, matchRowHover && ROW_HOVER_CHIP, menuOpen && moreBtnOpen)}
             aria-expanded={menuOpen}
             aria-haspopup="menu"
             aria-controls={menuId}

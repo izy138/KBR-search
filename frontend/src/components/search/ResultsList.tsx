@@ -65,12 +65,12 @@ const COLUMNS: ColumnDef[] = [
 const CLS_COLS_GRID = "grid grid-cols-[20%_23%_28%_5%_5%_3%_8%] gap-x-8 items-center";
 
 const CLS_TH_BASE =
-  "inline-flex w-fit max-w-full justify-self-start items-center gap-1 bg-transparent border-none px-[0.2rem] py-[0.24rem] cursor-pointer font-sans text-[10px] font-semibold tracking-[0.06em] uppercase rounded-sm transition-[color,background] duration-150 whitespace-nowrap hover:bg-surface-hover focus-visible:outline-2 focus-visible:outline-accent focus-visible:outline-offset-1";
+  "inline-flex w-fit max-w-full justify-self-start items-center gap-1 bg-transparent border-none px-[0.2rem] py-[0.24rem] cursor-pointer font-sans text-[10px] font-semibold tracking-[0.06em] uppercase rounded-sm transition-[color,background] duration-150 whitespace-nowrap hover:bg-accent-light focus-visible:outline-2 focus-visible:outline-accent focus-visible:outline-offset-1";
 
 const CLS_CELL_VALUE_BASE = "block text-[12px] text-text-secondary whitespace-nowrap overflow-hidden text-ellipsis leading-[1.3]";
 
 const CLS_CELL_LINK_BTN =
-  "p-0 border-none bg-transparent text-accent font-[inherit] cursor-pointer hover:underline max-w-full truncate inline-block align-bottom";
+  "p-0 border-none bg-transparent text-accent-text font-[inherit] cursor-pointer hover:underline max-w-full truncate inline-block align-bottom group-hover:text-accent-hover";
 
 function LinkableCellValue({
   value,
@@ -143,7 +143,7 @@ const ChevronIcon: FC<{ direction: SortDirection }> = ({ direction }) => {
   if (direction === "asc") {
     return (
       <svg
-        className="shrink-0 transition-[color] duration-150 text-sort-asc"
+        className="shrink-0 transition-[color] duration-150 text-accent-hover"
         width="10"
         height="10"
         viewBox="0 0 10 10"
@@ -170,7 +170,7 @@ const ChevronIcon: FC<{ direction: SortDirection }> = ({ direction }) => {
   }
   return (
     <svg
-      className="shrink-0 transition-[color] duration-150 text-text-muted opacity-60"
+      className="shrink-0 transition-[color] duration-150 text-accent-text opacity-60"
       width="10"
       height="10"
       viewBox="0 0 10 10"
@@ -192,7 +192,7 @@ interface SortHeaderProps {
 
 const ResultsHeader: FC<SortHeaderProps> = ({ sort, onSort }) => (
   <div
-    className={`sticky top-0 z-10 bg-bg border-b-2 border-border-strong px-[1.25rem] py-[0.36rem] ${CLS_COLS_GRID}`}
+    className={`sticky top-0 z-10 bg-surface-hover border-b-2 border-border-strong px-[1.25rem] py-[0.36rem] ${CLS_COLS_GRID}`}
     role="row"
   >
     <div className="contents">
@@ -217,12 +217,12 @@ const ResultsHeader: FC<SortHeaderProps> = ({ sort, onSort }) => (
           CLS_TH_BASE,
           negMargin,
           isActive && "font-bold",
-          !isActive && "text-text-muted hover:text-text-secondary",
+          !isActive && "text-accent-text hover:text-accent-hover",
         );
 
         const labelClass = cn(
           "overflow-hidden text-ellipsis whitespace-nowrap text-[12px]",
-          currentDirection === "asc" && "text-sort-asc",
+          currentDirection === "asc" && "text-accent-hover",
           currentDirection === "desc" && "text-sort-desc",
         );
 
@@ -328,7 +328,7 @@ const ResultRow: FC<ResultRowProps> = ({
     >
       {/* First line: title */}
       <div className="flex items-baseline justify-between gap-4" role="presentation">
-        <h3 className="flex-1 min-w-0 text-[14.5px] font-semibold text-text-primary leading-[1.4] whitespace-nowrap overflow-hidden text-ellipsis mb-0 mt-[0.45rem] group-hover:text-accent">
+        <h3 className="flex-1 min-w-0 text-[14.5px] font-semibold text-text-primary leading-[1.4] whitespace-nowrap overflow-hidden text-ellipsis mb-0 mt-[0.45rem] group-hover:text-accent-hover">
           {title}
         </h3>
       </div>

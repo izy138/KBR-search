@@ -6,6 +6,7 @@
   --surface-hover: #e0e9fd;
   --border: #d8e2f8;
   --border-strong: #b5c8eb;
+  --border-input: #cdd8ef;
   --text-primary: #122034;
   --text-secondary: #4a5b78;
   --text-muted: #7383a0;
@@ -32,6 +33,7 @@
   --surface-hover: #202532;
   --border: #2e3442;
   --border-strong: #465065;
+  --border-input: #3a4456;
   --text-primary: #eef1f7;
   --text-secondary: #c3cad8;
   --text-muted: #9099ab;

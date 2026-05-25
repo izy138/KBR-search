@@ -149,7 +149,7 @@ function YearBoundInputs({
   }, [displayMax]);
 
   const yearInputClassName =
-    "box-border h-6 w-[3.25rem] shrink-0 rounded-sm border-2 border-accent-text/60 bg-bg px-0 py-0 text-center font-sans text-[13px] leading-none text-text-primary outline-none transition-[border-color] duration-150 hover:border-accent-text/90 focus:border-accent";
+    "box-border h-6 w-[3.25rem] shrink-0 rounded-sm border-2 border-border-input bg-bg px-0 py-0 text-center font-sans text-[13px] leading-none text-text-primary outline-none transition-[border-color] duration-150 hover:border-border-strong focus:border-accent";
 
   return (
     <div className="flex w-full items-center justify-center gap-1.5">
