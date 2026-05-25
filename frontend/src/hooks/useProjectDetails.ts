@@ -26,7 +26,7 @@ export function useProjectDetails(
   const [projectError, setProjectError] = useState<string>("");
 
   useEffect(() => {
-    let isCancelled = false;
+    const controller = new AbortController();
 
     if (!projectId) {
       setSelectedProject(null);
@@ -47,23 +47,23 @@ export function useProjectDetails(
 
     setProjectLoading(true);
     setProjectError("");
-    void getProjectById(projectId)
+    void getProjectById(projectId, controller.signal)
       .then((project) => {
-        if (isCancelled) return;
+        if (controller.signal.aborted) return;
         setSelectedProject(project);
       })
       .catch(() => {
-        if (isCancelled) return;
+        if (controller.signal.aborted) return;
         setSelectedProject(null);
         setProjectError("Unable to load this project right now.");
       })
       .finally(() => {
-        if (isCancelled) return;
+        if (controller.signal.aborted) return;
         setProjectLoading(false);
       });
 
     return () => {
-      isCancelled = true;
+      controller.abort();
     };
   }, [projectId, results]);
 

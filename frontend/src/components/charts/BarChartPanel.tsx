@@ -180,18 +180,29 @@ export default function BarChartPanel({
     const chartBody = chartBodyRef.current;
     if (!chartBody) return;
 
+    let rafId = 0;
+    let lastHeight = -1;
+
     const updateHeight = (entries?: ResizeObserverEntry[]): void => {
-      const height =
-        entries?.[0]?.contentRect.height ?? chartBody.getBoundingClientRect().height;
-      setMeasuredChartHeight(Math.max(Math.round(height), 0));
+      cancelAnimationFrame(rafId);
+      rafId = requestAnimationFrame(() => {
+        const height =
+          entries?.[0]?.contentRect.height ?? chartBody.getBoundingClientRect().height;
+        const rounded = Math.max(Math.round(height), 0);
+        if (Math.abs(rounded - lastHeight) < 1) return;
+        lastHeight = rounded;
+        setMeasuredChartHeight(rounded);
+      });
     };
 
     updateHeight();
-
     const observer = new ResizeObserver((entries) => updateHeight(entries));
     observer.observe(chartBody);
 
-    return () => observer.disconnect();
+    return () => {
+      cancelAnimationFrame(rafId);
+      observer.disconnect();
+    };
   }, [fillHeight, data.length, layout]);
 
   const chartHeight = fillHeight ? Math.max(measuredChartHeight, 1) : height;

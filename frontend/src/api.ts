@@ -77,7 +77,10 @@ export interface SearchResultRecord {
 
 export interface SearchResponse {
   query: string;
+  advanced_q?: Array<{ text: string; negated: boolean }> | null;
+  advanced_operators?: string[] | null;
   project_terms?: string[];
+  exclude_project_terms?: string[];
   limit: number;
   total: number;
   visible_total?: number;
@@ -141,12 +144,6 @@ export interface AnalyticsCategory {
   value: number;
 }
 
-export interface AnalyticsSummary {
-  total_documents: number;
-  by_category: AnalyticsCategory[];
-  time_series: unknown[];
-}
-
 export interface HealthStatus {
   status: string;
   opensearch: string;
@@ -180,6 +177,7 @@ export type SearchProjectsOptions = {
   advancedSearch?: AdvancedSearchQuery | null;
   sortBy?: SearchSortField | "";
   sortOrder?: SearchSortDirection;
+  signal?: AbortSignal;
 };
 
 export async function searchProjects(
@@ -202,6 +200,7 @@ export async function searchProjects(
     advancedSearch = null,
     sortBy = "",
     sortOrder = "asc",
+    signal,
   } = options;
   const url = new URL(`${API_BASE_URL}/search/`);
   const trimmedQ = query.trim();
@@ -238,7 +237,7 @@ export async function searchProjects(
     url.searchParams.set("sort_by", sortBy);
     url.searchParams.set("sort_order", sortOrder);
   }
-  const response = await fetch(url.toString());
+  const response = await fetch(url.toString(), signal ? { signal } : undefined);
   if (!response.ok) {
     throw new Error(`Search request failed: ${response.status}`);
   }
@@ -320,14 +319,6 @@ export async function downloadSearchResultsCsv(
   URL.revokeObjectURL(objectUrl);
 }
 
-export async function getAnalyticsSummary(): Promise<AnalyticsSummary> {
-  const response = await fetch(`${API_BASE_URL}/analytics/summary`);
-  if (!response.ok) {
-    throw new Error(`Analytics request failed: ${response.status}`);
-  }
-  return response.json() as Promise<AnalyticsSummary>;
-}
-
 export async function getHealth(): Promise<HealthStatus> {
   const response = await fetch(`${API_BASE_URL}/health`);
   if (!response.ok) {
@@ -336,8 +327,14 @@ export async function getHealth(): Promise<HealthStatus> {
   return response.json() as Promise<HealthStatus>;
 }
 
-export async function getProjectById(projectId: string): Promise<SearchResultRecord> {
-  const response = await fetch(`${API_BASE_URL}/search/project/${encodeURIComponent(projectId)}`);
+export async function getProjectById(
+  projectId: string,
+  signal?: AbortSignal,
+): Promise<SearchResultRecord> {
+  const response = await fetch(
+    `${API_BASE_URL}/search/project/${encodeURIComponent(projectId)}`,
+    signal ? { signal } : undefined,
+  );
   if (!response.ok) {
     throw new Error(`Project request failed: ${response.status}`);
   }
@@ -357,13 +354,13 @@ export async function getProjectOtherYears(projectId: string): Promise<ProjectOt
 
 export async function getProjectsByInvestigator(
   investigatorName: string,
-  options: { limit?: number; page?: number } = {},
+  options: { limit?: number; page?: number; signal?: AbortSignal } = {},
 ): Promise<InvestigatorProjectsResponse> {
-  const { limit = 25, page = 1 } = options;
+  const { limit = 25, page = 1, signal } = options;
   const url = new URL(`${API_BASE_URL}/search/investigator/${encodeURIComponent(investigatorName)}`);
   url.searchParams.set("limit", String(limit));
   url.searchParams.set("page", String(page));
-  const response = await fetch(url.toString());
+  const response = await fetch(url.toString(), signal ? { signal } : undefined);
   if (!response.ok) {
     throw new Error(`Investigator request failed: ${response.status}`);
   }
@@ -372,13 +369,13 @@ export async function getProjectsByInvestigator(
 
 export async function getProjectsByOrganization(
   organizationName: string,
-  options: { limit?: number; page?: number } = {},
+  options: { limit?: number; page?: number; signal?: AbortSignal } = {},
 ): Promise<OrganizationProjectsResponse> {
-  const { limit = 25, page = 1 } = options;
+  const { limit = 25, page = 1, signal } = options;
   const url = new URL(`${API_BASE_URL}/search/organization/${encodeURIComponent(organizationName)}`);
   url.searchParams.set("limit", String(limit));
   url.searchParams.set("page", String(page));
-  const response = await fetch(url.toString());
+  const response = await fetch(url.toString(), signal ? { signal } : undefined);
   if (!response.ok) {
     throw new Error(`Organization request failed: ${response.status}`);
   }
@@ -387,13 +384,13 @@ export async function getProjectsByOrganization(
 
 export async function getProjectsByInstitution(
   institutionName: string,
-  options: { limit?: number; page?: number } = {},
+  options: { limit?: number; page?: number; signal?: AbortSignal } = {},
 ): Promise<InstitutionProjectsResponse> {
-  const { limit = 25, page = 1 } = options;
+  const { limit = 25, page = 1, signal } = options;
   const url = new URL(`${API_BASE_URL}/search/institution/${encodeURIComponent(institutionName)}`);
   url.searchParams.set("limit", String(limit));
   url.searchParams.set("page", String(page));
-  const response = await fetch(url.toString());
+  const response = await fetch(url.toString(), signal ? { signal } : undefined);
   if (!response.ok) {
     throw new Error(`Institution request failed: ${response.status}`);
   }
@@ -536,7 +533,7 @@ export interface DashboardSummary {
   unique_ics: number;
   unique_activities: number;
   by_category: AnalyticsCategory[];
-  time_series: unknown[];
+  time_series?: unknown[];
 }
 
 // ─── Analytics fetch helpers ──────────────────────────────────────────────────
@@ -571,18 +568,25 @@ function appendAnalyticsFilters(params: URLSearchParams, filters?: AnalyticsFilt
   if (filters.fyMax) params.set("fy_max", filters.fyMax);
 }
 
-async function fetchAnalytics<T>(path: string, filters?: AnalyticsFilterOptions): Promise<T> {
+async function fetchAnalytics<T>(
+  path: string,
+  filters?: AnalyticsFilterOptions,
+  signal?: AbortSignal,
+): Promise<T> {
   const url = new URL(`${API_BASE_URL}${path}`);
   appendAnalyticsFilters(url.searchParams, filters);
-  const response = await fetch(url.toString());
+  const response = await fetch(url.toString(), signal ? { signal } : undefined);
   if (!response.ok) {
     throw new Error(`Analytics request failed (${path}): ${response.status}`);
   }
   return response.json() as Promise<T>;
 }
 
-export function getStateData(filters?: AnalyticsFilterOptions): Promise<StateDataPoint[]> {
-  return fetchAnalytics<StateDataPoint[]>("/analytics/by-state", filters);
+export function getStateData(
+  filters?: AnalyticsFilterOptions,
+  signal?: AbortSignal,
+): Promise<StateDataPoint[]> {
+  return fetchAnalytics<StateDataPoint[]>("/analytics/by-state", filters, signal);
 }
 
 export function getOrgData(options?: {
@@ -590,6 +594,7 @@ export function getOrgData(options?: {
   /** Indexed awards per org; default 1001 means more than 1,000 projects. */
   minProjects?: number;
   filters?: AnalyticsFilterOptions;
+  signal?: AbortSignal;
 }): Promise<OrgCatalogDataPoint[]> {
   const params = new URLSearchParams();
   params.set("limit", String(options?.limit ?? 100));
@@ -597,10 +602,14 @@ export function getOrgData(options?: {
   appendAnalyticsFilters(params, options?.filters);
   const qs = params.toString();
   const path = qs ? `/analytics/by-org?${qs}` : "/analytics/by-org";
-  return fetchAnalytics<OrgCatalogDataPoint[]>(path);
+  return fetchAnalytics<OrgCatalogDataPoint[]>(path, undefined, options?.signal);
 }
 
-export function getIcData(fy?: number, filters?: AnalyticsFilterOptions): Promise<IcDataPoint[]> {
+export function getIcData(
+  fy?: number,
+  filters?: AnalyticsFilterOptions,
+  signal?: AbortSignal,
+): Promise<IcDataPoint[]> {
   const params = new URLSearchParams();
   if (fy != null) {
     params.set("fy", String(fy));
@@ -608,16 +617,17 @@ export function getIcData(fy?: number, filters?: AnalyticsFilterOptions): Promis
   appendAnalyticsFilters(params, filters);
   const qs = params.toString();
   const path = qs ? `/analytics/by-ic?${qs}` : "/analytics/by-ic";
-  return fetchAnalytics<IcDataPoint[]>(path);
+  return fetchAnalytics<IcDataPoint[]>(path, undefined, signal);
 }
 
 export function getActivityData(
   limit = 50,
   filters?: AnalyticsFilterOptions,
+  signal?: AbortSignal,
 ): Promise<ActivityDataPoint[]> {
   const params = new URLSearchParams({ limit: String(limit) });
   appendAnalyticsFilters(params, filters);
-  return fetchAnalytics<ActivityDataPoint[]>(`/analytics/by-activity?${params.toString()}`);
+  return fetchAnalytics<ActivityDataPoint[]>(`/analytics/by-activity?${params.toString()}`, undefined, signal);
 }
 
 export function getActivityFundingPie(
@@ -627,6 +637,7 @@ export function getActivityFundingPie(
     mergeOther?: boolean;
   },
   filters?: AnalyticsFilterOptions,
+  signal?: AbortSignal,
 ): Promise<ActivityFundingPieResponse> {
   const params = new URLSearchParams();
   if (options?.limit != null) {
@@ -641,11 +652,11 @@ export function getActivityFundingPie(
   appendAnalyticsFilters(params, filters);
   const qs = params.toString();
   const path = qs ? `/analytics/by-activity-funding-pie?${qs}` : "/analytics/by-activity-funding-pie";
-  return fetchAnalytics<ActivityFundingPieResponse>(path);
+  return fetchAnalytics<ActivityFundingPieResponse>(path, undefined, signal);
 }
 
-export function getProjectTermThemeCloud(): Promise<ProjectTermThemeCloudResponse> {
-  return fetchAnalytics<ProjectTermThemeCloudResponse>("/analytics/project-term-theme-cloud");
+export function getProjectTermThemeCloud(signal?: AbortSignal): Promise<ProjectTermThemeCloudResponse> {
+  return fetchAnalytics<ProjectTermThemeCloudResponse>("/analytics/project-term-theme-cloud", undefined, signal);
 }
 
 export interface TermNode {
@@ -659,26 +670,39 @@ export function getTermTree(): Promise<TermNode[]> {
   return fetchAnalytics<TermNode[]>("/analytics/term-tree");
 }
 
-export function getYearData(filters?: AnalyticsFilterOptions): Promise<YearDataPoint[]> {
-  return fetchAnalytics<YearDataPoint[]>("/analytics/by-year", filters);
+export function getYearData(
+  filters?: AnalyticsFilterOptions,
+  signal?: AbortSignal,
+): Promise<YearDataPoint[]> {
+  return fetchAnalytics<YearDataPoint[]>("/analytics/by-year", filters, signal);
 }
 
-export function getTopOrgs(filters?: AnalyticsFilterOptions): Promise<OrgDataPoint[]> {
-  return fetchAnalytics<OrgDataPoint[]>("/analytics/top-orgs", filters);
+export function getTopOrgs(
+  filters?: AnalyticsFilterOptions,
+  signal?: AbortSignal,
+): Promise<OrgDataPoint[]> {
+  return fetchAnalytics<OrgDataPoint[]>("/analytics/top-orgs", filters, signal);
 }
 
 export function getTopFundedProjects(
   filters?: AnalyticsFilterOptions,
+  signal?: AbortSignal,
 ): Promise<TopFundedProject[]> {
-  return fetchAnalytics<TopFundedProject[]>("/analytics/top-funded-projects", filters);
+  return fetchAnalytics<TopFundedProject[]>("/analytics/top-funded-projects", filters, signal);
 }
 
-export function getAvgGrantByIc(filters?: AnalyticsFilterOptions): Promise<AvgGrantDataPoint[]> {
-  return fetchAnalytics<AvgGrantDataPoint[]>("/analytics/avg-grant-by-ic", filters);
+export function getAvgGrantByIc(
+  filters?: AnalyticsFilterOptions,
+  signal?: AbortSignal,
+): Promise<AvgGrantDataPoint[]> {
+  return fetchAnalytics<AvgGrantDataPoint[]>("/analytics/avg-grant-by-ic", filters, signal);
 }
 
-export function getDashboardSummary(filters?: AnalyticsFilterOptions): Promise<DashboardSummary> {
-  return fetchAnalytics<DashboardSummary>("/analytics/summary", filters);
+export function getDashboardSummary(
+  filters?: AnalyticsFilterOptions,
+  signal?: AbortSignal,
+): Promise<DashboardSummary> {
+  return fetchAnalytics<DashboardSummary>("/analytics/summary", filters, signal);
 }
 
 export function getActivityTermsData(
@@ -752,11 +776,15 @@ async function readErrorDetail(response: Response): Promise<string> {
   return detail;
 }
 
-export async function searchSimilarByText(query: string, k = 10): Promise<SimilarSearchResponse> {
+export async function searchSimilarByText(
+  query: string,
+  k = 10,
+  signal?: AbortSignal,
+): Promise<SimilarSearchResponse> {
   const url = new URL(`${API_BASE_URL}/search/similar`);
   url.searchParams.set("q", query);
   url.searchParams.set("k", String(k));
-  const response = await fetch(url.toString());
+  const response = await fetch(url.toString(), signal ? { signal } : undefined);
   if (!response.ok) {
     throw new Error(await readErrorDetail(response));
   }
@@ -766,10 +794,11 @@ export async function searchSimilarByText(query: string, k = 10): Promise<Simila
 export async function searchSimilarToProjectId(
   projectId: string,
   k = 10,
+  signal?: AbortSignal,
 ): Promise<SimilarToProjectResponse> {
   const url = new URL(`${API_BASE_URL}/search/similar/${encodeURIComponent(projectId)}`);
   url.searchParams.set("k", String(k));
-  const response = await fetch(url.toString());
+  const response = await fetch(url.toString(), signal ? { signal } : undefined);
   if (!response.ok) {
     throw new Error(await readErrorDetail(response));
   }

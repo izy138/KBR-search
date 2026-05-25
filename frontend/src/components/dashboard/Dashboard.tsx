@@ -206,7 +206,6 @@ interface DashboardData {
   icData: IcDataPoint[];
   activityData: ActivityDataPoint[];
   activityPie: ActivityFundingPieResponse;
-  termThemeCloud: ProjectTermThemeCloudResponse;
   yearData: YearDataPoint[];
   topOrgs: OrgDataPoint[];
   avgGrant: AvgGrantDataPoint[];
@@ -283,6 +282,7 @@ export default function Dashboard({
 }: DashboardProps) {
   const hasLoadedOnceRef = useRef(false);
   const [data, setData] = useState<DashboardData | null>(null);
+  const [termThemeCloud, setTermThemeCloud] = useState<ProjectTermThemeCloudResponse | null>(null);
   const filterCatalog = useFilterCatalog();
   const [error, setError] = useState<string | null>(null);
   const [refreshing, setRefreshing] = useState(false);
@@ -398,7 +398,7 @@ export default function Dashboard({
   }, [icChartRows, hasActiveFilters]);
 
   useEffect(() => {
-    let cancelled = false;
+    const controller = new AbortController();
 
     const load = async () => {
       if (hasLoadedOnceRef.current) {
@@ -411,32 +411,29 @@ export default function Dashboard({
           icData,
           activityData,
           activityPie,
-          termThemeCloud,
           yearData,
           topOrgs,
           avgGrant,
           topFundedProjects,
         ] = await Promise.all([
-          getDashboardSummary(analyticsOptions),
-          getStateData(analyticsOptions),
-          getIcData(undefined, analyticsOptions),
-          getActivityData(80, analyticsOptions),
-          getActivityFundingPie({ limit: 500, pieSlices: 20 }, analyticsOptions),
-          getProjectTermThemeCloud(),
-          getYearData(analyticsOptions),
-          getTopOrgs(analyticsOptions),
-          getAvgGrantByIc(analyticsOptions),
-          getTopFundedProjects(analyticsOptions),
+          getDashboardSummary(analyticsOptions, controller.signal),
+          getStateData(analyticsOptions, controller.signal),
+          getIcData(undefined, analyticsOptions, controller.signal),
+          getActivityData(80, analyticsOptions, controller.signal),
+          getActivityFundingPie({ limit: 500, pieSlices: 20 }, analyticsOptions, controller.signal),
+          getYearData(analyticsOptions, controller.signal),
+          getTopOrgs(analyticsOptions, controller.signal),
+          getAvgGrantByIc(analyticsOptions, controller.signal),
+          getTopFundedProjects(analyticsOptions, controller.signal),
         ]);
 
-        if (!cancelled) {
+        if (!controller.signal.aborted) {
           setData({
             summary,
             stateData,
             icData,
             activityData,
             activityPie,
-            termThemeCloud,
             yearData,
             topOrgs,
             avgGrant,
@@ -446,11 +443,11 @@ export default function Dashboard({
           setError(null);
         }
       } catch (err) {
-        if (!cancelled) {
+        if (!controller.signal.aborted) {
           setError(err instanceof Error ? err.message : "Failed to load dashboard data.");
         }
       } finally {
-        if (!cancelled) {
+        if (!controller.signal.aborted) {
           setRefreshing(false);
         }
       }
@@ -459,9 +456,17 @@ export default function Dashboard({
     void load();
 
     return () => {
-      cancelled = true;
+      controller.abort();
     };
   }, [analyticsOptions]);
+
+  useEffect(() => {
+    const controller = new AbortController();
+    getProjectTermThemeCloud(controller.signal).then((cloud) => {
+      if (!controller.signal.aborted) setTermThemeCloud(cloud);
+    }).catch(() => {});
+    return () => { controller.abort(); };
+  }, []);
 
   if (error) {
     return (
@@ -471,7 +476,7 @@ export default function Dashboard({
     );
   }
 
-  if (!data || !filterCatalog) {
+  if (!data || !filterCatalog || !termThemeCloud) {
     return (
       <div className="text-center py-16 text-text-muted text-sm">
         <span>Loading analytics…</span>
@@ -479,7 +484,7 @@ export default function Dashboard({
     );
   }
 
-  const { summary, stateData, activityPie, termThemeCloud, yearData, topOrgs, avgGrant, topFundedProjects } = data;
+  const { summary, stateData, activityPie, yearData, topOrgs, avgGrant, topFundedProjects } = data;
   const { icNames, orgNames, activityCodes, states } = filterCatalog;
 
   const avgGrantValue =
@@ -510,6 +515,7 @@ export default function Dashboard({
     tooltipLabelKey: "full_label",
     formatter: formatDollarsCompact,
     onBarClick: handleTopOrgBarClick,
+    animateBars: !refreshing,
   };
 
   const topOrgsPanelMainSlot = (
@@ -569,6 +575,7 @@ export default function Dashboard({
     ...IC_PROJECTS_BAR_OVERRIDES,
     chartMargin: IC_PROJECTS_CHART_MARGIN,
     onBarClick: handleIcBarClick,
+    animateBars: !refreshing,
     ...(icProjectsUseLogScale
       ? {
           valueTransform: (value: number) =>
@@ -778,6 +785,7 @@ export default function Dashboard({
           xAxisFontSize={12}
           yAxisFontSize={12}
           color="#7c3aed"
+          animateBars={!refreshing}
         />
       </div>
     </div>

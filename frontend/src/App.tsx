@@ -956,7 +956,19 @@ export default function App() {
                   </button>
                 )}
               </>
-            ) : null}
+            ) : (
+              <div className="flex flex-col items-center justify-center px-6 py-16 text-center text-text-muted text-[0.92rem]" role="status">
+                <strong className="text-text-secondary text-[15px]">Page not found</strong>
+                <p className="mt-2 text-sm">The page you're looking for doesn't exist.</p>
+                <button
+                  type="button"
+                  className="mt-4 px-4 py-2 rounded-sm bg-accent text-white border-none font-sans text-sm font-medium cursor-pointer hover:bg-accent-hover transition-[background] duration-150"
+                  onClick={() => navigate("/")}
+                >
+                  Go to Dashboard
+                </button>
+              </div>
+            )}
           </Suspense>
         </ErrorBoundary>
       </main>

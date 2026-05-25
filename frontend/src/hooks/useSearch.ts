@@ -113,7 +113,7 @@ export function useSearch({
     sortOrder,
   };
 
-  const runSearch = useCallback(async (q: string, page: number, limit: number) => {
+  const runSearch = useCallback(async (q: string, page: number, limit: number, signal?: AbortSignal) => {
       const ctx = fetchContextRef.current;
       const useSemanticApi = ctx.semanticMode && ctx.semanticSearchCommitted;
 
@@ -127,7 +127,7 @@ export function useSearch({
             setVisibleTotal(0);
             return;
           }
-          const payload = await searchSimilarByText(trimmed, SEMANTIC_SEARCH_MAX_K);
+          const payload = await searchSimilarByText(trimmed, SEMANTIC_SEARCH_MAX_K, signal);
           const allResults = payload.results ?? [];
           const start = (page - 1) * limit;
           setResults(allResults.slice(start, start + limit));
@@ -152,12 +152,16 @@ export function useSearch({
           advancedSearch: advanced,
           sortBy: ctx.sortBy,
           sortOrder: ctx.sortOrder,
+          signal,
         });
         setResults(payload.results ?? []);
         setTotal(payload.total ?? 0);
         setVisibleTotal(payload.visible_total ?? payload.total ?? 0);
+      } catch (err) {
+        if (signal?.aborted) return;
+        throw err;
       } finally {
-        setLoading(false);
+        if (!signal?.aborted) setLoading(false);
       }
   }, []);
 
@@ -165,7 +169,11 @@ export function useSearch({
     if (!enabled) return;
     const { semanticMode: modeOn, semanticSearchCommitted: committed } = fetchContextRef.current;
     if (modeOn && !committed) return;
-    void runSearch(query, currentPage, resultsPerPage);
+    const controller = new AbortController();
+    void runSearch(query, currentPage, resultsPerPage, controller.signal);
+    return () => {
+      controller.abort();
+    };
   }, [
     enabled,
     query,
