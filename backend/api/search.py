@@ -24,7 +24,11 @@ from .og_export import (
 )
 from .opensearch_client import get_client, get_index_name
 from .query_filters import (
+  SEARCH_FIELDS,
   build_keyword_must_clauses,
+  build_project_filters,
+  normalize_core_num,
+  normalize_recurrence_title,
   parse_advanced_q_param,
 )
 
@@ -32,18 +36,11 @@ router = APIRouter()
 
 MAX_PROJECT_TERM_FILTERS = 20
 MAX_PROJECT_TERM_LENGTH = 200
+MAX_QUERY_LENGTH = 1_000
 
 INDEX_NAME = get_index_name()
 MAX_RESULT_WINDOW = 10_000
 
-SEARCH_FIELDS = [
-    "PROJECT_TITLE^4",
-    "PROJECT_TERMS^2",
-    "PI_NAMEs^2",
-    "ORG_NAME",
-    "IC_NAME",
-    "ACTIVITY",
-]
 SIMILAR_DEFAULT_K = 10
 SIMILAR_MAX_K = 50
 HYBRID_DEFAULT_K = 10
@@ -174,7 +171,6 @@ def _build_search_bool_query(
 ) -> tuple[dict[str, object], list[dict[str, object]]]:
     must: list[dict[str, object]] = []
     must_not: list[dict[str, object]] = []
-    filters: list[dict[str, object]] = []
     if parsed_advanced is not None:
         adv_clauses, adv_operators = parsed_advanced
         must.extend(
@@ -198,33 +194,10 @@ def _build_search_bool_query(
         must.append({"match_all": {}})
     if category:
         must.append({"term": {"category.keyword": category}})
-    if pi:
-        filters.append(
-            {
-                "bool": {
-                    "should": [
-                        {"match_phrase": {"PI_NAMEs": pi}},
-                        {"match": {"PI_NAMEs": {"query": pi, "operator": "and"}}},
-                    ],
-                    "minimum_should_match": 1,
-                },
-            },
-        )
-    if ic:
-        filters.append({"term": {"IC_NAME.keyword": ic}})
-    if org:
-        filters.append({"term": {"ORG_NAME.keyword": org}})
-    if activity:
-        filters.append({"term": {"ACTIVITY.keyword": activity}})
-    if state:
-        filters.append({"term": {"ORG_STATE.keyword": state}})
-    if fy_min is not None or fy_max is not None:
-        range_clause: dict[str, int] = {}
-        if fy_min is not None:
-            range_clause["gte"] = fy_min
-        if fy_max is not None:
-            range_clause["lte"] = fy_max
-        filters.append({"range": {"FY": range_clause}})
+    filters = build_project_filters(
+        pi=pi, ic=ic, org=org, activity=activity,
+        state=state, fy_min=fy_min, fy_max=fy_max,
+    )
     if len(must) == 1 and not filters and not must_not:
         return must[0], must
     bool_query: dict[str, object] = {"must": must}
@@ -337,6 +310,8 @@ def search(
     sort_by: str = Query(default="", description="Sort field (e.g. PROJECT_TITLE, FY)"),
     sort_order: str = Query(default="asc", description="asc or desc"),
 ) -> dict[str, object]:
+    if len(q) > MAX_QUERY_LENGTH:
+      raise HTTPException(status_code=400, detail=f"Query exceeds maximum length of {MAX_QUERY_LENGTH} characters")
 
     client = get_client()
     normalized_terms = _normalize_project_terms(project_terms)
@@ -431,6 +406,9 @@ def export_search_csv(
         description="Maximum rows to export (capped at OpenSearch result window)",
     ),
 ) -> Response:
+    if len(q) > MAX_QUERY_LENGTH:
+      raise HTTPException(status_code=400, detail=f"Query exceeds maximum length of {MAX_QUERY_LENGTH} characters")
+
     if not list_og_files():
         raise HTTPException(
             status_code=503,
@@ -680,22 +658,14 @@ def _recurrence_must_not(source: dict[str, object]) -> list[dict[str, object]]:
     return clauses
 
 
-def _normalize_core_num(core: str) -> str:
-    return " ".join(core.split()).casefold()
-
-
-def _normalize_recurrence_title(title: str) -> str:
-    return " ".join(title.split()).casefold()
-
-
 def _recurrence_group_key(record: dict[str, object]) -> str:
     """Stable key for deduplicating recurring awards across fiscal years."""
     title = _recurrence_title(record)
     if title:
-        return f"title:{_normalize_recurrence_title(title)}"
+        return f"title:{normalize_recurrence_title(title)}"
     core = _recurrence_core_num(record)
     if core:
-        return f"core:{_normalize_core_num(core)}"
+        return f"core:{normalize_core_num(core)}"
     record_id = record.get("_id")
     if record_id is not None:
         return f"id:{record_id}"
@@ -758,7 +728,7 @@ def _merge_similar_groups_by_core(
             continue
         grouped = groups[key]
         core = _recurrence_core_num(grouped)
-        norm_core = _normalize_core_num(core) if core else None
+        norm_core = normalize_core_num(core) if core else None
         if norm_core and norm_core in core_index:
             _merge_similar_group_into(groups, core_index[norm_core], key)
             continue
@@ -886,6 +856,9 @@ def search_similar(
     k: int = Query(default=SIMILAR_DEFAULT_K, ge=1, le=SIMILAR_MAX_K),
 ) -> dict[str, object]:
     """Semantic search: find projects whose embedding is closest to the query."""
+    if len(q) > MAX_QUERY_LENGTH:
+      raise HTTPException(status_code=400, detail=f"Query exceeds maximum length of {MAX_QUERY_LENGTH} characters")
+
     client = get_client()
     _require_matching_embedding_dimension(client)
     query_vector = embed_query(q)
@@ -1074,41 +1047,12 @@ def _build_hybrid_filters(
     fy_min: int | None,
     fy_max: int | None,
 ) -> list[dict[str, Any]]:
-    """Build the shared filter clauses applied to both BM25 and k-NN sides.
-
-    These are non-scoring filters (term/range), so they shrink the candidate set
-    identically for both searches and don't interfere with relevance scoring.
-    """
-    filters: list[dict[str, Any]] = []
+    filters = build_project_filters(
+        pi=pi, ic=ic, org=org, activity=activity,
+        state=state, fy_min=fy_min, fy_max=fy_max,
+    )
     if category:
         filters.append({"term": {"category.keyword": category}})
-    if pi:
-        filters.append(
-            {
-                "bool": {
-                    "should": [
-                        {"match_phrase": {"PI_NAMEs": pi}},
-                        {"match": {"PI_NAMEs": {"query": pi, "operator": "and"}}},
-                    ],
-                    "minimum_should_match": 1,
-                }
-            }
-        )
-    if ic:
-        filters.append({"term": {"IC_NAME.keyword": ic}})
-    if org:
-        filters.append({"term": {"ORG_NAME.keyword": org}})
-    if activity:
-        filters.append({"term": {"ACTIVITY.keyword": activity}})
-    if state:
-        filters.append({"term": {"ORG_STATE.keyword": state}})
-    if fy_min is not None or fy_max is not None:
-        range_clause: dict[str, int] = {}
-        if fy_min is not None:
-            range_clause["gte"] = fy_min
-        if fy_max is not None:
-            range_clause["lte"] = fy_max
-        filters.append({"range": {"FY": range_clause}})
     return filters
 
 
@@ -1184,6 +1128,9 @@ def search_hybrid(
     score, each annotated with its rank in the individual lists for
     transparency.
     """
+    if len(q) > MAX_QUERY_LENGTH:
+      raise HTTPException(status_code=400, detail=f"Query exceeds maximum length of {MAX_QUERY_LENGTH} characters")
+
     client = get_client()
     _require_matching_embedding_dimension(client)
 

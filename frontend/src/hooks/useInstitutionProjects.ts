@@ -20,7 +20,7 @@ export function useInstitutionProjects(
   const [visibleTotal, setVisibleTotal] = useState(0);
 
   useEffect(() => {
-    let isCancelled = false;
+    const controller = new AbortController();
 
     if (!name) {
       setResults([]);
@@ -31,27 +31,27 @@ export function useInstitutionProjects(
 
     setLoading(true);
     setError("");
-    void getProjectsByInstitution(name, { limit: ENTITY_LIST_PER_PAGE, page })
+    void getProjectsByInstitution(name, { limit: ENTITY_LIST_PER_PAGE, page, signal: controller.signal })
       .then((payload) => {
-        if (isCancelled) return;
+        if (controller.signal.aborted) return;
         setResults(payload.results ?? []);
         setTotal(payload.total ?? 0);
         setVisibleTotal(payload.visible_total ?? payload.total ?? 0);
       })
       .catch(() => {
-        if (isCancelled) return;
+        if (controller.signal.aborted) return;
         setResults([]);
         setTotal(0);
         setVisibleTotal(0);
         setError("Unable to load institution projects right now.");
       })
       .finally(() => {
-        if (isCancelled) return;
+        if (controller.signal.aborted) return;
         setLoading(false);
       });
 
     return () => {
-      isCancelled = true;
+      controller.abort();
     };
   }, [name, page]);
 

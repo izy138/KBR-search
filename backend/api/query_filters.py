@@ -59,6 +59,14 @@ def build_project_filters(
   return filters
 
 
+def normalize_core_num(core: str) -> str:
+  return " ".join(core.split()).casefold()
+
+
+def normalize_recurrence_title(title: str) -> str:
+  return " ".join(title.split()).casefold()
+
+
 def analytics_filter_params(
   pi: str = Query(default="", description="Filter by PI_NAMEs"),
   ic: str = Query(default="", description="Filter by IC_NAME"),

@@ -40,7 +40,7 @@ export function useSimilarProjects(projectId: string | null): {
   const [similarError, setSimilarError] = useState("");
 
   useEffect(() => {
-    let cancelled = false;
+    const controller = new AbortController();
 
     if (!projectId) {
       setSimilarNeighbors([]);
@@ -63,27 +63,27 @@ export function useSimilarProjects(projectId: string | null): {
 
     void (async () => {
       try {
-        const payload = await searchSimilarToProjectId(projectId, SIMILAR_PANEL_K);
-        if (!cancelled) {
+        const payload = await searchSimilarToProjectId(projectId, SIMILAR_PANEL_K, controller.signal);
+        if (!controller.signal.aborted) {
           const neighbors = payload.results ?? [];
           writeSimilarCache(projectId, neighbors);
           setSimilarNeighbors(neighbors);
         }
       } catch (err) {
-        if (!cancelled) {
+        if (!controller.signal.aborted) {
           const msg = err instanceof Error ? err.message : "Similarity search failed.";
           setSimilarError(msg);
           setSimilarNeighbors([]);
         }
       } finally {
-        if (!cancelled) {
+        if (!controller.signal.aborted) {
           setSimilarLoading(false);
         }
       }
     })();
 
     return () => {
-      cancelled = true;
+      controller.abort();
     };
   }, [projectId]);
 

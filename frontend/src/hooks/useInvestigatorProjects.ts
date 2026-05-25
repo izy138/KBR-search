@@ -32,7 +32,7 @@ export function useInvestigatorProjects(
   const [visibleTotal, setVisibleTotal] = useState(0);
 
   useEffect(() => {
-    let isCancelled = false;
+    const controller = new AbortController();
 
     if (!name) {
       setResults([]);
@@ -43,27 +43,27 @@ export function useInvestigatorProjects(
 
     setLoading(true);
     setError("");
-    void getProjectsByInvestigator(name, { limit: ENTITY_LIST_PER_PAGE, page })
+    void getProjectsByInvestigator(name, { limit: ENTITY_LIST_PER_PAGE, page, signal: controller.signal })
       .then((payload) => {
-        if (isCancelled) return;
+        if (controller.signal.aborted) return;
         setResults(payload.results ?? []);
         setTotal(payload.total ?? 0);
         setVisibleTotal(payload.visible_total ?? payload.total ?? 0);
       })
       .catch(() => {
-        if (isCancelled) return;
+        if (controller.signal.aborted) return;
         setResults([]);
         setTotal(0);
         setVisibleTotal(0);
         setError("Unable to load investigator projects right now.");
       })
       .finally(() => {
-        if (isCancelled) return;
+        if (controller.signal.aborted) return;
         setLoading(false);
       });
 
     return () => {
-      isCancelled = true;
+      controller.abort();
     };
   }, [name, page]);
 

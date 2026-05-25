@@ -72,20 +72,21 @@ export function useCascadingFilterAvailability(draft: FilterValues): CascadingAv
     requestGenRef.current = generation;
     setAvailability(null);
 
-    let cancelled = false;
+    const controller = new AbortController();
     const timer = window.setTimeout(() => {
       void Promise.all([
-        getIcData(undefined, omitFacet(draft, "ic")),
+        getIcData(undefined, omitFacet(draft, "ic"), controller.signal),
         getOrgData({
           limit: ORG_CATALOG_LIMIT,
           minProjects: 1,
           filters: omitFacet(draft, "org"),
+          signal: controller.signal,
         }),
-        getActivityData(ACTIVITY_CATALOG_LIMIT, omitFacet(draft, "activity")),
-        getStateData(omitFacet(draft, "state")),
+        getActivityData(ACTIVITY_CATALOG_LIMIT, omitFacet(draft, "activity"), controller.signal),
+        getStateData(omitFacet(draft, "state"), controller.signal),
       ])
         .then(([icData, orgData, activityData, stateData]) => {
-          if (cancelled || generation !== requestGenRef.current) {
+          if (controller.signal.aborted || generation !== requestGenRef.current) {
             return;
           }
           setAvailability({
@@ -96,7 +97,7 @@ export function useCascadingFilterAvailability(draft: FilterValues): CascadingAv
           });
         })
         .catch(() => {
-          if (cancelled || generation !== requestGenRef.current) {
+          if (controller.signal.aborted || generation !== requestGenRef.current) {
             return;
           }
           setAvailability(null);
@@ -104,7 +105,7 @@ export function useCascadingFilterAvailability(draft: FilterValues): CascadingAv
     }, CASCADE_DEBOUNCE_MS);
 
     return () => {
-      cancelled = true;
+      controller.abort();
       window.clearTimeout(timer);
     };
   }, [
