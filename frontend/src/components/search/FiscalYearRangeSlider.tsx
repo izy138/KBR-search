@@ -83,7 +83,7 @@ function FiscalYearRangeSlider({
   const sliderMax = Math.max(choices.length - 1, 0);
 
   return (
-    <div className="relative flex w-full min-h-[2rem] mt-2 items-end">
+    <div className="relative mt-2 flex w-full min-h-[2rem] items-end">
       <div className="absolute bottom-full left-0 right-0 mt-0 w-full">
         <ReactSlider
         className="relative h-1 w-full"

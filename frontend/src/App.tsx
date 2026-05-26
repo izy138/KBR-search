@@ -16,6 +16,7 @@ import { useInvestigatorProjects, ENTITY_LIST_PER_PAGE } from "./hooks/useInvest
 import { useOrganizationProjects } from "./hooks/useOrganizationProjects";
 import { useInstitutionProjects } from "./hooks/useInstitutionProjects";
 import { useSearch } from "./hooks/useSearch";
+import { readInitialDashboardFromWindow, useDashboardUrlSync } from "./hooks/useDashboardUrlSync";
 import { readInitialSearchFromWindow, useSearchUrlSync } from "./hooks/useSearchUrlSync";
 import { matchPath, useLocation, useNavigate } from "react-router-dom";
 import type { SortOption } from "./utils/searchUrlParams";
@@ -50,7 +51,17 @@ import {
 import { unifiedSearchFromParsed } from "./utils/searchUrlParams";
 import { useFilterCatalog } from "./hooks/useFilterCatalog";
 import type { FilterValues } from "./types/filters";
+import {
+  type FilterBreadcrumbKey,
+  filterBreadcrumbOrderFromSearchParams,
+  updateFilterBreadcrumbOrder,
+} from "./utils/filterBreadcrumbOrder";
 import { cn } from "./utils/cn";
+import {
+  getListReturnForProjectNavigation,
+  navigateBackToList,
+  navigateToProject,
+} from "./utils/navigationState";
 
 const Dashboard = lazy(() => import("./components/dashboard/Dashboard"));
 const ProjectDetailsPage = lazy(() => import("./components/project/ProjectDetailsPage"));
@@ -69,7 +80,8 @@ const PER_PAGE_SELECT_OPTIONS = [10, 25, 50, 100].map((n) => ({
 }));
 
 export default function App() {
-  const initialSearchUrl = readInitialSearchFromWindow();
+  const initialSearchUrl =
+    readInitialSearchFromWindow() ?? readInitialDashboardFromWindow();
 
   const [searchQuery, setSearchQuery] = useState(() =>
     initialSearchUrl ? unifiedSearchFromParsed(initialSearchUrl) : "",
@@ -87,6 +99,12 @@ export default function App() {
     () => initialSearchUrl?.activity ?? "",
   );
   const [selectedState, setSelectedState] = useState(() => initialSearchUrl?.state ?? "");
+  const [filterBreadcrumbOrder, setFilterBreadcrumbOrder] = useState<FilterBreadcrumbKey[]>(
+    () =>
+      typeof window !== "undefined"
+        ? filterBreadcrumbOrderFromSearchParams(new URLSearchParams(window.location.search))
+        : [],
+  );
   const [fyMin, setFyMin] = useState(() => initialSearchUrl?.fyMin ?? "");
   const [fyMax, setFyMax] = useState(() => initialSearchUrl?.fyMax ?? "");
 
@@ -153,6 +171,8 @@ export default function App() {
     && !semanticSimilarProjectId
     && !isSemanticHub;
 
+  const dashboardUrlSyncEnabled = isDashboardRoute && !isSemanticRoute;
+
   const { sortBy, sortOrder } = useMemo<{
     sortBy: SearchSortField | "";
     sortOrder: SearchSortDirection;
@@ -171,6 +191,35 @@ export default function App() {
     () => initialSearchUrl?.projectTerms ?? [],
   );
   const [excludeProjectTermFilters, setExcludeProjectTermFilters] = useState<string[]>([]);
+
+  useDashboardUrlSync({
+    enabled: dashboardUrlSyncEnabled,
+    state: {
+      q: searchQuery,
+      pi: selectedPI,
+      ic: selectedIC,
+      org: selectedOrg,
+      activity: selectedActivity,
+      state: selectedState,
+      fyMin,
+      fyMax,
+      semanticMode: semanticSearchMode,
+      semanticCommitted: semanticSearchCommitted,
+    },
+    setters: {
+      setQ: setSearchQuery,
+      setPi: setSelectedPI,
+      setIc: setSelectedIC,
+      setOrg: setSelectedOrg,
+      setActivity: setSelectedActivity,
+      setState: setSelectedState,
+      setFyMin,
+      setFyMax,
+      setSemanticMode: setSemanticSearchMode,
+      setSemanticCommitted: setSemanticSearchCommitted,
+      setFilterBreadcrumbOrder,
+    },
+  });
 
   const { navigateToSearch } = useSearchUrlSync({
     enabled: searchEnabled,
@@ -305,6 +354,9 @@ export default function App() {
     [selectedPI, selectedIC, selectedOrg, selectedActivity, selectedState, fyMin, fyMax],
   );
 
+  const appliedFiltersRef = useRef(appliedFilters);
+  appliedFiltersRef.current = appliedFilters;
+
   const filterCatalog = useMemo(
     () => ({
       icNames: searchFilterCatalog?.icNames ?? [],
@@ -395,7 +447,10 @@ export default function App() {
     excludeProjectTermFilters,
   ]);
 
-  const handleApplyFilters = (filters: FilterValues) => {
+  const handleApplyFilters = useCallback((filters: FilterValues) => {
+    setFilterBreadcrumbOrder((order) =>
+      updateFilterBreadcrumbOrder(order, appliedFiltersRef.current, filters),
+    );
     setSelectedPI(filters.pi);
     setSelectedIC(filters.ic);
     setSelectedOrg(filters.org);
@@ -404,9 +459,10 @@ export default function App() {
     setFyMin(filters.fyMin);
     setFyMax(filters.fyMax);
     setCurrentPage(1);
-  };
+  }, []);
 
   const handleClearFilters = useCallback(() => {
+    setFilterBreadcrumbOrder([]);
     setSelectedPI("");
     setSelectedIC("");
     setSelectedOrg("");
@@ -524,9 +580,9 @@ export default function App() {
     [navigateToSearch],
   );
 
-  const handleBackToSearch = useCallback(() => {
-    navigateToSearch();
-  }, [navigateToSearch]);
+  const handleBackToList = useCallback(() => {
+    navigateBackToList(navigate, location, navigateToSearch);
+  }, [navigate, location, navigateToSearch]);
 
   const handlePerPageChange = useCallback((value: string) => {
     setResultsPerPage(Number(value));
@@ -559,7 +615,11 @@ export default function App() {
   const handleOpenDetails = (item: SearchResultRecord): void => {
     const projectId = item._id ?? item.id;
     if (!projectId) return;
-    navigate(`/projects/${encodeURIComponent(projectId)}`);
+    navigateToProject(
+      navigate,
+      projectId,
+      getListReturnForProjectNavigation(location),
+    );
   };
   const handleOpenInvestigator = (name: string): void => {
     setInvestigatorPage(1);
@@ -691,20 +751,31 @@ export default function App() {
                 onUpdateDashboard={handleDashboardQueryUpdate}
                 onSearchNavigate={handleDashboardSearchNavigate}
                 appliedFilters={appliedFilters}
+                filterBreadcrumbOrder={filterBreadcrumbOrder}
                 onApplyFilters={handleApplyFilters}
                 onClearFilters={handleClearFilters}
                 onTermSearchNavigate={handleDashboardTermSearchNavigate}
                 onViewAllProjects={handleViewAllProjects}
                 onYearSearchNavigate={handleDashboardYearSearchNavigate}
                 onOpenProject={(projectId) =>
-                  navigate(`/projects/${encodeURIComponent(projectId)}`)
+                  navigateToProject(
+                    navigate,
+                    projectId,
+                    getListReturnForProjectNavigation(location),
+                  )
                 }
               />
             ) : semanticSimilarProjectId ? (
               <SemanticSimilarProjectPage
                 projectId={decodeURIComponent(semanticSimilarProjectId)}
                 onBackToLab={() => navigate("/semantic")}
-                onOpenFullProject={(id) => navigate(`/projects/${encodeURIComponent(id)}`)}
+                onOpenFullProject={(id) =>
+                  navigateToProject(
+                    navigate,
+                    id,
+                    getListReturnForProjectNavigation(location),
+                  )
+                }
                 onOpenInvestigator={handleOpenInvestigator}
                 onOpenOrganization={handleOpenOrganization}
                 onOpenInstitution={handleOpenInstitution}
@@ -716,7 +787,7 @@ export default function App() {
                 <div className="flex flex-col items-center justify-center px-6 py-12 text-center text-text-muted text-[0.92rem]" role="status" aria-live="polite">
                   <strong className="text-text-secondary text-[15px]">{projectError}</strong>
                   <BackToResultsButton
-                    onClick={handleBackToSearch}
+                    onClick={handleBackToList}
                     className="mt-[0.85rem]"
                   />
                 </div>
@@ -724,7 +795,7 @@ export default function App() {
                 <div className="flex flex-col items-center justify-center px-6 py-12 text-center text-text-muted text-[0.92rem]" role="status" aria-live="polite">
                   <strong className="text-text-secondary text-[15px]">Project not found</strong>
                   <BackToResultsButton
-                    onClick={handleBackToSearch}
+                    onClick={handleBackToList}
                     className="mt-[0.85rem]"
                   />
                 </div>
@@ -735,7 +806,7 @@ export default function App() {
                   similarNeighbors={similarNeighbors}
                   similarLoading={similarLoading}
                   similarError={similarError}
-                  onBack={handleBackToSearch}
+                  onBack={handleBackToList}
                   onOpenInvestigator={handleOpenInvestigator}
                   onOpenDetails={handleOpenDetails}
                   onSearchWithProjectTerms={handleSearchFromProjectTerms}
@@ -757,7 +828,7 @@ export default function App() {
                 onOpenOrganization={handleOpenOrganization}
                 onOpenInstitution={handleOpenInstitution}
                 onPageChange={setOrganizationPage}
-                onBack={handleBackToSearch}
+                onBack={handleBackToList}
               />
             ) : selectedInstitutionName ? (
               <InvestigatorPage
@@ -775,7 +846,7 @@ export default function App() {
                 onOpenOrganization={handleOpenOrganization}
                 onOpenInstitution={handleOpenInstitution}
                 onPageChange={setInstitutionPage}
-                onBack={handleBackToSearch}
+                onBack={handleBackToList}
               />
             ) : selectedInvestigatorName ? (
               <InvestigatorPage
@@ -793,7 +864,7 @@ export default function App() {
                 onOpenOrganization={handleOpenOrganization}
                 onOpenInstitution={handleOpenInstitution}
                 onPageChange={setInvestigatorPage}
-                onBack={handleBackToSearch}
+                onBack={handleBackToList}
               />
             ) : isSearchRoute ? (
               <>
@@ -934,6 +1005,9 @@ export default function App() {
                     results={results}
                     primarySort={sortOption}
                     loading={loading}
+                    showSimilarityScore={
+                      semanticSearchMode && semanticSearchCommitted
+                    }
                     onOpenDetails={handleOpenDetails}
                     onOpenInvestigator={handleOpenInvestigator}
                     onOpenOrganization={handleOpenOrganization}

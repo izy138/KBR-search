@@ -11,6 +11,7 @@ import {
 } from "react";
 import { createPortal } from "react-dom";
 import { cn } from "../../utils/cn";
+import { CLS_FILTER_CONTROL_ACTIVE } from "../../utils/filterFieldStyles";
 
 export type FilterSelectOption = {
   value: string;
@@ -34,6 +35,8 @@ export type FilterSelectProps = {
   disabled?: boolean;
   onOptionPointerEnter?: (option: FilterSelectOption) => void;
   onOptionPointerLeave?: () => void;
+  /** Dashboard: applied filter value — darker fill + pulsing white border. */
+  active?: boolean;
 };
 
 const FilterSelect: FC<FilterSelectProps> = ({
@@ -50,6 +53,7 @@ const FilterSelect: FC<FilterSelectProps> = ({
   disabled = false,
   onOptionPointerEnter,
   onOptionPointerLeave,
+  active = false,
 }) => {
   const baseId = useId();
   const listboxId = `${baseId}-listbox`;
@@ -206,6 +210,7 @@ const FilterSelect: FC<FilterSelectProps> = ({
             ? "min-h-[2rem] px-[1.25rem] py-[0.5rem] text-[12px]"
             : "min-h-[2.5rem] px-[0.7rem] py-[0.48rem] text-[14px]",
           truncateSelectedLabel && "min-w-0 overflow-hidden",
+          active && CLS_FILTER_CONTROL_ACTIVE,
         )}
         disabled={disabled}
         aria-haspopup="listbox"

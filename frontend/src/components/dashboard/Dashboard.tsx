@@ -28,9 +28,12 @@ import ActivityFundingPiePanel from "../charts/ActivityFundingPiePanel";
 import BarChartPanel from "../charts/BarChartPanel";
 import Filters from "../search/Filters";
 import type { FilterValues } from "../../types/filters";
+import type { FilterBreadcrumbKey } from "../../utils/filterBreadcrumbOrder";
+import { filtersKeepingBreadcrumbThroughIndex } from "../../utils/filterBreadcrumbOrder";
 import { toAnalyticsFilterOptions } from "../../utils/analyticsFilters";
 import LineChartPanel from "../charts/LineChartPanel";
 import ProjectTermsThemeCloud from "./ProjectTermsThemeCloud";
+import FilterBreadcrumb from "./FilterBreadcrumb";
 import StateMap from "./StateMap";
 import TopFundedProjectsPanel from "./TopFundedProjectsPanel";
 import { buildIcProjectsHybridAxisScale, buildIcProjectsLinearAxisScale, buildLinearBarAxisScale } from "../../utils/chartAxis";
@@ -262,6 +265,7 @@ type DashboardProps = {
   onUpdateDashboard: (query: string) => void;
   onSearchNavigate: (query: string, filters?: FilterValues) => void;
   appliedFilters: FilterValues;
+  filterBreadcrumbOrder: FilterBreadcrumbKey[];
   onApplyFilters: (filters: FilterValues) => void;
   onClearFilters: () => void;
   onTermSearchNavigate: (terms: string[]) => void;
@@ -320,6 +324,7 @@ export default function Dashboard({
   onUpdateDashboard,
   onSearchNavigate,
   appliedFilters,
+  filterBreadcrumbOrder,
   onApplyFilters,
   onClearFilters,
   onTermSearchNavigate,
@@ -333,18 +338,24 @@ export default function Dashboard({
   const filterCatalog = useFilterCatalog();
   const [error, setError] = useState<string | null>(null);
   const [refreshing, setRefreshing] = useState(false);
+  /** Filters/search reflected in chart layout and map — updated when a fetch completes. */
+  const [displayedFilters, setDisplayedFilters] = useState(appliedFilters);
+  const [displayedSearchQuery, setDisplayedSearchQuery] = useState(searchQuery);
   /** Log (hybrid) vs linear scale for Projects by Institute (IC); defaults to log. */
   const [icProjectsLogScale, setIcProjectsLogScale] = useState(true);
   const [filterActivityHover, setFilterActivityHover] = useState<string | null>(null);
 
-  const hasIcFilter = Boolean(appliedFilters.ic.trim());
-  const hasOrgFilter = appliedFilters.org.trim() !== "";
+  const appliedFiltersRef = useRef(appliedFilters);
+  appliedFiltersRef.current = appliedFilters;
+  const searchQueryRef = useRef(searchQuery);
+  searchQueryRef.current = searchQuery;
+
+  const hasIcFilter = Boolean(displayedFilters.ic.trim());
+  const hasOrgFilter = displayedFilters.org.trim() !== "";
   const showTopOrgsChart = !hasOrgFilter;
   const hasIcAndOrgFilter = hasIcFilter && hasOrgFilter;
-  const hasActivityFilter = Boolean(appliedFilters.activity);
-  const hasOrgAndActivityFilter = hasOrgFilter && hasActivityFilter;
-  const hasIcAndActivityFilter = hasIcFilter && hasActivityFilter;
-  const omitMapAndMainChartRow = hasIcAndOrgFilter || hasOrgAndActivityFilter;
+  const hasActivityFilter = Boolean(displayedFilters.activity);
+  const useCompactYearChartLayout = hasIcAndOrgFilter;
 
   const analyticsOptions = useMemo(
     () => toAnalyticsFilterOptions(appliedFilters, searchQuery),
@@ -409,6 +420,18 @@ export default function Dashboard({
     onApplyFilters({ ...appliedFilters, activity: activityCode });
   }, [appliedFilters, onApplyFilters]);
 
+  const handleBreadcrumbSegmentClick = useCallback(
+    (segmentIndex: number) => {
+      const next = filtersKeepingBreadcrumbThroughIndex(
+        appliedFilters,
+        filterBreadcrumbOrder,
+        segmentIndex,
+      );
+      onApplyFilters(next);
+    },
+    [appliedFilters, filterBreadcrumbOrder, onApplyFilters],
+  );
+
   const icChartRows = useMemo((): Array<Record<string, unknown>> => {
     const icData = data?.icData ?? [];
     return icData
@@ -434,7 +457,7 @@ export default function Dashboard({
     return buildIcProjectsLinearAxisScale(values);
   }, [icChartRows]);
 
-  const bottomTopOrgsAxisScale = useMemo(() => {
+  const topOrgsAxisScale = useMemo(() => {
     const values = (data?.topOrgs ?? []).map((point) => Number(point.total_funding));
     return buildLinearBarAxisScale(values);
   }, [data?.topOrgs]);
@@ -448,6 +471,11 @@ export default function Dashboard({
     const controller = new AbortController();
 
     const load = async () => {
+      const filtersSnapshot = appliedFiltersRef.current;
+      const querySnapshot = searchQueryRef.current;
+      const fetchOptions = toAnalyticsFilterOptions(filtersSnapshot, querySnapshot);
+      const fetchTopOrgs = filtersSnapshot.org.trim() === "";
+
       if (hasLoadedOnceRef.current) {
         setRefreshing(true);
       }
@@ -463,17 +491,17 @@ export default function Dashboard({
           avgGrant,
           topFundedProjects,
         ] = await Promise.all([
-          getDashboardSummary(analyticsOptions, controller.signal),
-          getStateData(analyticsOptions, controller.signal),
-          getIcData(undefined, analyticsOptions, controller.signal),
-          getActivityData(80, analyticsOptions, controller.signal),
-          getActivityFundingPie({ limit: 500, pieSlices: 20 }, analyticsOptions, controller.signal),
-          getYearData(analyticsOptions, controller.signal),
-          showTopOrgsChart
-            ? getTopOrgs(TOP_ORGS_LIMIT, analyticsOptions, controller.signal)
+          getDashboardSummary(fetchOptions, controller.signal),
+          getStateData(fetchOptions, controller.signal),
+          getIcData(undefined, fetchOptions, controller.signal),
+          getActivityData(80, fetchOptions, controller.signal),
+          getActivityFundingPie({ limit: 500, pieSlices: 20 }, fetchOptions, controller.signal),
+          getYearData(fetchOptions, controller.signal),
+          fetchTopOrgs
+            ? getTopOrgs(TOP_ORGS_LIMIT, fetchOptions, controller.signal)
             : Promise.resolve([]),
-          getAvgGrantByIc(analyticsOptions, controller.signal),
-          getTopFundedProjects(analyticsOptions, controller.signal),
+          getAvgGrantByIc(fetchOptions, controller.signal),
+          getTopFundedProjects(fetchOptions, controller.signal),
         ]);
 
         if (!controller.signal.aborted) {
@@ -488,6 +516,8 @@ export default function Dashboard({
             avgGrant,
             topFundedProjects,
           });
+          setDisplayedFilters(filtersSnapshot);
+          setDisplayedSearchQuery(querySnapshot);
           hasLoadedOnceRef.current = true;
           setError(null);
         }
@@ -507,7 +537,13 @@ export default function Dashboard({
     return () => {
       controller.abort();
     };
-  }, [analyticsOptions, hasActiveFilters, showTopOrgsChart]);
+  }, [analyticsOptions, hasActiveFilters]);
+
+  useEffect(() => {
+    if (!hasActiveFilters) {
+      setIcProjectsLogScale(true);
+    }
+  }, [hasActiveFilters]);
 
   useEffect(() => {
     const controller = new AbortController();
@@ -553,10 +589,6 @@ export default function Dashboard({
     full_label: point.label,
   }));
 
-  const topOrgsTitle = appliedFilters.activity
-    ? `Top Organizations by Funding — ${appliedFilters.activity}`
-    : "Top Organizations by Funding";
-
   const topOrgsBarChartBase = showTopOrgsChart
     ? {
         data: topOrgsChartData,
@@ -564,6 +596,8 @@ export default function Dashboard({
         labelKey: "short_label",
         tooltipLabelKey: "full_label",
         formatter: formatDollarsCompact,
+        valueDomain: [0, topOrgsAxisScale.axisMax] as [number, number],
+        valueTicks: topOrgsAxisScale.tickValues,
         onBarClick: handleTopOrgBarClick,
         animateBars: !refreshing,
       }
@@ -571,7 +605,7 @@ export default function Dashboard({
 
   const topOrgsPanelMainSlot = topOrgsBarChartBase ? (
     <BarChartPanel
-      title={topOrgsTitle}
+      title="Top Organizations by Funding"
       panelClassName={MAIN_CHART_SLOT_PANEL_CLASS}
       {...topOrgsBarChartBase}
       {...MAIN_CHART_SLOT_BAR_PROPS}
@@ -580,7 +614,7 @@ export default function Dashboard({
 
   const topOrgsPanelSecondary = topOrgsBarChartBase ? (
     <BarChartPanel
-      title={topOrgsTitle}
+      title="Top Organizations by Funding"
       panelClassName={SECONDARY_CHART_ROW_PANEL_CLASS}
       {...topOrgsBarChartBase}
       {...MAIN_CHART_SLOT_BAR_PROPS}
@@ -589,10 +623,8 @@ export default function Dashboard({
 
   const topOrgsPanelFooter = topOrgsBarChartBase ? (
     <BarChartPanel
-      title={topOrgsTitle}
+      title="Top Organizations by Funding"
       panelClassName={BOTTOM_BAR_ROW_PANEL_CLASS}
-      valueDomain={[0, bottomTopOrgsAxisScale.axisMax] as [number, number]}
-      valueTicks={bottomTopOrgsAxisScale.tickValues}
       {...topOrgsBarChartBase}
       {...MAIN_CHART_SLOT_BAR_PROPS}
     />
@@ -622,14 +654,14 @@ export default function Dashboard({
     <div className="inline-flex border border-border rounded-[--radius-sm] shrink-0 overflow-hidden" role="group" aria-label="Count axis scale">
       <button
         type="button"
-        className={cn("bg-surface border-none text-text-secondary cursor-pointer font-[inherit] text-[0.8125rem] font-medium px-[0.65rem] py-[0.35rem] transition-[background,color] duration-150 hover:bg-surface-hover hover:text-text-primary", !icProjectsUseLogScale && "!bg-accent !text-white")}
+        className={cn("bg-surface border-none text-text-secondary cursor-pointer font-[inherit] text-[0.8125rem] font-medium px-[0.65rem] py-[0.35rem] transition-[background,color] duration-150 hover:bg-surface-hover hover:text-text-primary", !icProjectsLogScale && "!bg-accent !text-white")}
         onClick={() => setIcProjectsLogScale(false)}
       >
         Linear
       </button>
       <button
         type="button"
-        className={cn("bg-surface border-none text-text-secondary cursor-pointer font-[inherit] text-[0.8125rem] font-medium px-[0.65rem] py-[0.35rem] transition-[background,color] duration-150 hover:bg-surface-hover hover:text-text-primary border-l border-border", icProjectsUseLogScale && "!bg-accent !text-white")}
+        className={cn("bg-surface border-none text-text-secondary cursor-pointer font-[inherit] text-[0.8125rem] font-medium px-[0.65rem] py-[0.35rem] transition-[background,color] duration-150 hover:bg-surface-hover hover:text-text-primary border-l border-border", icProjectsLogScale && "!bg-accent !text-white")}
         onClick={() => setIcProjectsLogScale(true)}
       >
         Log
@@ -672,67 +704,44 @@ export default function Dashboard({
     <BarChartPanel panelClassName={IC_PROJECTS_PANEL_CLASS} {...icProjectsBarChartProps} />
   );
 
-  const icProjectsPanelSecondary = (
-    <BarChartPanel panelClassName={SECONDARY_CHART_ROW_PANEL_CLASS} {...icProjectsBarChartProps} />
-  );
-
   const activityPieFilterKey = [
-    searchQuery,
-    appliedFilters.pi,
-    appliedFilters.ic,
-    appliedFilters.org,
-    appliedFilters.activity,
-    appliedFilters.state,
-    appliedFilters.fyMin,
-    appliedFilters.fyMax,
+    displayedSearchQuery,
+    displayedFilters.pi,
+    displayedFilters.ic,
+    displayedFilters.org,
+    displayedFilters.activity,
+    displayedFilters.state,
+    displayedFilters.fyMin,
+    displayedFilters.fyMax,
   ].join("\0");
-
-  const activityPieTitle = (() => {
-    if (appliedFilters.activity) {
-      return `Funding by Activity Code — ${appliedFilters.activity}`;
-    }
-    if (!hasActiveFilters) {
-      return "Funding by Activity Code";
-    }
-    const parts: string[] = [];
-    if (searchQuery.trim()) parts.push(`"${searchQuery.trim()}"`);
-    if (appliedFilters.ic) parts.push(appliedFilters.ic);
-    if (appliedFilters.org) parts.push(appliedFilters.org);
-    if (appliedFilters.state) parts.push(appliedFilters.state);
-    if (appliedFilters.pi) parts.push(`PI: ${appliedFilters.pi}`);
-    if (appliedFilters.fyMin || appliedFilters.fyMax) {
-      parts.push(`FY ${appliedFilters.fyMin || "…"}–${appliedFilters.fyMax || "…"}`);
-    }
-    return `Funding by Activity Code (${parts.join(" · ")})`;
-  })();
 
   const activityPiePanel = (
     <ActivityFundingPiePanel
       key={activityPieFilterKey}
-      title={activityPieTitle}
+      title="Funding by Activity Code"
       pie={activityPie}
       formatDollars={formatDollarsCompact}
       chartHeight={ACTIVITY_PIE_CHART_HEIGHT}
       loading={refreshing}
-      selectedActivity={appliedFilters.activity}
+      selectedActivity={displayedFilters.activity}
       onActivitySelect={handleActivitySelect}
       hoveredActivityCode={filterActivityHover}
+      tailListOverlay={hasIcAndOrgFilter}
     />
   );
 
-  const yearRowSecondaryPanel = hasOrgAndActivityFilter
-    ? icProjectsPanelSecondary
-    : hasActivityFilter
-      ? (showTopOrgsChart ? topOrgsPanelSecondary : activityPiePanel)
+  const yearRowSecondaryPanel =
+    hasActivityFilter && showTopOrgsChart && !hasIcFilter
+      ? topOrgsPanelSecondary
       : activityPiePanel;
 
   const projectsAndFundingByYearPanel = (
     <LineChartPanel
       title="Projects & Funding by Year"
       panelClassName={
-        hasIcAndActivityFilter ? YEAR_CHART_IC_ACTIVITY_PANEL_CLASS : YEAR_CHART_PANEL_CLASS
+        useCompactYearChartLayout ? YEAR_CHART_IC_ACTIVITY_PANEL_CLASS : YEAR_CHART_PANEL_CLASS
       }
-      compactWidth={hasIcAndActivityFilter}
+      compactWidth={useCompactYearChartLayout}
       fillHeight
       data={yearData}
       formatter={formatDollarsCompact}
@@ -742,7 +751,12 @@ export default function Dashboard({
   );
 
   return (
-    <div className={cn("w-full px-6 py-[1.1rem] flex flex-col", refreshing && "opacity-[0.72] transition-opacity duration-200")}>
+    <div
+      className={cn(
+        "flex w-full flex-col px-6 py-[1.1rem]",
+        refreshing && "opacity-[0.72] transition-opacity duration-200",
+      )}
+    >
       <Filters
         applied={appliedFilters}
         catalog={{
@@ -770,13 +784,20 @@ export default function Dashboard({
         onApply={onApplyFilters}
         onClear={onClearFilters}
         onActivityCodeHover={setFilterActivityHover}
+        highlightActiveFilters
         helpTooltip={
           <HelpTooltip label={HELP_DASHBOARD.label}>{HELP_DASHBOARD.body}</HelpTooltip>
         }
       />
 
+      <FilterBreadcrumb
+        filters={appliedFilters}
+        order={filterBreadcrumbOrder}
+        onSegmentClick={handleBreadcrumbSegmentClick}
+      />
+
       {/* KPI cards */}
-      <div className="grid grid-cols-3 gap-3 my-3 max-[900px]:grid-cols-2 max-[500px]:grid-cols-1">
+      <div className="mt-0 mb-3 grid grid-cols-3 gap-3 max-[900px]:grid-cols-2 max-[500px]:grid-cols-1">
         <KpiCard label="Total Funding" value={formatDollarsCompact(summary.total_funding)} />
         <KpiCard
           label="Total Projects"
@@ -787,25 +808,20 @@ export default function Dashboard({
       </div>
 
       {/* Chart grid: layout varies by IC/org/activity filter combinations */}
-      {omitMapAndMainChartRow ? (
-        <div className="grid min-h-[330px] grid-cols-2 gap-3 items-stretch min-w-0 max-[768px]:grid-cols-1">
-          <div className={YEAR_CHART_ROW_CELL_CLASS}>{projectsAndFundingByYearPanel}</div>
-          <div className={YEAR_CHART_ROW_CELL_CLASS}>{yearRowSecondaryPanel}</div>
-        </div>
-      ) : hasIcAndActivityFilter ? (
+      {hasIcAndOrgFilter ? (
         <div className="grid grid-cols-3 items-stretch gap-3 w-full max-w-full min-w-0 max-[768px]:grid-cols-1">
           <div className={cn(MAP_CHART_ROW_CELL_CLASS, "min-w-0")}>
             <StateMap
               data={stateData}
-              selectedStateAbbrev={appliedFilters.state}
+              selectedStateAbbrev={displayedFilters.state}
               onStateSelect={handleMapStateSelect}
             />
           </div>
-          <div className={cn(MAP_CHART_ROW_CELL_CLASS, "overflow-hidden min-w-0")}>
-            {showTopOrgsChart ? topOrgsPanelMainSlot : icProjectsPanel}
-          </div>
           <div className={cn(MAP_CHART_ROW_CELL_CLASS, "min-w-0")}>
             {projectsAndFundingByYearPanel}
+          </div>
+          <div className={cn(MAP_CHART_ROW_CELL_CLASS, "min-w-0")}>
+            {activityPiePanel}
           </div>
         </div>
       ) : (
@@ -818,7 +834,7 @@ export default function Dashboard({
           >
             <StateMap
               data={stateData}
-              selectedStateAbbrev={appliedFilters.state}
+              selectedStateAbbrev={displayedFilters.state}
               onStateSelect={handleMapStateSelect}
             />
           </div>

@@ -103,7 +103,7 @@ export const HELP_SEARCH_ADVANCED: HelpTooltipContent = {
   label: "Advanced search",
   body: (
     <p>
-      Pick fields and combine conditions with <strong className="font-medium text-text-primary">AND</strong> or <strong className="font-medium text-text-primary">OR</strong> for precise matching. Check <strong className="font-medium text-text-primary">Advanced</strong>, apply your rules, and uncheck it to return to simple search.
+      Pick fields and combine conditions with <strong className="font-medium text-text-primary">AND</strong> or <strong className="font-medium text-text-primary">OR</strong> for precise matching. Click <strong className="font-medium text-text-primary">Advanced</strong>, apply your rules, and click again to return to simple search.
     </p>
   ),
 };
@@ -112,7 +112,7 @@ export const HELP_SEARCH_SEMANTIC: HelpTooltipContent = {
   label: "Semantic search",
   body: (
     <p>
-      Describe the research in plain language; results match by meaning, not exact words. Turn on <strong className="font-medium text-text-primary">Semantic</strong>, search, then turn it off for keyword or Advanced search.
+      Describe the research in plain language; results match by meaning, not exact words. Click <strong className="font-medium text-text-primary">Semantic</strong>, search, then click again for keyword or Advanced search.
     </p>
   ),
 };
