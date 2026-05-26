@@ -1,6 +1,7 @@
 import {
   forwardRef,
   useCallback,
+  useEffect,
   useLayoutEffect,
   useMemo,
   useRef,
@@ -252,6 +253,17 @@ function subcatBusSegments(
 
 function subNodeRevealDelayMs(branchDelayMs: number): number {
   return branchDelayMs + Math.round(SUB_BRANCH_DRAW_MS * 0.55);
+}
+
+const KEYWORDS_REVEAL_GAP_MS = 120;
+
+function firstSubAutoSelectDelayMs(subCount: number): number {
+  if (subCount <= 0) return 0;
+  const branchDelayMs =
+    subCount === 1
+      ? Math.round(SUB_TRUNK_DRAW_MS * 0.72)
+      : Math.round(SUB_TRUNK_DRAW_MS * 0.55 + SUB_SPINE_DRAW_MS * 0.55);
+  return subNodeRevealDelayMs(branchDelayMs) + SUB_OPEN_MS;
 }
 
 function listSlotTop(index: number): number {
@@ -529,11 +541,17 @@ export default function ProjectTermsThemeCloud({ payload, onSearch }: Props): Re
   const [subsMounted, setSubsMounted] = useState(opensByDefault);
   const [subsAnimatedIn, setSubsAnimatedIn] = useState(opensByDefault);
   const [selectedSubId, setSelectedSubId] = useState<string | null>(defaultOpen?.subId ?? null);
+  const [keywordsRevealed, setKeywordsRevealed] = useState(
+    opensByDefault && defaultOpen?.subId != null,
+  );
   const [selectedTerms, setSelectedTerms] = useState<Set<string>>(new Set());
   const [showMaxWarning, setShowMaxWarning] = useState(false);
   const listRef = useRef<HTMLElement>(null);
   const flyoutRef = useRef<HTMLButtonElement>(null);
   const needsFlyToHubRef = useRef(false);
+  const pendingAutoSelectCatIdRef = useRef<string | null>(null);
+  const autoSelectTimeoutRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const keywordsRevealTimeoutRef = useRef<ReturnType<typeof setTimeout> | null>(null);
   const [listWidthPx, setListWidthPx] = useState(216);
   const buckets = (payload.buckets ?? []).filter((b) => b.label !== "Low confidence");
 
@@ -556,10 +574,23 @@ export default function ProjectTermsThemeCloud({ payload, onSearch }: Props): Re
     return () => observer.disconnect();
   }, [catNodes.length]);
 
+  const clearAutoSelectTimers = useCallback((): void => {
+    if (autoSelectTimeoutRef.current !== null) {
+      clearTimeout(autoSelectTimeoutRef.current);
+      autoSelectTimeoutRef.current = null;
+    }
+    if (keywordsRevealTimeoutRef.current !== null) {
+      clearTimeout(keywordsRevealTimeoutRef.current);
+      keywordsRevealTimeoutRef.current = null;
+    }
+  }, []);
+
   const resetSubsAnimation = useCallback((): void => {
+    clearAutoSelectTimers();
     setSubsMounted(false);
     setSubsAnimatedIn(false);
-  }, []);
+    setKeywordsRevealed(false);
+  }, [clearAutoSelectTimers]);
 
   const revealSubsAnimation = useCallback((): void => {
     setSubsMounted(true);
@@ -606,9 +637,40 @@ export default function ProjectTermsThemeCloud({ payload, onSearch }: Props): Re
     activeCatNode?.cat.children?.find((sub) => sub.id === selectedSubId) ?? null;
   const leafTerms: TermNode[] = selectedSub?.children ?? [];
   const selectedCount = selectedTerms.size;
-  const panelOpen = selectedSub !== null;
+  const panelOpen = selectedSub !== null && keywordsRevealed;
   const expansionOpen = flyoutId !== null;
   const showSubs = subsMounted && activeId !== null;
+
+  useEffect(() => {
+    return () => clearAutoSelectTimers();
+  }, [clearAutoSelectTimers]);
+
+  useEffect(() => {
+    if (!subsAnimatedIn || activeId === null) return;
+    if (pendingAutoSelectCatIdRef.current !== activeId) return;
+
+    const children = activeCatNode?.cat.children ?? [];
+    const firstSubId = children[0]?.id;
+    if (!firstSubId) {
+      pendingAutoSelectCatIdRef.current = null;
+      return;
+    }
+
+    const selectDelayMs = firstSubAutoSelectDelayMs(children.length);
+    clearAutoSelectTimers();
+    pendingAutoSelectCatIdRef.current = null;
+
+    autoSelectTimeoutRef.current = setTimeout(() => {
+      autoSelectTimeoutRef.current = null;
+      setSelectedSubId(firstSubId);
+      setSelectedTerms(new Set());
+      setShowMaxWarning(false);
+      keywordsRevealTimeoutRef.current = setTimeout(() => {
+        keywordsRevealTimeoutRef.current = null;
+        setKeywordsRevealed(true);
+      }, KEYWORDS_REVEAL_GAP_MS);
+    }, selectDelayMs);
+  }, [subsAnimatedIn, activeId, activeCatNode, clearAutoSelectTimers]);
 
   const handleFlyoutTransitionEnd = useCallback((): void => {
     if (pendingSelectId !== null && !flyoutAtHub) {
@@ -632,11 +694,14 @@ export default function ProjectTermsThemeCloud({ payload, onSearch }: Props): Re
   }, [activeId, flyoutAtHub, flyoutId, pendingSelectId, resetSubsAnimation, revealSubsAnimation]);
 
   const handleCategoryClick = (catId: string): void => {
+    clearAutoSelectTimers();
     setSelectedSubId(null);
+    setKeywordsRevealed(false);
     setSelectedTerms(new Set());
     setShowMaxWarning(false);
 
     if (activeId === catId && flyoutAtHub) {
+      pendingAutoSelectCatIdRef.current = null;
       setPendingSelectId(null);
       resetSubsAnimation();
       setSnapFlyoutPosition(false);
@@ -646,6 +711,7 @@ export default function ProjectTermsThemeCloud({ payload, onSearch }: Props): Re
     }
 
     if (flyoutId === null) {
+      pendingAutoSelectCatIdRef.current = catId;
       setPendingSelectId(null);
       resetSubsAnimation();
       setActiveId(catId);
@@ -656,6 +722,7 @@ export default function ProjectTermsThemeCloud({ payload, onSearch }: Props): Re
     }
 
     if (activeId !== catId) {
+      pendingAutoSelectCatIdRef.current = catId;
       setPendingSelectId(catId);
       resetSubsAnimation();
       setFlyoutMoveMs(FLYOUT_SWITCH_RETURN_MS);
@@ -666,18 +733,27 @@ export default function ProjectTermsThemeCloud({ payload, onSearch }: Props): Re
   };
 
   const handleFlyoutClose = (): void => {
+    pendingAutoSelectCatIdRef.current = null;
+    clearAutoSelectTimers();
     setPendingSelectId(null);
     resetSubsAnimation();
     setSnapFlyoutPosition(false);
     setFlyoutAtHub(false);
     setActiveId(null);
     setSelectedSubId(null);
+    setKeywordsRevealed(false);
     setSelectedTerms(new Set());
     setShowMaxWarning(false);
   };
 
   const handleSubClick = (subId: string): void => {
-    setSelectedSubId((prev) => (prev === subId ? null : subId));
+    clearAutoSelectTimers();
+    pendingAutoSelectCatIdRef.current = null;
+    setSelectedSubId((prev) => {
+      const next = prev === subId ? null : subId;
+      setKeywordsRevealed(next !== null);
+      return next;
+    });
     setSelectedTerms(new Set());
     setShowMaxWarning(false);
   };
