@@ -42,7 +42,8 @@ INDEX_NAME = get_index_name()
 MAX_RESULT_WINDOW = 10_000
 
 SIMILAR_DEFAULT_K = 10
-SIMILAR_MAX_K = 50
+SIMILAR_MAX_K = 100
+SIMILAR_FETCH_CAP = 200  # Raw k-NN pool before recurrence grouping (can return fewer than k unique awards).
 HYBRID_DEFAULT_K = 10
 HYBRID_MAX_K = 50
 RRF_K_CONST = 60  # Standard smoothing constant from the original RRF paper.
@@ -914,7 +915,7 @@ def search_similar_to_project(
             knn_clause["filter"] = {"bool": {"must_not": must_not}}
 
     # Over-fetch so we can return k unique recurring projects after year deduplication.
-    fetch_k = min(SIMILAR_MAX_K, max(k * 4, k + 15))
+    fetch_k = min(SIMILAR_FETCH_CAP, max(k * 4, k + 15))
     knn_clause["k"] = fetch_k + 1
 
     response = client.search(

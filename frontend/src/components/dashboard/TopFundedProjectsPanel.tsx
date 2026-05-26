@@ -1,5 +1,6 @@
 import { cn } from "../../utils/cn";
 import type { TopFundedProject } from "../../api";
+import { CLS_DASHBOARD_PANEL_HEADER, CLS_DASHBOARD_PANEL_SHELL } from "../../utils/chartStyles";
 import { formatDollarsFull } from "../../utils/format";
 
 type TopFundedProjectsPanelProps = {
@@ -170,14 +171,13 @@ export default function TopFundedProjectsPanel({
   return (
     <section
       className={cn(
-        "bg-surface border border-border rounded-[--radius-lg] w-full px-4 py-[0.9rem]",
+        CLS_DASHBOARD_PANEL_SHELL,
+        "pb-[0.9rem]",
         loading && "opacity-80",
       )}
       aria-busy={loading}
     >
-      <h2 className="text-[1rem] font-semibold text-text-primary mb-2">
-        Top Funded Projects
-      </h2>
+      <div className={CLS_DASHBOARD_PANEL_HEADER}>Top Funded Projects</div>
       <div
         className="grid grid-cols-3 grid-rows-5 gap-2 min-h-0"
         role="list"

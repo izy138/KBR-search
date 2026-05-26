@@ -35,6 +35,14 @@ export const RECHARTS_TOOLTIP_WRAPPER_STYLE = {
   boxShadow: "none",
 } as const;
 
+/** Dashboard panel shell — single top inset for all chart/map cards. */
+export const CLS_DASHBOARD_PANEL_SHELL =
+  "bg-surface border border-border rounded-[--radius-lg] w-full px-4 pt-[0.9rem]";
+
+/** Dashboard panel title — shared size, weight, and spacing below the header row. */
+export const CLS_DASHBOARD_PANEL_HEADER =
+  "shrink-0 text-text-primary text-[0.9rem] font-semibold mb-[0.65rem]";
+
 /** Scroll containers that can move a chart under a stationary pointer (e.g. app `<main>`). */
 export function getScrollableAncestors(node: HTMLElement): HTMLElement[] {
   const scrollables: HTMLElement[] = [];

@@ -21,10 +21,14 @@ export interface SortState {
   direction: SortDirection;
 }
 
+type DisplayColumnKey = ColumnKey | "_score";
+
 type ResultsListProps = {
   results: SearchResultRecord[];
   primarySort: "relevant" | "alphaAsc" | "alphaDesc";
   loading?: boolean;
+  /** k-NN cosine score column immediately before Principal Investigator. */
+  showSimilarityScore?: boolean;
   onOpenDetails?: (item: SearchResultRecord) => void;
   onOpenInvestigator?: (name: string) => void;
   onOpenOrganization?: (name: string) => void;
@@ -49,20 +53,47 @@ interface ColumnDef {
 
 const COLUMNS: ColumnDef[] = [
   { key: "PI_NAMEs",      label: "Principal Investigator"        },
-  { key: "ORG_NAME",      label: "University"    },
   { key: "IC_NAME",       label: "Institution"   },
+  { key: "ORG_NAME",      label: "Organization"  },
   { key: "ORG_STATE",     label: "State"         },
   { key: "ACTIVITY",      label: "Code"          },
   { key: "FY",            label: "FY"            },
   { key: "TOTAL_COST",    label: "Total Cost"    },
 ];
 
-/**
- * Shared 7-column grid template used by both the header and every result row.
- * The negative margins on columns 5–7 compensate for the gap-x-8 on those
- * visually narrower columns (state abbreviation, activity badge, FY badge).
- */
-const CLS_COLS_GRID = "grid grid-cols-[20%_23%_28%_5%_5%_3%_8%] gap-x-8 items-center";
+const SIMILARITY_COLUMN: { key: DisplayColumnKey; label: string } = {
+  key: "_score",
+  label: "Similarity",
+};
+
+function getDisplayColumns(showSimilarityScore: boolean): Array<{ key: DisplayColumnKey; label: string }> {
+  if (!showSimilarityScore) {
+    return COLUMNS;
+  }
+  const [pi, ...rest] = COLUMNS;
+  return [SIMILARITY_COLUMN, pi, ...rest];
+}
+
+function getColsGridClass(showSimilarityScore: boolean): string {
+  return showSimilarityScore
+    ? "grid grid-cols-[8%_17%_26%_21%_5%_5%_3%_10%] gap-x-4 items-center"
+    : "grid grid-cols-[20%_28%_23%_5%_5%_3%_10%] gap-x-4 items-center";
+}
+
+function columnNegMargin(colKey: DisplayColumnKey): string {
+  if (colKey === "ORG_STATE") return "-ml-8";
+  if (colKey === "ACTIVITY") return "-ml-12";
+  if (colKey === "FY") return "-ml-10";
+  return "";
+}
+
+function formatSimilarityScore(score: unknown): string {
+  if (typeof score === "number" && Number.isFinite(score)) {
+    return score.toFixed(4);
+  }
+  const parsed = Number(score);
+  return Number.isFinite(parsed) ? parsed.toFixed(4) : "—";
+}
 
 const CLS_TH_BASE =
   "inline-flex w-fit max-w-full justify-self-start items-center gap-1 bg-transparent border-none px-[0.2rem] py-[0.24rem] cursor-pointer font-sans text-[10px] font-semibold tracking-[0.06em] uppercase rounded-sm transition-[color,background] duration-150 whitespace-nowrap hover:bg-accent-light focus-visible:outline-2 focus-visible:outline-accent focus-visible:outline-offset-1";
@@ -103,7 +134,13 @@ function LinkableCellValue({
 
 // ─── Helpers ─────────────────────────────────────────────────────────────────
 
-function getSortValue(item: SearchResultRecord, column: ColumnKey): string | number {
+function getSortValue(item: SearchResultRecord, column: DisplayColumnKey): string | number {
+  if (column === "_score") {
+    const score = item._score;
+    if (typeof score === "number" && Number.isFinite(score)) return score;
+    const parsed = Number(score);
+    return Number.isFinite(parsed) ? parsed : Number.NEGATIVE_INFINITY;
+  }
   const raw = item[column];
   if (raw == null) return "";
   if (column === "TOTAL_COST") {
@@ -183,20 +220,27 @@ const ChevronIcon: FC<{ direction: SortDirection }> = ({ direction }) => {
   );
 };
 
+type ListSortState = {
+  column: DisplayColumnKey | null;
+  direction: SortDirection;
+};
+
 interface SortHeaderProps {
-  sort: SortState;
-  onSort: (column: ColumnKey) => void;
+  columns: Array<{ key: DisplayColumnKey; label: string }>;
+  colsGridClass: string;
+  sort: ListSortState;
+  onSort: (column: DisplayColumnKey) => void;
 }
 
 // ─── Sticky Header ────────────────────────────────────────────────────────────
 
-const ResultsHeader: FC<SortHeaderProps> = ({ sort, onSort }) => (
+const ResultsHeader: FC<SortHeaderProps> = ({ columns, colsGridClass, sort, onSort }) => (
   <div
-    className={`sticky top-0 z-10 bg-surface-hover border-b-2 border-border-strong px-[1.25rem] py-[0.36rem] ${CLS_COLS_GRID}`}
+    className={`sticky top-0 z-10 bg-surface-hover border-b-2 border-border-strong px-[1.25rem] py-[0.36rem] ${colsGridClass}`}
     role="row"
   >
     <div className="contents">
-      {COLUMNS.map((col, colIndex) => {
+      {columns.map((col) => {
         const isActive = sort.column === col.key && sort.direction !== "none";
         const currentDirection: SortDirection = sort.column === col.key ? sort.direction : "none";
         const ariaSort: AriaAttributes["aria-sort"] =
@@ -208,10 +252,7 @@ const ResultsHeader: FC<SortHeaderProps> = ({ sort, onSort }) => (
               : "none"
             : "none";
 
-        const negMargin =
-          colIndex === 4 ? "-ml-8" :
-          colIndex === 5 ? "-ml-16" :
-          colIndex === 6 ? "-ml-16" : "";
+        const negMargin = columnNegMargin(col.key);
 
         const thClass = cn(
           CLS_TH_BASE,
@@ -226,28 +267,24 @@ const ResultsHeader: FC<SortHeaderProps> = ({ sort, onSort }) => (
           currentDirection === "desc" && "text-sort-desc",
         );
 
-        const headerButton = (
-          <button
-            type="button"
-            className={thClass}
-            role="columnheader"
-            aria-sort={ariaSort}
-            onClick={() => onSort(col.key)}
-            onKeyDown={(e) => {
-              if (e.key === "Enter" || e.key === " ") {
-                e.preventDefault();
-                onSort(col.key);
-              }
-            }}
-          >
-            <span className={labelClass}>{col.label}</span>
-            <ChevronIcon direction={currentDirection} />
-          </button>
-        );
-
         return (
           <Fragment key={col.key}>
-            {headerButton}
+            <button
+              type="button"
+              className={thClass}
+              role="columnheader"
+              aria-sort={ariaSort}
+              onClick={() => onSort(col.key)}
+              onKeyDown={(e) => {
+                if (e.key === "Enter" || e.key === " ") {
+                  e.preventDefault();
+                  onSort(col.key);
+                }
+              }}
+            >
+              <span className={labelClass}>{col.label}</span>
+              <ChevronIcon direction={currentDirection} />
+            </button>
           </Fragment>
         );
       })}
@@ -257,15 +294,18 @@ const ResultsHeader: FC<SortHeaderProps> = ({ sort, onSort }) => (
 
 // ─── Skeleton Row ─────────────────────────────────────────────────────────────
 
-const SkeletonRow: FC = () => (
+const SkeletonRow: FC<{
+  columns: Array<{ key: DisplayColumnKey; label: string }>;
+  colsGridClass: string;
+}> = ({ columns, colsGridClass }) => (
   <div
     className="bg-surface px-[1.25rem] py-[0.4rem] cursor-default pointer-events-none border-b border-border last:border-b-0"
     aria-hidden="true"
   >
-    <div className={`mt-[0.6rem] ${CLS_COLS_GRID}`}>
-      {COLUMNS.map((col) => (
+    <div className={`mt-[0.6rem] ${colsGridClass}`}>
+      {columns.map((col) => (
         <div key={col.key} className="overflow-hidden">
-          <div className="skeleton-line" style={{ width: "70%" }} />
+          <div className="skeleton-line" style={{ width: col.key === "_score" ? "55%" : "70%" }} />
         </div>
       ))}
     </div>
@@ -279,6 +319,8 @@ const SkeletonRow: FC = () => (
 // ─── Result Row ───────────────────────────────────────────────────────────────
 
 interface ResultRowProps {
+  columns: Array<{ key: DisplayColumnKey; label: string }>;
+  colsGridClass: string;
   item: SearchResultRecord;
   onOpenDetails?: (item: SearchResultRecord) => void;
   onOpenInvestigator?: (name: string) => void;
@@ -287,6 +329,8 @@ interface ResultRowProps {
 }
 
 const ResultRow: FC<ResultRowProps> = ({
+  columns,
+  colsGridClass,
   item,
   onOpenDetails,
   onOpenInvestigator,
@@ -334,16 +378,20 @@ const ResultRow: FC<ResultRowProps> = ({
       </div>
 
       {/* Second line: column-aligned metadata strip */}
-      <div className={`mt-[0.6rem] ${CLS_COLS_GRID}`} role="presentation">
-        {COLUMNS.map((col, colIndex) => {
-          const negMargin =
-            colIndex === 4 ? "-ml-8" :
-            colIndex === 5 ? "-ml-16" :
-            colIndex === 6 ? "-ml-16" : "";
+      <div className={`mt-[0.6rem] ${colsGridClass}`} role="presentation">
+        {columns.map((col) => {
+          const negMargin = columnNegMargin(col.key);
 
           return (
             <div key={col.key} className={`overflow-hidden ${negMargin}`} role="cell">
-              {col.key === "PI_NAMEs" ? (
+              {col.key === "_score" ? (
+                <span
+                  className={cn(CLS_CELL_VALUE_BASE, "font-mono text-[11px] tabular-nums")}
+                  title="OpenSearch k-NN similarity score"
+                >
+                  {formatSimilarityScore(item._score)}
+                </span>
+              ) : col.key === "PI_NAMEs" ? (
                 <span className={CLS_CELL_VALUE_BASE}>
                   {orderedPiNames.length > 0 ? (
                     onOpenInvestigator ? (
@@ -374,27 +422,27 @@ const ResultRow: FC<ResultRowProps> = ({
                 </span>
               ) : col.key === "ORG_NAME" ? (
                 <LinkableCellValue
-                  value={cellValues[col.key]}
+                  value={cellValues.ORG_NAME}
                   onActivate={onOpenOrganization}
                 />
               ) : col.key === "IC_NAME" ? (
                 <LinkableCellValue
-                  value={cellValues[col.key]}
+                  value={cellValues.IC_NAME}
                   onActivate={onOpenInstitution}
                 />
               ) : col.key === "ACTIVITY" ? (
                 <span className="inline-block bg-accent-light text-accent-text rounded-full px-[0.42rem] py-[0.12rem] text-[10px] font-medium tracking-[0.01em]">
-                  {cellValues[col.key]}
+                  {cellValues.ACTIVITY}
                 </span>
               ) : col.key === "FY" ? (
                 <span className="inline-block bg-green-light text-green rounded-full px-[0.42rem] py-[0.12rem] text-[10px] font-medium">
-                  {cellValues[col.key]}
+                  {cellValues.FY}
                 </span>
-              ) : (
+              ) : col.key === "TOTAL_COST" || col.key === "ORG_STATE" ? (
                 <span className={CLS_CELL_VALUE_BASE}>
                   {cellValues[col.key]}
                 </span>
-              )}
+              ) : null}
             </div>
           );
         })}
@@ -410,6 +458,7 @@ const ResultsList: FC<ResultsListProps> = ({
   results,
   primarySort,
   loading,
+  showSimilarityScore = false,
   onOpenDetails,
   onOpenInvestigator,
   onOpenOrganization,
@@ -417,13 +466,21 @@ const ResultsList: FC<ResultsListProps> = ({
   sort: controlledSort,
   onSortChange,
 }) => {
+  const displayColumns = useMemo(
+    () => getDisplayColumns(showSimilarityScore),
+    [showSimilarityScore],
+  );
+  const colsGridClass = getColsGridClass(showSimilarityScore);
+
   const isControlled = controlledSort !== undefined && onSortChange !== undefined;
-  const [internalSort, setInternalSort] = useState<SortState>({ column: null, direction: "none" });
-  const sort = isControlled ? controlledSort : internalSort;
+  const [internalSort, setInternalSort] = useState<ListSortState>({ column: null, direction: "none" });
+  const sort: ListSortState = isControlled
+    ? { column: controlledSort.column, direction: controlledSort.direction }
+    : internalSort;
 
   const handleSort = useCallback(
-    (column: ColumnKey) => {
-      const nextSort: SortState = (() => {
+    (column: DisplayColumnKey) => {
+      const nextSort: ListSortState = (() => {
         if (sort.column !== column) {
           return { column, direction: "asc" };
         }
@@ -435,7 +492,11 @@ const ResultsList: FC<ResultsListProps> = ({
       })();
 
       if (isControlled) {
-        onSortChange(nextSort);
+        if (column === "_score") return;
+        onSortChange({
+          column: nextSort.column as ColumnKey | null,
+          direction: nextSort.direction,
+        });
       } else {
         setInternalSort(nextSort);
       }
@@ -468,10 +529,15 @@ const ResultsList: FC<ResultsListProps> = ({
   if (loading) {
     return (
       <div className="flex flex-col gap-px bg-border border border-border rounded-lg overflow-hidden" role="table" aria-label="Search results loading" aria-busy="true">
-        <ResultsHeader sort={sort} onSort={handleSort} />
+        <ResultsHeader
+          columns={displayColumns}
+          colsGridClass={colsGridClass}
+          sort={sort}
+          onSort={handleSort}
+        />
         <div role="rowgroup">
           {Array.from({ length: 5 }).map((_, i) => (
-            <SkeletonRow key={i} />
+            <SkeletonRow key={i} columns={displayColumns} colsGridClass={colsGridClass} />
           ))}
         </div>
       </div>
@@ -508,11 +574,18 @@ const ResultsList: FC<ResultsListProps> = ({
       aria-label="Search results"
       aria-rowcount={results.length}
     >
-      <ResultsHeader sort={sort} onSort={handleSort} />
+      <ResultsHeader
+        columns={displayColumns}
+        colsGridClass={colsGridClass}
+        sort={sort}
+        onSort={handleSort}
+      />
       <div role="rowgroup">
         {sortedResults.map((item, index) => (
           <ResultRow
             key={item._id ?? String(index)}
+            columns={displayColumns}
+            colsGridClass={colsGridClass}
             item={item}
             onOpenDetails={onOpenDetails}
             onOpenInvestigator={onOpenInvestigator}

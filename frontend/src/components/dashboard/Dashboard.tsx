@@ -33,7 +33,7 @@ import LineChartPanel from "../charts/LineChartPanel";
 import ProjectTermsThemeCloud from "./ProjectTermsThemeCloud";
 import StateMap from "./StateMap";
 import TopFundedProjectsPanel from "./TopFundedProjectsPanel";
-import { buildIcProjectsHybridAxisScale } from "../../utils/chartAxis";
+import { buildIcProjectsHybridAxisScale, buildIcProjectsLinearAxisScale, buildLinearBarAxisScale } from "../../utils/chartAxis";
 import { formatDollarsCompact } from "../../utils/format";
 import { cn } from "../../utils/cn";
 import HelpTooltip from "../shared/HelpTooltip";
@@ -44,6 +44,7 @@ import {
   HELP_DASHBOARD_FILTER_IC,
   HELP_DASHBOARD_FILTER_ORG,
   HELP_DASHBOARD_FILTER_PI,
+  HELP_DASHBOARD_FILTER_STATE,
 } from "../../utils/helpContent";
 
 // ─── Formatting helpers ───────────────────────────────────────────────────────
@@ -70,15 +71,43 @@ const IC_HYBRID_LINEAR_MIN = 20_000;
 const IC_HYBRID_LINEAR_MAX_ALL = 80_000;
 const IC_HYBRID_LOG_MIN = 10;
 const IC_HYBRID_LOG_RATIO = 0.38;
+/** Minimum plot height for counts below the log floor (10) so tiny bars stay visible. */
+const IC_HYBRID_MIN_PLOT = 0.035;
+
+function icProjectsLogSectionToPlot(
+  logValue: number,
+  logMin: number,
+  logMax: number,
+  plotMax: number,
+): number {
+  const t = (Math.log10(logValue) - logMin) / (logMax - logMin);
+  return IC_HYBRID_MIN_PLOT + t * (plotMax - IC_HYBRID_MIN_PLOT);
+}
+
+function icProjectsLogSectionToValue(
+  plot: number,
+  logMin: number,
+  logMax: number,
+  plotMax: number,
+): number {
+  if (plot <= IC_HYBRID_MIN_PLOT) {
+    return IC_HYBRID_LOG_MIN;
+  }
+  const t = (plot - IC_HYBRID_MIN_PLOT) / (plotMax - IC_HYBRID_MIN_PLOT);
+  return 10 ** (logMin + t * (logMax - logMin));
+}
 
 function icProjectsValueToPlot(value: number, linearMax: number): number {
+  if (value > 0 && value < IC_HYBRID_LOG_MIN) {
+    return IC_HYBRID_MIN_PLOT;
+  }
   const v = Math.max(value, IC_HYBRID_LOG_MIN);
   const cappedMax = Math.max(linearMax, IC_HYBRID_LOG_MIN);
 
   if (cappedMax <= IC_HYBRID_LINEAR_MIN) {
     const logMin = Math.log10(IC_HYBRID_LOG_MIN);
     const logMax = Math.log10(cappedMax);
-    return (Math.log10(Math.min(v, cappedMax)) - logMin) / (logMax - logMin);
+    return icProjectsLogSectionToPlot(Math.min(v, cappedMax), logMin, logMax, 1);
   }
 
   if (v >= IC_HYBRID_LINEAR_MIN) {
@@ -91,7 +120,7 @@ function icProjectsValueToPlot(value: number, linearMax: number): number {
   }
   const logMin = Math.log10(IC_HYBRID_LOG_MIN);
   const logMax = Math.log10(IC_HYBRID_LINEAR_MIN);
-  return (IC_HYBRID_LOG_RATIO * (Math.log10(v) - logMin)) / (logMax - logMin);
+  return icProjectsLogSectionToPlot(v, logMin, logMax, IC_HYBRID_LOG_RATIO);
 }
 
 function icProjectsPlotToValue(plot: number, linearMax: number): number {
@@ -100,7 +129,7 @@ function icProjectsPlotToValue(plot: number, linearMax: number): number {
   if (cappedMax <= IC_HYBRID_LINEAR_MIN) {
     const logMin = Math.log10(IC_HYBRID_LOG_MIN);
     const logMax = Math.log10(cappedMax);
-    return 10 ** (logMin + plot * (logMax - logMin));
+    return icProjectsLogSectionToValue(plot, logMin, logMax, 1);
   }
 
   if (plot >= IC_HYBRID_LOG_RATIO) {
@@ -112,21 +141,17 @@ function icProjectsPlotToValue(plot: number, linearMax: number): number {
   }
   const logMin = Math.log10(IC_HYBRID_LOG_MIN);
   const logMax = Math.log10(IC_HYBRID_LINEAR_MIN);
-  return 10 ** (logMin + (plot / IC_HYBRID_LOG_RATIO) * (logMax - logMin));
+  return icProjectsLogSectionToValue(plot, logMin, logMax, IC_HYBRID_LOG_RATIO);
 }
 
 const IC_HYBRID_TICK_VALUES_ALL = [
   100, 500, 1000, 5000, 10000, 20000, 30000, 40000, 50000, 80000,
 ] as const;
 
-/** Recharts box height for the year trend line chart. */
-const YEAR_LINE_CHART_HEIGHT = 320;
 /** Recharts box height for the activity funding pie (larger to fit scaled ring radii). */
 const ACTIVITY_PIE_CHART_HEIGHT = 360;
-/** Top organizations shown when dashboard filters are empty. */
-const TOP_ORGS_UNFILTERED_LIMIT = 40;
-/** Top organizations shown when any dashboard filter is active. */
-const TOP_ORGS_FILTERED_LIMIT = 20;
+/** Maximum top organizations shown in the Top Orgs chart. */
+const TOP_ORGS_LIMIT = 30;
 
 /** Grid cell — stretches to match sibling in the map + main-chart row. */
 const MAP_CHART_ROW_CELL_CLASS = "flex h-full min-h-[310px] min-w-0 flex-col";
@@ -141,10 +166,12 @@ const MAIN_CHART_SLOT_BAR_PROPS = {
   xAxisHeight: 46,
   xAxisAngle: -45,
   xAxisFontSize: 12,
+  xAxisTickDx: 10,
   yAxisFontSize: 12,
   yAxisWidth: 60,
-  yAxisTickMargin: 4,
-  chartMargin: { top: 4, right: 4, bottom: 4, left: 0 },
+  yAxisTickMargin: 10,
+  yAxisTickDx: 6,
+  chartMargin: { top: 4, right: 4, bottom: 4, left: 6 },
   barCategoryGap: "10%",
   maxBarSize: 30,
 };
@@ -152,9 +179,9 @@ const MAIN_CHART_SLOT_BAR_PROPS = {
 /** IC projects chart: minimal bottom padding; plot fills panel via fillHeight. */
 const IC_PROJECTS_PANEL_CLASS = cn(
   MAIN_CHART_SLOT_PANEL_CLASS,
-  "!pt-2 pb-0 [&_.recharts-responsive-container]:!mb-0",
+  "pb-0 [&_.recharts-responsive-container]:!mb-0",
 );
-const IC_PROJECTS_CHART_MARGIN = { top: 4, right: 4, bottom: 0, left: 0 };
+const IC_PROJECTS_CHART_MARGIN = { top: 4, right: 4, bottom: 0, left: 6 };
 const IC_PROJECTS_BAR_OVERRIDES = {
   xAxisHeight: 68,
   xAxisTickDy: -4,
@@ -166,10 +193,23 @@ const SECONDARY_CHART_ROW_PANEL_CLASS = cn(
   "flex-1 min-h-[330px]",
 );
 
-/** IC + activity: wider third column; line chart bleeds into horizontal padding like bar charts. */
-const YEAR_CHART_IC_ACTIVITY_PANEL_CLASS = cn(
+/** Top orgs + avg grant footer row — equal columns, charts fill cell height. */
+const BOTTOM_BAR_ROW_CELL_CLASS = "flex h-full min-h-[420px] min-w-0 flex-col";
+const BOTTOM_BAR_ROW_PANEL_CLASS = cn(
   MAIN_CHART_SLOT_PANEL_CLASS,
-  "h-full min-h-0 !px-2 !pt-2 pb-0",
+  "h-full flex-1 min-h-[420px]",
+);
+
+/** Grid cell for Projects & Funding by Year (matches pie/bar row height). */
+const YEAR_CHART_ROW_CELL_CLASS = "flex h-full min-h-[330px] min-w-0 flex-col";
+
+/** Projects & Funding by Year — fills cell width and height like bar charts. */
+const YEAR_CHART_PANEL_CLASS = cn(MAIN_CHART_SLOT_PANEL_CLASS, "h-full flex-1 min-h-0 pb-0");
+
+/** IC + activity: tighter horizontal padding; extra width bleed in narrow column. */
+const YEAR_CHART_IC_ACTIVITY_PANEL_CLASS = cn(
+  YEAR_CHART_PANEL_CLASS,
+  "!px-2",
   "[&_.recharts-responsive-container]:-ml-2 [&_.recharts-responsive-container]:!w-[calc(100%+16px)]",
 );
 
@@ -293,7 +333,7 @@ export default function Dashboard({
   const filterCatalog = useFilterCatalog();
   const [error, setError] = useState<string | null>(null);
   const [refreshing, setRefreshing] = useState(false);
-  /** Log (hybrid) vs linear scale for Projects by Institute (IC); defaults log, linear when state/activity filtered. */
+  /** Log (hybrid) vs linear scale for Projects by Institute (IC); defaults to log. */
   const [icProjectsLogScale, setIcProjectsLogScale] = useState(true);
   const [filterActivityHover, setFilterActivityHover] = useState<string | null>(null);
 
@@ -325,18 +365,6 @@ export default function Dashboard({
       ),
     [appliedFilters, searchQuery],
   );
-
-  const icProjectsDefaultLinear = Boolean(
-    appliedFilters.state || appliedFilters.activity,
-  );
-
-  useEffect(() => {
-    if (icProjectsDefaultLinear) {
-      setIcProjectsLogScale(false);
-    } else if (!hasActiveFilters) {
-      setIcProjectsLogScale(true);
-    }
-  }, [icProjectsDefaultLinear, hasActiveFilters]);
 
   const icProjectsUseLogScale = icProjectsLogScale;
 
@@ -393,17 +421,28 @@ export default function Dashboard({
   }, [data?.icData]);
 
   const icChartHybridScale = useMemo(() => {
-    if (!hasActiveFilters) {
-      return {
-        linearMax: IC_HYBRID_LINEAR_MAX_ALL,
-        tickValues: [...IC_HYBRID_TICK_VALUES_ALL],
-      };
-    }
     const values = icChartRows.map((row) => Number(row.value));
     return buildIcProjectsHybridAxisScale(values, {
       hybridLinearMin: IC_HYBRID_LINEAR_MIN,
+      fallbackLinearMax: IC_HYBRID_LINEAR_MAX_ALL,
+      fallbackTickValues: IC_HYBRID_TICK_VALUES_ALL,
     });
-  }, [icChartRows, hasActiveFilters]);
+  }, [icChartRows]);
+
+  const icChartLinearAxisScale = useMemo(() => {
+    const values = icChartRows.map((row) => Number(row.value));
+    return buildIcProjectsLinearAxisScale(values);
+  }, [icChartRows]);
+
+  const bottomTopOrgsAxisScale = useMemo(() => {
+    const values = (data?.topOrgs ?? []).map((point) => Number(point.total_funding));
+    return buildLinearBarAxisScale(values);
+  }, [data?.topOrgs]);
+
+  const avgGrantAxisScale = useMemo(() => {
+    const values = (data?.avgGrant ?? []).map((point) => Number(point.avg_grant));
+    return buildLinearBarAxisScale(values);
+  }, [data?.avgGrant]);
 
   useEffect(() => {
     const controller = new AbortController();
@@ -431,11 +470,7 @@ export default function Dashboard({
           getActivityFundingPie({ limit: 500, pieSlices: 20 }, analyticsOptions, controller.signal),
           getYearData(analyticsOptions, controller.signal),
           showTopOrgsChart
-            ? getTopOrgs(
-                hasActiveFilters ? TOP_ORGS_FILTERED_LIMIT : TOP_ORGS_UNFILTERED_LIMIT,
-                analyticsOptions,
-                controller.signal,
-              )
+            ? getTopOrgs(TOP_ORGS_LIMIT, analyticsOptions, controller.signal)
             : Promise.resolve([]),
           getAvgGrantByIc(analyticsOptions, controller.signal),
           getTopFundedProjects(analyticsOptions, controller.signal),
@@ -555,14 +590,33 @@ export default function Dashboard({
   const topOrgsPanelFooter = topOrgsBarChartBase ? (
     <BarChartPanel
       title={topOrgsTitle}
-      panelClassName="min-h-[310px]"
+      panelClassName={BOTTOM_BAR_ROW_PANEL_CLASS}
+      valueDomain={[0, bottomTopOrgsAxisScale.axisMax] as [number, number]}
+      valueTicks={bottomTopOrgsAxisScale.tickValues}
       {...topOrgsBarChartBase}
-      layout="horizontal"
-      xAxisFontSize={12}
-      yAxisFontSize={12}
-      animateBars={!refreshing}
+      {...MAIN_CHART_SLOT_BAR_PROPS}
     />
   ) : null;
+
+  const avgGrantPanel = (
+    <BarChartPanel
+      title="Average Grant by Institute"
+      panelClassName={BOTTOM_BAR_ROW_PANEL_CLASS}
+      data={avgGrantChartData}
+      dataKey="avg_grant"
+      labelKey="short_label"
+      tooltipLabelKey="full_label"
+      formatter={formatDollarsCompact}
+      valueDomain={[0, avgGrantAxisScale.axisMax] as [number, number]}
+      valueTicks={avgGrantAxisScale.tickValues}
+      color="#7c3aed"
+      animateBars={!refreshing}
+      {...MAIN_CHART_SLOT_BAR_PROPS}
+    />
+  );
+
+  const showBottomBarRow = !hasIcFilter;
+  const showBottomTopOrgsPanel = showTopOrgsChart && !hasActivityFilter;
 
   const icProjectsScaleToggle = (
     <div className="inline-flex border border-border rounded-[--radius-sm] shrink-0 overflow-hidden" role="group" aria-label="Count axis scale">
@@ -584,7 +638,7 @@ export default function Dashboard({
   );
 
   const icProjectsBarChartProps = {
-    title: "Projects by Institute (IC)",
+    title: "Projects by Institute",
     headerEnd: icProjectsScaleToggle,
     data: icChartRows,
     dataKey: "value",
@@ -607,6 +661,8 @@ export default function Dashboard({
         }
       : {
           valueScale: "linear" as const,
+          valueDomain: [0, icChartLinearAxisScale.axisMax] as [number, number],
+          valueTicks: icChartLinearAxisScale.tickValues,
           formatter: formatCount,
           tooltipFormatter: formatCount,
         }),
@@ -674,17 +730,14 @@ export default function Dashboard({
     <LineChartPanel
       title="Projects & Funding by Year"
       panelClassName={
-        hasIcAndActivityFilter ? YEAR_CHART_IC_ACTIVITY_PANEL_CLASS : "min-h-[330px] flex-1"
+        hasIcAndActivityFilter ? YEAR_CHART_IC_ACTIVITY_PANEL_CLASS : YEAR_CHART_PANEL_CLASS
       }
       compactWidth={hasIcAndActivityFilter}
-      fillHeight={hasIcAndActivityFilter}
+      fillHeight
       data={yearData}
-      height={YEAR_LINE_CHART_HEIGHT}
       formatter={formatDollarsCompact}
       onYearClick={handleYearClick}
-      chartMargin={
-        hasIcAndActivityFilter ? { top: 8, right: 4, bottom: 0, left: 0 } : undefined
-      }
+      chartMargin={{ top: 8, right: 4, bottom: 12, left: 0 }}
     />
   );
 
@@ -704,6 +757,7 @@ export default function Dashboard({
           ic: HELP_DASHBOARD_FILTER_IC,
           org: HELP_DASHBOARD_FILTER_ORG,
           activity: HELP_DASHBOARD_FILTER_ACTIVITY,
+          state: HELP_DASHBOARD_FILTER_STATE,
           fy: HELP_DASHBOARD_FILTER_FY,
         }}
         searchQuery={searchQuery}
@@ -734,9 +788,9 @@ export default function Dashboard({
 
       {/* Chart grid: layout varies by IC/org/activity filter combinations */}
       {omitMapAndMainChartRow ? (
-        <div className="grid grid-cols-2 gap-3 items-stretch min-w-0 max-[768px]:grid-cols-1">
-          <div className="flex flex-col min-w-0">{projectsAndFundingByYearPanel}</div>
-          <div className="flex flex-col min-w-0">{yearRowSecondaryPanel}</div>
+        <div className="grid min-h-[330px] grid-cols-2 gap-3 items-stretch min-w-0 max-[768px]:grid-cols-1">
+          <div className={YEAR_CHART_ROW_CELL_CLASS}>{projectsAndFundingByYearPanel}</div>
+          <div className={YEAR_CHART_ROW_CELL_CLASS}>{yearRowSecondaryPanel}</div>
         </div>
       ) : hasIcAndActivityFilter ? (
         <div className="grid grid-cols-3 items-stretch gap-3 w-full max-w-full min-w-0 max-[768px]:grid-cols-1">
@@ -776,9 +830,9 @@ export default function Dashboard({
           >
             {hasIcFilter && !hasOrgFilter ? topOrgsPanelMainSlot : icProjectsPanel}
           </div>
-          <div className="col-span-full row-start-2 grid grid-cols-2 gap-3 items-stretch min-w-0 max-[768px]:grid-cols-1 max-[768px]:col-auto max-[768px]:row-auto">
-            <div className="flex flex-col min-w-0">{projectsAndFundingByYearPanel}</div>
-            <div className="flex flex-col min-w-0">{yearRowSecondaryPanel}</div>
+          <div className="col-span-full row-start-2 grid min-h-[330px] grid-cols-2 gap-3 items-stretch min-w-0 max-[768px]:grid-cols-1 max-[768px]:col-auto max-[768px]:row-auto">
+            <div className={YEAR_CHART_ROW_CELL_CLASS}>{projectsAndFundingByYearPanel}</div>
+            <div className={YEAR_CHART_ROW_CELL_CLASS}>{yearRowSecondaryPanel}</div>
           </div>
         </div>
       )}
@@ -792,30 +846,19 @@ export default function Dashboard({
         <ProjectTermsThemeCloud payload={termThemeCloud} onSearch={handleTermBrowseSearch} />
       </div>
 
-      {!hasIcFilter && (
+      {!showBottomBarRow ? null : (
         <div
           className={cn(
-            "grid gap-[0.85rem]",
-            !hasActiveFilters
-              ? "grid-cols-1"
-              : "grid-cols-2 [&>*:last-child]:col-span-full max-[768px]:grid-cols-1",
+            "mt-[0.85rem] grid w-full min-h-[420px] items-stretch gap-[0.85rem]",
+            showBottomTopOrgsPanel
+              ? "grid-cols-2 max-[768px]:grid-cols-1"
+              : "grid-cols-1",
           )}
         >
-          {showTopOrgsChart && !hasActivityFilter && topOrgsPanelFooter}
-          <BarChartPanel
-            title="Average Grant by Institute (IC)"
-            panelClassName="min-h-[310px]"
-            data={avgGrantChartData}
-            dataKey="avg_grant"
-            labelKey="short_label"
-            tooltipLabelKey="full_label"
-            layout="horizontal"
-            formatter={formatDollarsCompact}
-            xAxisFontSize={12}
-            yAxisFontSize={12}
-            color="#7c3aed"
-            animateBars={!refreshing}
-          />
+          {showBottomTopOrgsPanel ? (
+            <div className={BOTTOM_BAR_ROW_CELL_CLASS}>{topOrgsPanelFooter}</div>
+          ) : null}
+          <div className={BOTTOM_BAR_ROW_CELL_CLASS}>{avgGrantPanel}</div>
         </div>
       )}
     </div>

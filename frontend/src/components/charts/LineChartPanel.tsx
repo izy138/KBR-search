@@ -13,6 +13,8 @@ import { cn } from "../../utils/cn";
 import {
   CHART_TOOLTIP_ROUNDED_STYLE,
   CLS_CHART_CURSOR_TOOLTIP,
+  CLS_DASHBOARD_PANEL_HEADER,
+  CLS_DASHBOARD_PANEL_SHELL,
   CLS_RECHARTS_FOCUS_RESET,
   RECHARTS_TOOLTIP_CONTENT_STYLE,
   RECHARTS_TOOLTIP_WRAPPER_STYLE,
@@ -28,6 +30,49 @@ type LineDotProps = {
   cy?: number;
   payload?: YearDataPoint;
 };
+
+type ValueAxisTickProps = {
+  x?: number | string;
+  y?: number | string;
+  payload?: { value?: number };
+  textAnchor?: "start" | "end" | "middle" | "inherit";
+};
+
+const MIN_Y_AXIS_TICK_DY = -10;
+
+function isDomainMinTick(tickValue: number, domainMin: number): boolean {
+  if (!Number.isFinite(tickValue) || !Number.isFinite(domainMin)) {
+    return false;
+  }
+  const tolerance = Math.max(Math.abs(domainMin) * 1e-9, 0.5);
+  return Math.abs(tickValue - domainMin) <= tolerance;
+}
+
+function createValueAxisTick(
+  domainMin: number,
+  fontSize: number,
+  format: (value: number) => string,
+  textAnchor: "start" | "end" | "middle",
+) {
+  return function ValueAxisTick(tickProps: ValueAxisTickProps) {
+    const value = Number(tickProps.payload?.value);
+    const label = Number.isFinite(value) ? format(value) : "";
+    const resolvedAnchor =
+      tickProps.textAnchor === "inherit" ? textAnchor : (tickProps.textAnchor ?? textAnchor);
+    return (
+      <text
+        x={tickProps.x}
+        y={tickProps.y}
+        dy={isDomainMinTick(value, domainMin) ? MIN_Y_AXIS_TICK_DY : 0}
+        textAnchor={resolvedAnchor}
+        fill="var(--text-secondary)"
+        fontSize={fontSize}
+      >
+        {label}
+      </text>
+    );
+  };
+}
 
 interface LineChartPanelProps {
   title: string;
@@ -98,16 +143,28 @@ export default function LineChartPanel({
     const chartBody = chartBodyRef.current;
     if (!chartBody) return;
 
+    let rafId = 0;
+    let lastHeight = -1;
+
     const updateHeight = (entries?: ResizeObserverEntry[]): void => {
-      const nextHeight =
-        entries?.[0]?.contentRect.height ?? chartBody.getBoundingClientRect().height;
-      setMeasuredChartHeight(Math.max(Math.round(nextHeight), 0));
+      cancelAnimationFrame(rafId);
+      rafId = requestAnimationFrame(() => {
+        const nextHeight =
+          entries?.[0]?.contentRect.height ?? chartBody.getBoundingClientRect().height;
+        const rounded = Math.max(Math.round(nextHeight), 0);
+        if (Math.abs(rounded - lastHeight) < 1) return;
+        lastHeight = rounded;
+        setMeasuredChartHeight(rounded);
+      });
     };
 
     updateHeight();
     const observer = new ResizeObserver((entries) => updateHeight(entries));
     observer.observe(chartBody);
-    return () => observer.disconnect();
+    return () => {
+      cancelAnimationFrame(rafId);
+      observer.disconnect();
+    };
   }, [fillHeight, data.length]);
 
   const { countAxisDomain, fundingAxisDomain } = useMemo(() => {
@@ -161,10 +218,24 @@ export default function LineChartPanel({
   };
 
   const chartHeight = fillHeight ? Math.max(measuredChartHeight, 1) : height;
+  const yAxisFontSize = compactWidth ? 11 : 13;
+  const leftAxisTick = createValueAxisTick(
+    countAxisDomain[0],
+    yAxisFontSize,
+    (value) => value.toLocaleString(),
+    "end",
+  );
+  const rightAxisTick = createValueAxisTick(
+    fundingAxisDomain[0],
+    yAxisFontSize,
+    fundingFmt,
+    "start",
+  );
 
   const panelClass = cn(
-    "bg-surface border border-border rounded-[--radius-lg] w-full px-4 min-h-[310px]",
-    fillHeight ? "flex h-full min-h-0 flex-col overflow-visible py-0" : "py-[0.9rem]",
+    CLS_DASHBOARD_PANEL_SHELL,
+    "min-h-[310px]",
+    fillHeight ? "flex h-full min-h-0 flex-col overflow-visible pb-0" : "pb-[0.9rem]",
     CLS_RECHARTS_FOCUS_RESET,
     panelClassName,
   );
@@ -183,8 +254,7 @@ export default function LineChartPanel({
               width={compactWidth ? 44 : undefined}
               domain={countAxisDomain}
               allowDataOverflow
-              tick={{ fontSize: compactWidth ? 12 : 14, fill: "var(--text-secondary)" }}
-              tickFormatter={(v: number) => v.toLocaleString()}
+              tick={leftAxisTick}
               axisLine={false}
               tickLine={false}
             />
@@ -194,8 +264,7 @@ export default function LineChartPanel({
               width={compactWidth ? 54 : undefined}
               domain={fundingAxisDomain}
               allowDataOverflow
-              tick={{ fontSize: compactWidth ? 12 : 14, fill: "var(--text-secondary)" }}
-              tickFormatter={fundingFmt}
+              tick={rightAxisTick}
               axisLine={false}
               tickLine={false}
             />
@@ -236,20 +305,14 @@ export default function LineChartPanel({
 
   return (
     <div className={panelClass}>
-      <div
-        className={cn(
-          "shrink-0 text-text-primary text-[0.9rem] font-semibold mb-[0.65rem]",
-          fillHeight ? "pt-2" : "pt-[0.9rem]",
-        )}
-      >
-        {title}
-      </div>
+      <div className={CLS_DASHBOARD_PANEL_HEADER}>{title}</div>
       <div
         ref={chartBodyRef}
         className={cn(
+          "w-full",
           CLS_RECHARTS_FOCUS_RESET,
           onYearClick && "[&_.recharts-layer]:cursor-pointer",
-          fillHeight && "relative min-h-0 w-full flex-1 overflow-visible",
+          fillHeight && "relative min-h-0 flex-1 overflow-visible",
         )}
       >
         {(!fillHeight || chartHeight > 0) &&

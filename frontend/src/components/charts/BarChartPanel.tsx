@@ -3,6 +3,8 @@ import { cn } from "../../utils/cn";
 import {
   CHART_TOOLTIP_ROUNDED_STYLE,
   CLS_CHART_CURSOR_TOOLTIP,
+  CLS_DASHBOARD_PANEL_HEADER,
+  CLS_DASHBOARD_PANEL_SHELL,
   CLS_RECHARTS_FOCUS_RESET,
   RECHARTS_TOOLTIP_CONTENT_STYLE,
   RECHARTS_TOOLTIP_WRAPPER_STYLE,
@@ -34,6 +36,21 @@ type ColoredBarShapeProps = {
   radius?: number | [number, number, number, number];
   payload?: Record<string, unknown>;
   fill?: string;
+};
+
+type CategoryAxisTickProps = {
+  x?: number | string;
+  y?: number | string;
+  payload?: { value?: string | number };
+  textAnchor?: string;
+  verticalAnchor?: string;
+};
+
+const BAR_COLUMN_BACKGROUND = { fill: "transparent" } as const;
+
+const BAR_CLICK_CURSOR = {
+  fill: "var(--accent-light)",
+  style: { pointerEvents: "none" as const },
 };
 
 function createColoredBarShape(
@@ -95,11 +112,15 @@ interface BarChartPanelProps {
   xAxisHeight?: number;
   /** Nudge category tick labels vertically (negative moves up). */
   xAxisTickDy?: number;
+  /** Nudge category tick labels horizontally (positive moves right). */
+  xAxisTickDx?: number;
   xAxisAngle?: number;
   xAxisFontSize?: number;
   yAxisFontSize?: number;
   yAxisWidth?: number;
   yAxisTickMargin?: number;
+  /** Nudge value-axis tick labels horizontally (positive moves right). */
+  yAxisTickDx?: number;
   maxBarSize?: number;
   /** Fixed bar width in px; overrides dynamicBarSize and maxBarSize when set */
   barSize?: number;
@@ -152,11 +173,13 @@ export default function BarChartPanel({
   barFillKey,
   xAxisHeight = 90,
   xAxisTickDy,
+  xAxisTickDx,
   xAxisAngle = -40,
   xAxisFontSize = 10,
   yAxisFontSize = 11,
   yAxisWidth = 100,
   yAxisTickMargin = 9,
+  yAxisTickDx,
   maxBarSize = 40,
   barSize,
   dynamicBarSize = false,
@@ -262,7 +285,11 @@ export default function BarChartPanel({
   };
 
   const valueAxisProps = {
-    tick: { fontSize: yAxisFontSize, fill: "var(--text-secondary)" },
+    tick: {
+      fontSize: yAxisFontSize,
+      fill: "var(--text-secondary)",
+      ...(yAxisTickDx != null ? { dx: yAxisTickDx } : {}),
+    },
     tickFormatter: axisTickFormatter,
     scale: useLogScale ? ("log" as const) : ("linear" as const),
     domain: axisDomain,
@@ -280,17 +307,85 @@ export default function BarChartPanel({
       : undefined);
 
   const panelClass = cn(
-    "bg-surface border border-border rounded-[--radius-lg] w-full px-4 min-h-[310px]",
-    fillHeight ? "flex flex-col min-h-0 h-full overflow-visible py-0" : "py-[0.9rem]",
+    CLS_DASHBOARD_PANEL_SHELL,
+    "min-h-[310px]",
+    fillHeight ? "flex flex-col min-h-0 h-full overflow-visible pb-0" : "pb-[0.9rem]",
     panelClassName,
     CLS_RECHARTS_FOCUS_RESET,
-    onBarClick && "[&_.recharts-bar-rectangle]:cursor-pointer",
+    onBarClick
+      && "[&_.recharts-bar-rectangle]:cursor-pointer [&_.recharts-bar-background-rectangle]:cursor-pointer",
   );
 
   const handleBarClick = (barEntry: { payload?: Record<string, unknown> }): void => {
     if (!onBarClick || !barEntry.payload) return;
     onBarClick(barEntry.payload);
   };
+
+  const handleCategoryLabelClick = useCallback(
+    (categoryLabel: string) => {
+      if (!onBarClick) return;
+      const row = chartData.find((entry) => String(entry[labelKey]) === categoryLabel);
+      if (row) onBarClick(row);
+    },
+    [chartData, labelKey, onBarClick],
+  );
+
+  const renderCategoryAxisTick = useCallback(
+    (tickProps: CategoryAxisTickProps) => {
+      const x = Number(tickProps.x ?? 0) + (xAxisTickDx ?? 0);
+      const y = Number(tickProps.y ?? 0);
+      const label = String(tickProps.payload?.value ?? "");
+      return (
+        <text
+          x={x}
+          y={y}
+          dy={xAxisTickDy ?? 0}
+          textAnchor={xAxisAngle !== 0 ? "end" : "middle"}
+          fill="var(--text-secondary)"
+          fontSize={xAxisFontSize}
+          transform={xAxisAngle !== 0 ? `rotate(${xAxisAngle}, ${x}, ${y})` : undefined}
+          onClick={onBarClick ? () => handleCategoryLabelClick(label) : undefined}
+          style={{ cursor: onBarClick ? "pointer" : undefined }}
+        >
+          {label}
+        </text>
+      );
+    },
+    [handleCategoryLabelClick, onBarClick, xAxisAngle, xAxisFontSize, xAxisTickDy, xAxisTickDx],
+  );
+
+  const useCustomCategoryTick = onBarClick != null || xAxisTickDx != null;
+
+  const renderVerticalCategoryAxisTick = useCallback(
+    (tickProps: CategoryAxisTickProps) => {
+      const x = Number(tickProps.x ?? 0);
+      const y = Number(tickProps.y ?? 0);
+      const label = String(tickProps.payload?.value ?? "");
+      return (
+        <text
+          x={x}
+          y={y}
+          textAnchor="end"
+          fill="var(--text-secondary)"
+          fontSize={11}
+          onClick={onBarClick ? () => handleCategoryLabelClick(label) : undefined}
+          style={{ cursor: onBarClick ? "pointer" : undefined }}
+        >
+          {label}
+        </text>
+      );
+    },
+    [handleCategoryLabelClick, onBarClick],
+  );
+
+  const barInteractionProps = onBarClick
+    ? {
+        background: BAR_COLUMN_BACKGROUND,
+        onClick: handleBarClick,
+      }
+    : {};
+
+  const tooltipCursor = onBarClick ? BAR_CLICK_CURSOR : { fill: "var(--accent-light)" };
 
   const handleChartMouseDownCapture = useCallback((event: MouseEvent<HTMLDivElement>): void => {
     if (event.button !== 0) return;
@@ -333,7 +428,7 @@ export default function BarChartPanel({
         type="category"
         dataKey={labelKey}
         width={140}
-        tick={{ fontSize: 11, fill: "var(--text-secondary)" }}
+        tick={onBarClick ? renderVerticalCategoryAxisTick : { fontSize: 11, fill: "var(--text-secondary)" }}
         interval={0}
         axisLine={false}
         tickLine={false}
@@ -342,7 +437,7 @@ export default function BarChartPanel({
         content={renderTooltip}
         contentStyle={RECHARTS_TOOLTIP_CONTENT_STYLE}
         wrapperStyle={RECHARTS_TOOLTIP_WRAPPER_STYLE}
-        cursor={{ fill: "var(--accent-light)" }}
+        cursor={tooltipCursor}
       />
       <Bar
         dataKey={barDataKey}
@@ -350,7 +445,7 @@ export default function BarChartPanel({
         radius={[0, 3, 3, 0]}
         maxBarSize={24}
         shape={barShape}
-        onClick={onBarClick ? handleBarClick : undefined}
+        {...barInteractionProps}
       />
     </BarChart>
   ) : (
@@ -367,14 +462,14 @@ export default function BarChartPanel({
         type="category"
         dataKey={labelKey}
         height={xAxisHeight}
-        tick={{ fontSize: xAxisFontSize, fill: "var(--text-secondary)" }}
-        angle={xAxisAngle}
+        tick={useCustomCategoryTick ? renderCategoryAxisTick : { fontSize: xAxisFontSize, fill: "var(--text-secondary)" }}
+        angle={useCustomCategoryTick ? 0 : xAxisAngle}
         textAnchor="end"
         interval={0}
         axisLine={false}
         tickLine={false}
         tickMargin={4}
-        {...(xAxisTickDy != null ? { dy: xAxisTickDy } : {})}
+        {...(xAxisTickDy != null && !useCustomCategoryTick ? { dy: xAxisTickDy } : {})}
       />
       <YAxis
         width={yAxisWidth}
@@ -386,7 +481,7 @@ export default function BarChartPanel({
         content={renderTooltip}
         contentStyle={RECHARTS_TOOLTIP_CONTENT_STYLE}
         wrapperStyle={RECHARTS_TOOLTIP_WRAPPER_STYLE}
-        cursor={{ fill: "var(--accent-light)" }}
+        cursor={tooltipCursor}
       />
       <Bar
         dataKey={barDataKey}
@@ -394,8 +489,8 @@ export default function BarChartPanel({
         radius={[3, 3, 0, 0]}
         isAnimationActive={!useVerticalBarAnimation && animateBars}
         shape={barShape}
-        onClick={onBarClick ? handleBarClick : undefined}
         {...(resolvedBarSize != null ? { barSize: resolvedBarSize } : { maxBarSize })}
+        {...barInteractionProps}
       />
     </BarChart>
   );
@@ -404,14 +499,14 @@ export default function BarChartPanel({
     <div className={panelClass}>
       {headerCenter != null || headerEnd != null ? (
         <div className="grid grid-cols-[auto_minmax(0,1fr)_auto] items-center gap-3 mb-[0.65rem]">
-          <div className="text-text-primary text-[0.9rem] font-semibold mb-0 whitespace-nowrap">{title}</div>
+          <div className={cn(CLS_DASHBOARD_PANEL_HEADER, "mb-0 whitespace-nowrap")}>{title}</div>
           {headerCenter != null ? (
             <div className="justify-self-center min-w-0 w-full">{headerCenter}</div>
           ) : null}
           {headerEnd != null ? <div className="justify-self-end">{headerEnd}</div> : null}
         </div>
       ) : (
-        <div className="text-text-primary text-[0.9rem] font-semibold mb-[0.65rem]">{title}</div>
+        <div className={CLS_DASHBOARD_PANEL_HEADER}>{title}</div>
       )}
       <div
         ref={chartBodyRef}
