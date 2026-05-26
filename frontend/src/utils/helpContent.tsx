@@ -9,7 +9,7 @@ export const HELP_DASHBOARD: HelpTooltipContent = {
   label: "Dashboard overview",
   body: (
     <p>
-      The dashboard will update dynamically with filters and clicks to charts you see. Use <strong className="font-semibold text-text-primary">Update Dashboard</strong> to apply typed filters, or <strong className="font-semibold text-text-primary">Search</strong> for the full project list.
+      The dashboard will update dynamically with filters and clicks to charts. Use <strong className="font-semibold text-text-primary">Update Dashboard</strong> to apply typed filters, or <strong className="font-semibold text-text-primary">Search</strong> for the full project list.
     </p>
   ),
 };
@@ -18,7 +18,7 @@ export const HELP_DASHBOARD_FILTER_PI: HelpTooltipContent = {
   label: "Principal Investigator",
   body: (
     <p>
-      Show grants led by this researcher; type their name as it appears in the data or in [FirstName LastName] format. Press <strong className="font-semibold text-text-primary"> Enter</strong> or leave the field to apply.
+      Filters grants led by this researcher; type their name as it appears in the data or in <strong className="font-semibold text-text-primary"> FirstName LastName</strong> format. Press <strong className="font-semibold text-text-primary"> Enter</strong> or leave the field to apply.
     </p>
   ),
 };
@@ -27,7 +27,7 @@ export const HELP_DASHBOARD_FILTER_IC: HelpTooltipContent = {
   label: "NIH Institute / Center",
   body: (
     <p>
-      Show projects funded by the NIH office you pick (for example NCI or NIAID). Charts update right away, or click a bar in <strong className="font-semibold text-text-primary">Projects by Institute</strong>.
+      Filters projects overseen by the institute or center selected.
     </p>
   ),
 };
@@ -37,10 +37,7 @@ export const HELP_DASHBOARD_FILTER_ORG: HelpTooltipContent = {
   body: (
     <>
       <p className="mb-2">
-        Limits dashboard charts and KPIs to awards at the selected funded organization (<strong className="font-semibold text-text-primary">ORG_NAME</strong>).
-      </p>
-      <p>
-        Applies as soon as you pick a value. Combine with institute, activity, state, and other filters.
+        Filters dashboard charts and PIs to projects at the selected funded organization.
       </p>
     </>
   ),
@@ -50,7 +47,7 @@ export const HELP_DASHBOARD_FILTER_ACTIVITY: HelpTooltipContent = {
   label: "Activity code",
   body: (
     <p>
-      Show one award type, such as <strong className="font-semibold text-text-primary">R01</strong> (research grant) or <strong className="font-semibold text-text-primary">F32</strong> (fellowship). Click a pie slice to set this without the dropdown.
+      Filters only one award type, such as <strong className="font-semibold text-text-primary">R01</strong> (research grant) or <strong className="font-semibold text-text-primary">F32</strong> (fellowship). Click a pie slice to set this value as well.
     </p>
   ),
 };
@@ -59,7 +56,7 @@ export const HELP_DASHBOARD_FILTER_STATE: HelpTooltipContent = {
   label: "State",
   body: (
     <p>
-      Show only projects at organizations in that U.S. state (two-letter code like <strong className="font-semibold text-text-primary">CA</strong> or <strong className="font-semibold text-text-primary">NY</strong>). Click a state on the map to set this filter.
+      Filters projects at organizations in that specific U.S. state. Click a state on the map to set this value as well.
     </p>
   ),
 };
@@ -68,7 +65,7 @@ export const HELP_DASHBOARD_FILTER_FY: HelpTooltipContent = {
   label: "Fiscal year",
   body: (
     <p>
-      Limit charts to awards in a range of federal budget years. Drag the slider handles and release to apply.
+      Filters charts to awards in a range of federal budget years. Drag the slider handles and release to apply. You can stack the handles to show one single fiscal year.
     </p>
   ),
 };
@@ -94,7 +91,7 @@ export const HELP_SEARCH: HelpTooltipContent = {
   label: "How search works",
   body: (
     <p>
-      Type words and click <strong className="font-semibold text-text-primary">Search</strong>, or use filters to narrow by person, institute, award type, state, or year. <strong className="font-semibold text-text-primary">Download CSV</strong> exports up to 10,000 matching rows.
+      Type words and click <strong className="font-semibold text-text-primary">Search</strong>, or use filters to narrow by Principal Investigator, institute, award type, state, and/or year. <strong className="font-semibold text-text-primary">Download CSV</strong> exports up to 10,000 matching rows.
     </p>
   ),
 };
@@ -121,7 +118,7 @@ export const HELP_SEARCH_FILTER_PI: HelpTooltipContent = {
   label: "Principal Investigator",
   body: (
     <p>
-      Shows grants where this person is a lead researcher. Press <strong className="font-semibold text-text-primary">Enter</strong> or leave the field, then <strong className="font-semibold text-text-primary">Search</strong> if you also typed keywords.
+      Filters grants led by this researcher; type their name as it appears in the data or in <strong className="font-semibold text-text-primary"> FirstName LastName</strong> format. Press <strong className="font-semibold text-text-primary"> Enter</strong> or leave the field to apply.
     </p>
   ),
 };
@@ -130,7 +127,7 @@ export const HELP_SEARCH_FILTER_IC: HelpTooltipContent = {
   label: "NIH Institute / Center",
   body: (
     <p>
-      Show projects overseen by the institute or center you select. Applies as soon as you pick a value.
+      Filters projects overseen by the institute or center selected.
     </p>
   ),
 };
@@ -140,7 +137,7 @@ export const HELP_SEARCH_FILTER_ORG: HelpTooltipContent = {
   body: (
     <>
       <p className="mb-2">
-        Limits results to projects at the selected funded organization. Applies as soon as you pick a value.
+        Filters results to projects at the selected funded organization.
       </p>
     </>
   ),
