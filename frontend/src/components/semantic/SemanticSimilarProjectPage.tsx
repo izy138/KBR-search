@@ -21,8 +21,8 @@ const CLS_ERROR = "mt-2 text-[0.875rem] text-[#b91c1c] dark:text-[#fca5a5]";
 const CLS_HIT_META =
   "flex flex-wrap gap-[0.35rem_0.5rem] items-center text-[0.78rem] text-text-secondary";
 
-/** API allows up to 50 neighbors; full page uses the same table layout as search. */
-const SIMILAR_FULL_PAGE_K = 50;
+/** API allows up to 100 neighbors; full page uses the same table layout as search. */
+const SIMILAR_FULL_PAGE_K = 100;
 
 function formatUsd(n: number | undefined): string {
   if (n == null || Number.isNaN(Number(n))) return "—";
@@ -162,6 +162,7 @@ export default function SemanticSimilarProjectPage({
             results={neighbors}
             primarySort="relevant"
             loading={loading}
+            showSimilarityScore
             onOpenDetails={handleOpenFromRow}
             onOpenInvestigator={onOpenInvestigator}
             onOpenOrganization={onOpenOrganization}
