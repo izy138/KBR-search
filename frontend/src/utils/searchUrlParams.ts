@@ -56,6 +56,10 @@ export function isSearchPath(pathname: string): boolean {
   return pathname === "/search" || pathname === "/search/";
 }
 
+export function isDashboardPath(pathname: string): boolean {
+  return pathname === "/" || pathname === "/dashboard" || pathname === "/dashboard/";
+}
+
 function parseAdvancedSearch(raw: string | null): AdvancedSearchQuery | null {
   if (!raw?.trim()) return null;
   try {
@@ -148,6 +152,43 @@ export type SearchUrlWriteInput = {
   sortOrder: SearchSortDirection;
   semantic: boolean;
 };
+
+export type DashboardUrlWriteInput = {
+  q: string;
+  pi: string;
+  ic: string;
+  org: string;
+  activity: string;
+  state: string;
+  fyMin: string;
+  fyMax: string;
+  semantic: boolean;
+};
+
+export function buildDashboardUrlParams(input: DashboardUrlWriteInput): URLSearchParams {
+  const params = new URLSearchParams();
+  const { plainQ, advanced } = parseUnifiedSearch(input.q);
+
+  if (advanced && hasAdvancedSearchContent(advanced)) {
+    params.set("advanced_q", JSON.stringify(normalizeAdvancedSearchQuery(advanced)));
+  }
+  const trimmedPlain = plainQ.trim();
+  if (trimmedPlain) {
+    params.set("q", trimmedPlain);
+  }
+
+  if (input.pi) params.set("pi", input.pi);
+  if (input.ic) params.set("ic", input.ic);
+  if (input.org) params.set("org", input.org);
+  if (input.activity) params.set("activity", input.activity);
+  if (input.state) params.set("state", input.state);
+  if (input.fyMin) params.set("fy_min", input.fyMin);
+  if (input.fyMax) params.set("fy_max", input.fyMax);
+
+  if (input.semantic) params.set("semantic", "1");
+
+  return params;
+}
 
 export function buildSearchUrlParams(input: SearchUrlWriteInput): URLSearchParams {
   const params = new URLSearchParams();

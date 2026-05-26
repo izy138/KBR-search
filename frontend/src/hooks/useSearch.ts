@@ -8,7 +8,7 @@ import {
 } from "../api";
 import { parseUnifiedSearch } from "../utils/advancedSearch";
 
-const SEMANTIC_SEARCH_MAX_K = 50;
+const SEMANTIC_SEARCH_MAX_K = 100;
 
 export type UseSearchParams = {
   query: string;

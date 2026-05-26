@@ -377,7 +377,7 @@ export default function Dashboard({
     [appliedFilters, searchQuery],
   );
 
-  const icProjectsUseLogScale = hasOrgFilter ? false : icProjectsLogScale;
+  const icProjectsUseLogScale = icProjectsLogScale;
 
   const handleTermBrowseSearch = useCallback((terms: string[]) => {
     onTermSearchNavigate(terms);
@@ -540,14 +540,10 @@ export default function Dashboard({
   }, [analyticsOptions, hasActiveFilters]);
 
   useEffect(() => {
-    if (appliedFilters.org.trim() !== "") {
-      setIcProjectsLogScale(false);
-      return;
-    }
     if (!hasActiveFilters) {
       setIcProjectsLogScale(true);
     }
-  }, [appliedFilters.org, hasActiveFilters]);
+  }, [hasActiveFilters]);
 
   useEffect(() => {
     const controller = new AbortController();

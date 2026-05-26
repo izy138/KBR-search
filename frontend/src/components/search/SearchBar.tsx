@@ -275,7 +275,7 @@ const SearchBar: FC<SearchBarProps> = ({
 
   const modeToggleControls =
     semanticControl != null || advancedControl != null ? (
-      <div className="flex shrink-0 items-center gap-1">
+      <div className="flex shrink-0 items-center gap-2">
         {semanticControl}
         {advancedControl}
       </div>

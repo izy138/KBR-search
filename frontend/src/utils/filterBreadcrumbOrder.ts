@@ -2,6 +2,24 @@ import type { FilterValues } from "../types/filters";
 
 export type FilterBreadcrumbKey = "state" | "ic" | "org" | "activity";
 
+const PARAM_TO_BREADCRUMB_KEY: Record<string, FilterBreadcrumbKey> = {
+  state: "state",
+  ic: "ic",
+  org: "org",
+  activity: "activity",
+};
+
+export function filterBreadcrumbOrderFromSearchParams(params: URLSearchParams): FilterBreadcrumbKey[] {
+  const order: FilterBreadcrumbKey[] = [];
+  for (const [param, value] of params) {
+    const key = PARAM_TO_BREADCRUMB_KEY[param];
+    if (key && value.trim() && !order.includes(key)) {
+      order.push(key);
+    }
+  }
+  return order;
+}
+
 const FILTER_BREADCRUMB_KEYS: FilterBreadcrumbKey[] = ["state", "ic", "org", "activity"];
 
 function isBreadcrumbFilterActive(filters: FilterValues, key: FilterBreadcrumbKey): boolean {
