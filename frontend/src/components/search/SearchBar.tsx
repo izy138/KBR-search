@@ -7,7 +7,7 @@ import {
   normalizeUnifiedSearch,
   parseUnifiedSearch,
 } from "../../utils/advancedSearch";
-import HelpTooltip from "../shared/HelpTooltip";
+import HelpTooltip, { CLS_HELP_TRIGGER_ON_ACCENT } from "../shared/HelpTooltip";
 import { cn } from "../../utils/cn";
 import { HELP_SEARCH_ADVANCED, HELP_SEARCH_SEMANTIC } from "../../utils/helpContent";
 import AdvancedSearchModal from "./AdvancedSearchModal";
@@ -29,21 +29,61 @@ type SearchBarProps = {
   toolbarEnd?: ReactNode;
 };
 
-const SEARCH_MODE_TOGGLE_LABEL_BASE =
-  "flex cursor-pointer select-none items-center gap-[0.35rem] rounded-sm border px-[0.55rem] py-[0.48rem] font-sans text-[14px] font-medium transition-colors duration-150";
+const SEARCH_MODE_TOGGLE_BTN_BASE =
+  "shrink-0 select-none rounded-sm border px-[0.55rem] py-[0.48rem] font-sans text-[14px] font-medium transition-colors duration-150";
 
-function searchModeToggleLabelClass(active: boolean, disabled: boolean): string {
+function searchModeToggleShellClass(active: boolean, disabled: boolean): string {
   return cn(
-    SEARCH_MODE_TOGGLE_LABEL_BASE,
-    disabled && "cursor-not-allowed opacity-50",
+    SEARCH_MODE_TOGGLE_BTN_BASE,
+    "inline-flex items-center gap-1.5 py-[0.38rem] pl-[0.55rem] pr-[0.4rem]",
+    disabled && "opacity-50",
     active
       ? "border-accent bg-accent text-white hover:bg-accent-hover"
       : "border-accent-hover bg-accent/40 text-text-primary hover:border-accent-hover hover:bg-accent/60",
   );
 }
 
-function searchModeToggleCheckboxClass(active: boolean): string {
-  return cn("h-[0.85rem] w-[0.85rem]", active ? "accent-white" : "accent-accent");
+type SearchModeToggleProps = {
+  label: string;
+  active: boolean;
+  disabled: boolean;
+  onToggle: () => void;
+  helpLabel: string;
+  helpBody: ReactNode;
+};
+
+function SearchModeToggle({
+  label,
+  active,
+  disabled,
+  onToggle,
+  helpLabel,
+  helpBody,
+}: SearchModeToggleProps): JSX.Element {
+  return (
+    <div className={searchModeToggleShellClass(active, disabled)}>
+      <button
+        type="button"
+        className={cn(
+          "cursor-pointer border-none bg-transparent p-0 font-sans text-[14px] font-medium leading-none outline-none",
+          active ? "text-white" : "text-inherit",
+          disabled ? "cursor-not-allowed" : undefined,
+        )}
+        disabled={disabled}
+        aria-pressed={active}
+        onClick={onToggle}
+      >
+        {label}
+      </button>
+      <HelpTooltip
+        label={helpLabel}
+        variant="icon"
+        triggerClassName={active ? CLS_HELP_TRIGGER_ON_ACCENT : undefined}
+      >
+        {helpBody}
+      </HelpTooltip>
+    </div>
+  );
 }
 
 const SearchBar: FC<SearchBarProps> = ({
@@ -103,14 +143,28 @@ const SearchBar: FC<SearchBarProps> = ({
     commitQuery(unified);
   };
 
-  const handleAdvancedCheckboxChange = (checked: boolean) => {
-    if (checked) {
+  const setAdvancedEnabled = (enabled: boolean) => {
+    if (enabled) {
       setAdvancedOpen(true);
       return;
     }
     setAdvancedOpen(false);
     const { plainQ } = parseUnifiedSearch(query);
     setQuery(plainQ);
+  };
+
+  const handleAdvancedClick = () => {
+    if (advancedToggleDisabled) return;
+    if (advancedActive) {
+      setAdvancedEnabled(false);
+      return;
+    }
+    setAdvancedEnabled(true);
+  };
+
+  const handleSemanticClick = () => {
+    if (semanticToggleDisabled || onSemanticModeChange == null) return;
+    onSemanticModeChange(!semanticMode);
   };
 
   const modalInitialQuery = (() => {
@@ -124,50 +178,32 @@ const SearchBar: FC<SearchBarProps> = ({
   const advancedActive = hasAdvancedInBar || advancedOpen;
 
   const advancedControl = showAdvancedToggle ? (
-    <div className="flex shrink-0 items-center gap-1">
-      <label
-        className={searchModeToggleLabelClass(advancedActive, advancedToggleDisabled)}
-      >
-        <input
-          type="checkbox"
-          className={searchModeToggleCheckboxClass(advancedActive)}
-          checked={advancedActive}
-          disabled={advancedToggleDisabled}
-          onChange={(e) => handleAdvancedCheckboxChange(e.target.checked)}
-        />
-        Advanced
-      </label>
-      <HelpTooltip label={HELP_SEARCH_ADVANCED.label}>
-        {HELP_SEARCH_ADVANCED.body}
-      </HelpTooltip>
-    </div>
+    <SearchModeToggle
+      label="Advanced"
+      active={advancedActive}
+      disabled={advancedToggleDisabled}
+      onToggle={handleAdvancedClick}
+      helpLabel={HELP_SEARCH_ADVANCED.label}
+      helpBody={HELP_SEARCH_ADVANCED.body}
+    />
   ) : null;
 
   const semanticControl =
     showSemanticToggle && onSemanticModeChange != null ? (
-      <div className="flex shrink-0 items-center gap-1">
-        <label
-          className={searchModeToggleLabelClass(semanticMode, semanticToggleDisabled)}
-        >
-          <input
-            type="checkbox"
-            className={searchModeToggleCheckboxClass(semanticMode)}
-            checked={semanticMode}
-            disabled={semanticToggleDisabled}
-            onChange={(e) => onSemanticModeChange(e.target.checked)}
-          />
-          Semantic
-        </label>
-        <HelpTooltip label={HELP_SEARCH_SEMANTIC.label}>
-          {HELP_SEARCH_SEMANTIC.body}
-        </HelpTooltip>
-      </div>
+      <SearchModeToggle
+        label="Semantic"
+        active={semanticMode}
+        disabled={semanticToggleDisabled}
+        onToggle={handleSemanticClick}
+        helpLabel={HELP_SEARCH_SEMANTIC.label}
+        helpBody={HELP_SEARCH_SEMANTIC.body}
+      />
     ) : null;
 
   const searchForm = (
     <form
         onSubmit={handleSubmit}
-        className="flex min-w-0 flex-1 items-center gap-2 rounded-md border-2 border-border-input bg-bg px-2 py-[0.3rem] transition-[border-color,box-shadow] duration-150 hover:border-border-strong focus-within:border-accent focus-within:shadow-[0_0_0_3px_rgba(26,86,219,0.1)]"
+        className="flex w-full min-w-0 items-center gap-2 rounded-md border-2 border-border-input bg-bg px-2 py-[0.3rem] transition-[border-color,box-shadow] duration-150 hover:border-border-strong focus-within:border-accent focus-within:shadow-[0_0_0_3px_rgba(26,86,219,0.1)]"
       >
         <svg
           className="h-4 w-4 shrink-0 text-text-muted"
@@ -237,16 +273,23 @@ const SearchBar: FC<SearchBarProps> = ({
       </form>
   );
 
+  const modeToggleControls =
+    semanticControl != null || advancedControl != null ? (
+      <div className="flex shrink-0 items-center gap-1">
+        {semanticControl}
+        {advancedControl}
+      </div>
+    ) : null;
+
   return (
     <>
       {useExpandedLayout ? (
-        <div className="flex w-full min-w-0 flex-col gap-2 min-[901px]:flex-row min-[901px]:items-center min-[901px]:gap-2">
-          <div className="flex w-full min-w-0 items-center justify-center gap-1 min-[901px]:contents min-[901px]:justify-start min-[901px]:gap-2">
-            {semanticControl}
-            {advancedControl}
-            {toolbarEnd}
+        <div className="flex w-full min-w-0 items-center justify-start gap-2">
+          <div className="min-w-0 w-full max-w-[32rem] flex-1 min-[901px]:flex-none">
+            {searchForm}
           </div>
-          <div className="min-w-0 w-full flex-1">{searchForm}</div>
+          {modeToggleControls}
+          {toolbarEnd}
         </div>
       ) : (
         searchForm

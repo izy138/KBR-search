@@ -30,6 +30,23 @@
   --shadow-md: var(--shadow-md);
   --font-sans: 'DM Sans', sans-serif;
   --font-mono: 'DM Mono', monospace;
+  --animate-filter-selected-pulse: filter-selected-glow-pulse 2.25s ease-in-out infinite;
+
+  @keyframes filter-selected-glow-pulse {
+    0%,
+    100% {
+      border-color: var(--accent);
+      box-shadow:
+        0 0 0 1px color-mix(in srgb, var(--accent) 40%, transparent),
+        0 0 10px 2px color-mix(in srgb, var(--accent) 50%, transparent);
+    }
+    50% {
+      border-color: var(--accent);
+      box-shadow:
+        0 0 0 1px color-mix(in srgb, var(--accent) 22%, transparent),
+        0 0 4px 1px color-mix(in srgb, var(--accent) 28%, transparent);
+    }
+  }
 }
 
 html {

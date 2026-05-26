@@ -1,4 +1,9 @@
 import {
+  cloneElement,
+  isValidElement,
+  type ButtonHTMLAttributes,
+  type FocusEvent,
+  type ReactElement,
   type ReactNode,
   useCallback,
   useEffect,
@@ -18,6 +23,9 @@ const PANEL_MAX_WIDTH_PX = 296;
 const CLS_HELP_TRIGGER =
   "border border-green bg-green-light text-[0.72rem] font-semibold leading-none text-green transition-[color,border-color,background] duration-150 hover:border-green hover:bg-green hover:text-white focus-visible:outline-2 focus-visible:outline-green focus-visible:outline-offset-2";
 
+export const CLS_HELP_TRIGGER_ON_ACCENT =
+  "border-white/50 bg-white/15 text-white hover:border-white hover:bg-white hover:text-accent focus-visible:outline-white";
+
 type HelpTooltipPlacement = "below" | "after" | "before";
 
 type HelpTooltipProps = {
@@ -25,6 +33,11 @@ type HelpTooltipProps = {
   children: ReactNode;
   className?: string;
   placement?: HelpTooltipPlacement;
+  /** When set, used as the hover/focus trigger instead of the default “?” icon. */
+  trigger?: ReactElement<ButtonHTMLAttributes<HTMLButtonElement>>;
+  /** Renders only the “?” icon (for nesting beside a label inside a control). */
+  variant?: "default" | "icon";
+  triggerClassName?: string;
 };
 
 type PanelCoords = {
@@ -80,12 +93,28 @@ function clampPanelPosition(
   return { top, left, maxWidth, maxHeight };
 }
 
+function mergeFocusHandlers<E extends Element>(
+  ours: (() => void) | undefined,
+  theirs: ((event: FocusEvent<E>) => void) | undefined,
+): ((event: FocusEvent<E>) => void) | undefined {
+  if (!ours) return theirs;
+  if (!theirs) return () => ours();
+  return (event) => {
+    ours();
+    theirs(event);
+  };
+}
+
 export default function HelpTooltip({
   label,
   children,
   className,
   placement = "below",
+  trigger,
+  variant = "default",
+  triggerClassName,
 }: HelpTooltipProps) {
+  const isIconVariant = variant === "icon";
   const tooltipId = useId();
   const rootRef = useRef<HTMLDivElement>(null);
   const panelRef = useRef<HTMLDivElement>(null);
@@ -114,7 +143,7 @@ export default function HelpTooltip({
       return;
     }
 
-    const anchorEl = rootRef.current?.querySelector("button");
+    const anchorEl = rootRef.current?.firstElementChild as HTMLElement | null;
     const panelEl = panelRef.current;
     if (!anchorEl || !panelEl) return;
 
@@ -155,7 +184,7 @@ export default function HelpTooltip({
     const handleKeyDown = (event: KeyboardEvent) => {
       if (event.key === "Escape") {
         setOpen(false);
-        rootRef.current?.querySelector("button")?.blur();
+        (rootRef.current?.firstElementChild as HTMLElement | null)?.blur();
       }
     };
     document.addEventListener("keydown", handleKeyDown);
@@ -187,28 +216,47 @@ export default function HelpTooltip({
       </div>
     ) : null;
 
+  const defaultTrigger = (
+    <button
+      type="button"
+      className={cn(
+        "inline-flex h-[1.15rem] w-[1.15rem] shrink-0 items-center justify-center rounded-full",
+        CLS_HELP_TRIGGER,
+        triggerClassName,
+      )}
+      aria-label={label}
+      aria-expanded={open}
+      aria-controls={tooltipId}
+      onFocus={show}
+      onBlur={scheduleHide}
+      onMouseEnter={isIconVariant ? show : undefined}
+      onMouseLeave={isIconVariant ? scheduleHide : undefined}
+      onMouseDown={isIconVariant ? (event) => event.stopPropagation() : undefined}
+      onClick={isIconVariant ? (event) => event.stopPropagation() : undefined}
+    >
+      ?
+    </button>
+  );
+
+  const triggerNode =
+    trigger != null && isValidElement(trigger)
+      ? cloneElement<ButtonHTMLAttributes<HTMLButtonElement>>(trigger, {
+          "aria-expanded": open,
+          "aria-controls": tooltipId,
+          onFocus: mergeFocusHandlers(show, trigger.props.onFocus),
+          onBlur: mergeFocusHandlers(scheduleHide, trigger.props.onBlur),
+        })
+      : defaultTrigger;
+
   return (
     <>
       <div
         ref={rootRef}
-        className={cn("relative inline-flex", className)}
-        onMouseEnter={show}
-        onMouseLeave={scheduleHide}
+        className={cn("relative inline-flex shrink-0", className)}
+        onMouseEnter={isIconVariant ? undefined : show}
+        onMouseLeave={isIconVariant ? undefined : scheduleHide}
       >
-        <button
-          type="button"
-          className={cn(
-            "inline-flex h-[1.35rem] w-[1.35rem] shrink-0 items-center justify-center rounded-full",
-            CLS_HELP_TRIGGER,
-          )}
-          aria-label={label}
-          aria-expanded={open}
-          aria-controls={tooltipId}
-          onFocus={show}
-          onBlur={scheduleHide}
-        >
-          ?
-        </button>
+        {triggerNode}
       </div>
       {panel ? createPortal(panel, document.body) : null}
     </>

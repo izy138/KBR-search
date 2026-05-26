@@ -25,7 +25,7 @@ import {
 
 const DEFAULT_CHART_HEIGHT_PX = 360;
 
-/** Inner ring = largest activity codes; outer = remaining named codes up through ZIF plus “Other”. */
+/** Inner ring = largest activity codes; outer = remaining named codes (through ZIF when many codes). */
 const INNER_SLICE_MAX_COUNT = 5;
 /** Smallest inner wedge must be at least this share of inner-ring funding (else → outer). */
 const MIN_INNER_SLICE_SHARE_OF_RING = 0.06;
@@ -34,7 +34,18 @@ const INNER_RING_CUMULATIVE_SHARE_TARGET = 0.88;
 const INNER_SLICE_MIN_COUNT = 2;
 /** Last activity code shown as its own slice; everything after rolls into Other. */
 const LAST_INDIVIDUAL_ACTIVITY_CODE = "ZIF";
-const FALLBACK_OUTER_SLICE_COUNT = 15;
+/** Max named activity wedges on the outer ring; additional codes go to the tail list. */
+const OUTER_SLICE_MAX_COUNT = 7;
+/** Below this count, all activity codes stay on the pie (skip post-ZIF tail-only split). */
+const MAX_ACTIVITY_CODES_ALL_ON_PIE = INNER_SLICE_MAX_COUNT + OUTER_SLICE_MAX_COUNT;
+/** Min share of outer-ring funding for a wedge to remain on the pie (readable label). */
+const MIN_OUTER_SLICE_SHARE_OF_RING = 0.045;
+/** Min share of indexed funding — matches outer `renderSliceLabel` minPct (1.2%). */
+const OUTER_SLICE_MIN_LABEL_PCT_OF_INDEXED = 0.012;
+/** Min share of indexed funding — matches inner `renderSliceLabel` minPct (0.8%). */
+const INNER_SLICE_MIN_LABEL_PCT_OF_INDEXED = 0.008;
+/** Min outer-ring angular size for tiny named codes (chartValue only; label uses true %). */
+const MIN_OUTER_NAMED_SLICE_CHART_SHARE = 0.06;
 const OTHER_SLICE_COLOR = "#64748b";
 /** Cap Other wedge size vs. named slices on the same ring (chart angles only). */
 const OTHER_SLICE_MAX_VS_RING = 0.07;
@@ -52,7 +63,8 @@ const INNER_SLICE_LABEL_CODE_FONT_PX = 14;
 const INNER_SLICE_LABEL_PCT_FONT_PX = 12;
 
 /**
- * Two stacked `<Pie>` rings — inner (top 5) is a filled disk; outer (6…ZIF + Other) is a thin band.
+ * Two stacked `<Pie>` rings — inner (top codes) is a filled disk; outer band holds up to seven
+ * named codes plus an optional Other wedge; overflow is in the tail list.
  * Inner ring area > outer ring area so the center reads as the main chart.
  */
 const INNER_PIE_INNER_RADIUS_PX = 0;
@@ -85,6 +97,10 @@ type PieRow = {
   value: number;
   count: number;
   pct: number;
+  /** Label % of indexed funding (recomputed so rings do not double-count). */
+  labelPct?: number;
+  /** True when chart wedge is enlarged for click/label; label still uses true funding %. */
+  emphasizeOnChart?: boolean;
   isOther?: boolean;
   /** Angular size in the pie (may be less than `value` for the Other slice). */
   chartValue: number;
@@ -105,6 +121,8 @@ interface ActivityFundingPiePanelProps {
   onActivitySelect?: (activityCode: string) => void;
   /** Activity code hovered in the filter dropdown (not shown on pie slices). */
   hoveredActivityCode?: string | null;
+  /** When true, other codes open in an overlay on the pie instead of a side column. */
+  tailListOverlay?: boolean;
 }
 
 type ActivityCodeHoverCardProps = {
@@ -163,6 +181,117 @@ type ActivityCodeInChartPreviewProps = {
   row?: PieRow;
 };
 
+type TailCodesPanelProps = {
+  tailDetailRows: PieRow[];
+  formatDollars: (n: number) => string;
+  selectedActivity: string;
+  onActivitySelect?: (activityCode: string) => void;
+  onTailHoverCode: (code: string | null) => void;
+  className?: string;
+  id?: string;
+  onClose?: () => void;
+};
+
+function TailCodesPanel({
+  tailDetailRows,
+  formatDollars,
+  selectedActivity,
+  onActivitySelect,
+  onTailHoverCode,
+  className,
+  id,
+  onClose,
+}: TailCodesPanelProps) {
+  const overlayClose = onClose != null;
+
+  return (
+    <aside
+      id={id}
+      className={cn(
+        "flex flex-col min-h-0 border border-border-strong rounded-[--radius-md] bg-bg shadow-md",
+        overlayClose ? "p-3" : "pl-[0.9rem] pr-1 py-[0.85rem]",
+        className,
+      )}
+      aria-label="Other Activity Codes"
+    >
+      {overlayClose ? (
+        <button
+          type="button"
+          className="absolute top-3 right-3 z-10 flex h-7 w-7 cursor-pointer items-center justify-center rounded-sm border-none bg-transparent p-0 text-[22px] leading-none text-text-muted hover:text-text-primary focus-visible:outline-2 focus-visible:outline-accent focus-visible:outline-offset-2"
+          aria-label="Close other activity codes"
+          onClick={onClose}
+        >
+          ×
+        </button>
+      ) : null}
+      <div className={cn("mb-1 shrink-0", overlayClose && "pr-8")}>
+        <h4 className="m-0 font-bold leading-[1.25]">Other Activity Codes</h4>
+      </div>
+      <p className="m-0 mb-[0.35rem] leading-[1] text-text-muted">
+        {tailDetailRows.length} codes ·{" "}
+        {formatDollars(tailDetailRows.reduce((acc, r) => acc + r.value, 0))}
+      </p>
+      <ul className="flex-1 min-h-0 m-0 p-0 pr-6 -mr-1 list-none overflow-y-auto [scrollbar-width:thin]">
+        {tailDetailRows.map((row) => {
+          const isSelected = selectedActivity === row.name;
+          const rowInnerClass =
+            "flex w-full flex-col gap-0 rounded-md py-1 px-1.5 text-[0.8125rem] leading-[1.05]";
+          const rowBody = (
+            <>
+              <div className="flex items-baseline justify-between gap-[0.35rem] min-w-0">
+                <span className="font-bold tracking-[0.02em] shrink-0">{row.name}</span>
+                <span className="text-text-secondary text-right whitespace-nowrap">
+                  {formatDollars(row.value)}
+                </span>
+              </div>
+              <span className="text-text-muted">{row.count.toLocaleString()} projects</span>
+            </>
+          );
+
+          const tailHoverHandlers = {
+            onMouseEnter: () => onTailHoverCode(row.name),
+            onMouseLeave: () => onTailHoverCode(null),
+          };
+
+          if (onActivitySelect == null) {
+            return (
+              <li
+                key={row.name}
+                className="border-b-2 border-border-strong px-1.5 py-1 last:border-b-0"
+                {...tailHoverHandlers}
+              >
+                <div className={rowInnerClass}>{rowBody}</div>
+              </li>
+            );
+          }
+
+          return (
+            <li
+              key={row.name}
+              className="border-b-2 border-border-strong px-1.5 py-1 last:border-b-0"
+              {...tailHoverHandlers}
+            >
+              <button
+                type="button"
+                className={cn(
+                  rowInnerClass,
+                  "appearance-none cursor-pointer border-none bg-transparent text-left font-[inherit] transition-[background,color] duration-150 hover:bg-surface-hover focus-visible:outline-2 focus-visible:outline-accent focus-visible:outline-offset-1",
+                  isSelected && "bg-accent-light text-accent-text hover:bg-accent-light",
+                )}
+                aria-pressed={isSelected}
+                aria-label={`Filter dashboard by activity code ${row.name}`}
+                onClick={() => onActivitySelect(row.name)}
+              >
+                {rowBody}
+              </button>
+            </li>
+          );
+        })}
+      </ul>
+    </aside>
+  );
+}
+
 function ActivityCodeInChartPreview({ code, formatDollars, row }: ActivityCodeInChartPreviewProps) {
   return (
     <div className="absolute inset-0 z-20 flex items-center justify-center p-4 pointer-events-none">
@@ -207,10 +336,14 @@ function buildOtherAggregateRow(tail: PieRow[], totalIndexed: number): PieRow {
 function prepareRingRows(rows: PieRow[], ring: "inner" | "outer"): PieRow[] {
   const individuals = rows.filter((r) => !r.isOther);
   const otherIdx = rows.findIndex((r) => r.isOther);
+  const individualsTotal = individuals.reduce((acc, row) => acc + row.value, 0);
+  const minNamedChartValue =
+    ring === "outer" && individuals.length > 0
+      ? individualsTotal * MIN_OUTER_NAMED_SLICE_CHART_SHARE
+      : 0;
 
   let chartValueByOther = 0;
   if (otherIdx >= 0 && individuals.length > 0) {
-    const individualsTotal = individuals.reduce((acc, r) => acc + r.value, 0);
     const largest = Math.max(...individuals.map((r) => r.value));
     const cap = Math.max(
       individualsTotal * OTHER_SLICE_MAX_VS_RING,
@@ -227,9 +360,17 @@ function prepareRingRows(rows: PieRow[], ring: "inner" | "outer"): PieRow[] {
         radialInset: OTHER_RADIAL_INSET_PX,
       };
     }
+    const needsEmphasis =
+      ring === "outer"
+      && minNamedChartValue > 0
+      && (row.emphasizeOnChart || row.value < minNamedChartValue);
+    const chartValue = needsEmphasis
+      ? Math.max(row.value, minNamedChartValue)
+      : row.value;
     return {
       ...row,
-      chartValue: row.value,
+      chartValue,
+      emphasizeOnChart: needsEmphasis || row.emphasizeOnChart,
       radialInset: 0,
     };
   });
@@ -279,36 +420,147 @@ function pickInnerRingSlices(named: PieRow[]): PieRow[] {
   return inner;
 }
 
-function splitPieRows(pie: ActivityFundingPieResponse): {
+/** Slices too small for ring share or indexed % move to the tail list (labels would not render). */
+function deferUndisplayableRingSlices(
+  rows: PieRow[],
+  minShareOfRing: number,
+  minPctOfIndexed: number,
+): { kept: PieRow[]; deferred: PieRow[] } {
+  if (rows.length === 0) {
+    return { kept: [], deferred: [] };
+  }
+  const ringTotal = rows.reduce((acc, row) => acc + row.value, 0);
+  const kept: PieRow[] = [];
+  const deferred: PieRow[] = [];
+  for (const row of rows) {
+    const ringShare = ringTotal > 0 ? row.value / ringTotal : 0;
+    if (ringShare < minShareOfRing || row.pct < minPctOfIndexed) {
+      deferred.push(row);
+    } else {
+      kept.push(row);
+    }
+  }
+  return { kept, deferred };
+}
+
+function mergeTailDetailRows(outerNamed: PieRow[], ...sources: PieRow[][]): PieRow[] {
+  const onPie = new Set(outerNamed.map((row) => row.name));
+  const seen = new Set<string>();
+  const merged: PieRow[] = [];
+  for (const row of sortPieRowsByFunding(sources.flat())) {
+    if (onPie.has(row.name) || seen.has(row.name)) {
+      continue;
+    }
+    seen.add(row.name);
+    merged.push(row);
+  }
+  return merged;
+}
+
+function rowsWithLabelPct(rows: PieRow[], totalFundingIndexed: number): PieRow[] {
+  const denom =
+    totalFundingIndexed > 0
+      ? totalFundingIndexed
+      : rows.reduce((acc, row) => acc + row.value, 0) || 1;
+  return rows.map((row) => ({
+    ...row,
+    labelPct: row.value / denom,
+  }));
+}
+
+function buildOuterRingAndTail(
+  outerCandidates: PieRow[],
+  tailDetailRows: PieRow[],
+  totalFundingIndexed: number,
+): { outerChartData: PieRow[]; tailDetailRows: PieRow[] } {
+  const capped = outerCandidates.slice(0, OUTER_SLICE_MAX_COUNT);
+  const { kept: outerNamed, deferred: tooSmallForOuter } = deferUndisplayableRingSlices(
+    capped,
+    MIN_OUTER_SLICE_SHARE_OF_RING,
+    OUTER_SLICE_MIN_LABEL_PCT_OF_INDEXED,
+  );
+  const outerOverflow = [
+    ...outerCandidates.slice(OUTER_SLICE_MAX_COUNT),
+    ...tooSmallForOuter,
+  ];
+  const mergedTail = mergeTailDetailRows(outerNamed, outerOverflow, tailDetailRows);
+
+  if (mergedTail.length === 1) {
+    const promoted = { ...mergedTail[0], emphasizeOnChart: true };
+    return {
+      outerChartData: sortPieRowsByFunding([...outerNamed, promoted]),
+      tailDetailRows: [],
+    };
+  }
+
+  const outerChartData =
+    mergedTail.length > 0
+      ? [...outerNamed, buildOtherAggregateRow(mergedTail, totalFundingIndexed)]
+      : outerNamed;
+  return { outerChartData, tailDetailRows: mergedTail };
+}
+
+type SplitPieRowsResult = {
   innerChartData: PieRow[];
   outerChartData: PieRow[];
   tailDetailRows: PieRow[];
   usesZifCutoff: boolean;
-} {
+};
+
+function isActivityCodeAfterZif(code: string): boolean {
+  return code.localeCompare(LAST_INDIVIDUAL_ACTIVITY_CODE) > 0;
+}
+
+function distributeAllActivityCodes(
+  ordered: PieRow[],
+  totalFundingIndexed: number,
+): SplitPieRowsResult {
+  const innerPicked = pickInnerRingSlices(ordered);
+  const { kept: innerChartData } = deferUndisplayableRingSlices(
+    innerPicked,
+    MIN_INNER_SLICE_SHARE_OF_RING,
+    INNER_SLICE_MIN_LABEL_PCT_OF_INDEXED,
+  );
+  const keptInnerNames = new Set(innerChartData.map((r) => r.name));
+  const outerPool = sortPieRowsByFunding(
+    ordered.filter((r) => !keptInnerNames.has(r.name)),
+  );
+  const { outerChartData, tailDetailRows } = buildOuterRingAndTail(
+    outerPool,
+    [],
+    totalFundingIndexed,
+  );
+  return { innerChartData, outerChartData, tailDetailRows, usesZifCutoff: false };
+}
+
+function splitPieRows(pie: ActivityFundingPieResponse): SplitPieRowsResult {
   const ordered = sortPieRowsByFunding([
     ...pie.slices.map(rowFromSlice),
     ...(pie.tail_slices ?? []).map(rowFromSlice),
   ]);
-  const zifIdx = ordered.findIndex((r) => r.name === LAST_INDIVIDUAL_ACTIVITY_CODE);
+  const hasZif = ordered.some((r) => r.name === LAST_INDIVIDUAL_ACTIVITY_CODE);
 
-  if (zifIdx < 0) {
-    const innerChartData = pickInnerRingSlices(ordered);
-    const innerNames = new Set(innerChartData.map((r) => r.name));
-    const afterInner = ordered.filter((r) => !innerNames.has(r.name));
-    const outerChartData = afterInner.slice(0, FALLBACK_OUTER_SLICE_COUNT);
-    const tailDetailRows = afterInner.slice(FALLBACK_OUTER_SLICE_COUNT);
-    return { innerChartData, outerChartData, tailDetailRows, usesZifCutoff: false };
+  if (!hasZif || ordered.length <= MAX_ACTIVITY_CODES_ALL_ON_PIE) {
+    return distributeAllActivityCodes(ordered, pie.total_funding_indexed);
   }
 
-  const named = ordered.slice(0, zifIdx + 1);
-  const tailDetailRows = ordered.slice(zifIdx + 1);
-  const innerChartData = pickInnerRingSlices(named);
-  const innerNames = new Set(innerChartData.map((r) => r.name));
-  const outerIndividuals = sortPieRowsByFunding(named.filter((r) => !innerNames.has(r.name)));
-  const outerChartData =
-    tailDetailRows.length > 0
-      ? [...outerIndividuals, buildOtherAggregateRow(tailDetailRows, pie.total_funding_indexed)]
-      : outerIndividuals;
+  const named = ordered.filter((r) => !isActivityCodeAfterZif(r.name));
+  const postZifTail = ordered.filter((r) => isActivityCodeAfterZif(r.name));
+  const innerPicked = pickInnerRingSlices(named);
+  const { kept: innerChartData } = deferUndisplayableRingSlices(
+    innerPicked,
+    MIN_INNER_SLICE_SHARE_OF_RING,
+    INNER_SLICE_MIN_LABEL_PCT_OF_INDEXED,
+  );
+  const keptInnerNames = new Set(innerChartData.map((r) => r.name));
+  const outerCandidates = sortPieRowsByFunding(
+    named.filter((r) => !keptInnerNames.has(r.name)),
+  );
+  const { outerChartData, tailDetailRows } = buildOuterRingAndTail(
+    outerCandidates,
+    postZifTail,
+    pie.total_funding_indexed,
+  );
 
   return { innerChartData, outerChartData, tailDetailRows, usesZifCutoff: true };
 }
@@ -397,7 +649,13 @@ type SliceLabelProps = {
   outerRadius?: number;
   /** Recharts slice share of this ring (0–1, or 0–100 in some versions). */
   percent?: number;
-  payload?: { name: string; pct: number; isOther?: boolean };
+  payload?: {
+    name: string;
+    pct: number;
+    labelPct?: number;
+    emphasizeOnChart?: boolean;
+    isOther?: boolean;
+  };
   minPct?: number;
   compact?: boolean;
   ring?: "inner" | "outer";
@@ -465,8 +723,8 @@ function renderSliceLabel({
   ) {
     return null;
   }
-  const pctAll = row.pct * 100;
-  if (pctAll < minPct) {
+  const pctAll = (row.labelPct ?? row.pct) * 100;
+  if (pctAll < minPct && !row.emphasizeOnChart) {
     return null;
   }
   const RADIAN = Math.PI / 180;
@@ -550,15 +808,24 @@ export default function ActivityFundingPiePanel({
   selectedActivity = "",
   onActivitySelect,
   hoveredActivityCode = null,
+  tailListOverlay = false,
 }: ActivityFundingPiePanelProps) {
   const [tailHoverCode, setTailHoverCode] = useState<string | null>(null);
+  const [tailListOpen, setTailListOpen] = useState(false);
 
   const { innerChartData, outerChartData, tailDetailRows } = useMemo(() => {
     const split = splitPieRows(pie);
+    const totalIndexed = pie.total_funding_indexed;
     return {
       ...split,
-      innerChartData: prepareRingRows(split.innerChartData, "inner"),
-      outerChartData: prepareRingRows(split.outerChartData, "outer"),
+      innerChartData: rowsWithLabelPct(
+        prepareRingRows(split.innerChartData, "inner"),
+        totalIndexed,
+      ),
+      outerChartData: rowsWithLabelPct(
+        prepareRingRows(split.outerChartData, "outer"),
+        totalIndexed,
+      ),
     };
   }, [pie]);
 
@@ -598,6 +865,12 @@ export default function ActivityFundingPiePanel({
     setPieAnimationActive(true);
     pieAnimationEndsRef.current = 0;
   }, [pie, innerChartData, outerChartData]);
+
+  useEffect(() => {
+    if (!tailListOverlay) {
+      setTailListOpen(false);
+    }
+  }, [tailListOverlay]);
 
   useEffect(() => {
     if (!pieAnimationActive || pieRingCount === 0) return;
@@ -684,6 +957,7 @@ export default function ActivityFundingPiePanel({
       className={cn(
         CLS_DASHBOARD_PANEL_SHELL,
         "pb-[0.9rem] text-[14px] min-h-0 transition-opacity duration-200",
+        tailListOverlay && "overflow-visible",
         loading && "opacity-50 pointer-events-none",
       )}
     >
@@ -697,10 +971,17 @@ export default function ActivityFundingPiePanel({
           fuller coverage.
         </p>
       ) : null}
-      <div className={showTailPanel ? "grid grid-cols-[minmax(0,1fr)_minmax(11rem,14rem)] gap-3 items-stretch min-h-[360px] px-1 pb-1" : "min-h-[360px] min-w-0 px-1 pb-1"}>
+      <div
+        className={cn(
+          "min-h-[360px] min-w-0 px-1 pb-1",
+          tailListOverlay && "overflow-visible",
+          showTailPanel && !tailListOverlay
+            && "grid grid-cols-[minmax(0,1fr)_minmax(11rem,14rem)] gap-3 items-stretch",
+        )}
+      >
         <div
           className={cn(
-            "relative w-full min-w-0 overflow-visible [&_svg]:overflow-visible [&_svg]:text-[inherit]",
+            "relative isolate z-0 w-full min-w-0 overflow-visible [&_svg]:overflow-visible [&_svg]:text-[inherit]",
             CLS_RECHARTS_FOCUS_RESET,
             showChartPreview && "[&_svg]:opacity-35",
           )}
@@ -787,76 +1068,53 @@ export default function ActivityFundingPiePanel({
               row={previewRow}
             />
           ) : null}
+          {tailListOverlay && showTailPanel ? (
+            <>
+              <button
+                type="button"
+                className={cn(
+                  "absolute top-2 right-2 z-10 max-w-[calc(100%-1rem)] cursor-pointer rounded-[--radius-sm] border border-border bg-surface px-[0.55rem] py-[0.35rem] font-sans text-[0.75rem] font-semibold text-text-secondary shadow-sm transition-[background,color,border-color] duration-150",
+                  "hover:border-border-strong hover:bg-surface-hover hover:text-text-primary focus-visible:outline-2 focus-visible:outline-accent focus-visible:outline-offset-2",
+                  tailListOpen && "border-accent bg-accent-light text-accent-text",
+                )}
+                aria-expanded={tailListOpen}
+                aria-controls="activity-pie-tail-overlay"
+                onClick={() => setTailListOpen((open) => !open)}
+              >
+                Other codes ({tailDetailRows.length})
+              </button>
+              {tailListOpen ? (
+                <>
+                  <button
+                    type="button"
+                    className="absolute inset-0 z-20 cursor-default border-none bg-black/25 p-0"
+                    aria-label="Close other activity codes"
+                    onClick={() => setTailListOpen(false)}
+                  />
+                  <TailCodesPanel
+                    id="activity-pie-tail-overlay"
+                    tailDetailRows={tailDetailRows}
+                    formatDollars={formatDollars}
+                    selectedActivity={selectedActivity}
+                    onActivitySelect={onActivitySelect}
+                    onTailHoverCode={setTailHoverCode}
+                    onClose={() => setTailListOpen(false)}
+                    className="absolute top-[2.35rem] right-2 z-30 w-[min(14rem,calc(100%-1rem))] max-h-[min(18rem,calc(100%-2.75rem))]"
+                  />
+                </>
+              ) : null}
+            </>
+          ) : null}
         </div>
-        {showTailPanel ? (
-          <aside className="flex flex-col min-h-0 max-h-[360px] pl-[0.9rem] pr-1 py-[0.85rem] border border-border-strong rounded-[--radius-md] bg-bg" aria-label="Other Activity Codes">
-            <div className="flex items-start justify-between gap-2 mb-1">
-              <h4 className="m-0 font-bold leading-[1.25]">
-                Other Activity Codes
-              </h4>
-            </div>
-            <p className="m-0 mb-[0.35rem] leading-[1] text-text-muted ">
-              {tailDetailRows.length} codes ·{" "}
-              {formatDollars(tailDetailRows.reduce((acc, r) => acc + r.value, 0))}
-            </p>
-            <ul className="flex-1 min-h-0 m-0 p-0 pr-6 -mr-1 list-none overflow-y-auto [scrollbar-width:thin]">
-              {tailDetailRows.map((row) => {
-                const isSelected = selectedActivity === row.name;
-                const rowInnerClass =
-                  "flex w-full flex-col gap-0 rounded-md py-1 px-1.5 text-[0.8125rem] leading-[1.05]";
-                const rowBody = (
-                  <>
-                    <div className="flex items-baseline justify-between gap-[0.35rem] min-w-0">
-                      <span className="font-bold tracking-[0.02em] shrink-0">{row.name}</span>
-                      <span className="text-text-secondary text-right whitespace-nowrap">{formatDollars(row.value)}</span>
-                    </div>
-                    <span className="text-text-muted">
-                      {row.count.toLocaleString()} projects
-                    </span>
-                  </>
-                );
-
-                const tailHoverHandlers = {
-                  onMouseEnter: () => setTailHoverCode(row.name),
-                  onMouseLeave: () => setTailHoverCode(null),
-                };
-
-                if (onActivitySelect == null) {
-                  return (
-                    <li
-                      key={row.name}
-                      className="border-b-2 border-border-strong px-1.5 py-1 last:border-b-0"
-                      {...tailHoverHandlers}
-                    >
-                      <div className={rowInnerClass}>{rowBody}</div>
-                    </li>
-                  );
-                }
-
-                return (
-                  <li
-                    key={row.name}
-                    className="border-b-2 border-border-strong px-1.5 py-1 last:border-b-0"
-                    {...tailHoverHandlers}
-                  >
-                    <button
-                      type="button"
-                      className={cn(
-                        rowInnerClass,
-                        "appearance-none cursor-pointer border-none bg-transparent text-left font-[inherit] transition-[background,color] duration-150 hover:bg-surface-hover focus-visible:outline-2 focus-visible:outline-accent focus-visible:outline-offset-1",
-                        isSelected && "bg-accent-light text-accent-text hover:bg-accent-light",
-                      )}
-                      aria-pressed={isSelected}
-                      aria-label={`Filter dashboard by activity code ${row.name}`}
-                      onClick={() => onActivitySelect(row.name)}
-                    >
-                      {rowBody}
-                    </button>
-                  </li>
-                );
-              })}
-            </ul>
-          </aside>
+        {showTailPanel && !tailListOverlay ? (
+          <TailCodesPanel
+            tailDetailRows={tailDetailRows}
+            formatDollars={formatDollars}
+            selectedActivity={selectedActivity}
+            onActivitySelect={onActivitySelect}
+            onTailHoverCode={setTailHoverCode}
+            className="max-h-[360px]"
+          />
         ) : null}
       </div>
     </div>

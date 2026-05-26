@@ -50,7 +50,29 @@ import {
 import { unifiedSearchFromParsed } from "./utils/searchUrlParams";
 import { useFilterCatalog } from "./hooks/useFilterCatalog";
 import type { FilterValues } from "./types/filters";
+import {
+  type FilterBreadcrumbKey,
+  updateFilterBreadcrumbOrder,
+} from "./utils/filterBreadcrumbOrder";
 import { cn } from "./utils/cn";
+
+function initialFilterBreadcrumbOrderFromUrl(): FilterBreadcrumbKey[] {
+  const params = new URLSearchParams(window.location.search);
+  const order: FilterBreadcrumbKey[] = [];
+  const paramToKey: Record<string, FilterBreadcrumbKey> = {
+    state: "state",
+    ic: "ic",
+    org: "org",
+    activity: "activity",
+  };
+  for (const [param, value] of params) {
+    const key = paramToKey[param];
+    if (key && value.trim() && !order.includes(key)) {
+      order.push(key);
+    }
+  }
+  return order;
+}
 
 const Dashboard = lazy(() => import("./components/dashboard/Dashboard"));
 const ProjectDetailsPage = lazy(() => import("./components/project/ProjectDetailsPage"));
@@ -87,6 +109,9 @@ export default function App() {
     () => initialSearchUrl?.activity ?? "",
   );
   const [selectedState, setSelectedState] = useState(() => initialSearchUrl?.state ?? "");
+  const [filterBreadcrumbOrder, setFilterBreadcrumbOrder] = useState<FilterBreadcrumbKey[]>(
+    initialFilterBreadcrumbOrderFromUrl,
+  );
   const [fyMin, setFyMin] = useState(() => initialSearchUrl?.fyMin ?? "");
   const [fyMax, setFyMax] = useState(() => initialSearchUrl?.fyMax ?? "");
 
@@ -305,6 +330,9 @@ export default function App() {
     [selectedPI, selectedIC, selectedOrg, selectedActivity, selectedState, fyMin, fyMax],
   );
 
+  const appliedFiltersRef = useRef(appliedFilters);
+  appliedFiltersRef.current = appliedFilters;
+
   const filterCatalog = useMemo(
     () => ({
       icNames: searchFilterCatalog?.icNames ?? [],
@@ -395,7 +423,10 @@ export default function App() {
     excludeProjectTermFilters,
   ]);
 
-  const handleApplyFilters = (filters: FilterValues) => {
+  const handleApplyFilters = useCallback((filters: FilterValues) => {
+    setFilterBreadcrumbOrder((order) =>
+      updateFilterBreadcrumbOrder(order, appliedFiltersRef.current, filters),
+    );
     setSelectedPI(filters.pi);
     setSelectedIC(filters.ic);
     setSelectedOrg(filters.org);
@@ -404,9 +435,10 @@ export default function App() {
     setFyMin(filters.fyMin);
     setFyMax(filters.fyMax);
     setCurrentPage(1);
-  };
+  }, []);
 
   const handleClearFilters = useCallback(() => {
+    setFilterBreadcrumbOrder([]);
     setSelectedPI("");
     setSelectedIC("");
     setSelectedOrg("");
@@ -691,6 +723,7 @@ export default function App() {
                 onUpdateDashboard={handleDashboardQueryUpdate}
                 onSearchNavigate={handleDashboardSearchNavigate}
                 appliedFilters={appliedFilters}
+                filterBreadcrumbOrder={filterBreadcrumbOrder}
                 onApplyFilters={handleApplyFilters}
                 onClearFilters={handleClearFilters}
                 onTermSearchNavigate={handleDashboardTermSearchNavigate}

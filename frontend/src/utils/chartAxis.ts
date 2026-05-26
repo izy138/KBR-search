@@ -9,7 +9,10 @@ function niceStepForMagnitude(value: number): number {
   if (v >= 10_000) return 10_000;
   if (v >= 1_000) return 1_000;
   if (v >= 100) return 100;
-  return 10;
+  if (v >= 10) return 10;
+  if (v >= 5) return 5;
+  if (v >= 2) return 2;
+  return 1;
 }
 
 /** Round up to a clean axis maximum (e.g. 92,400 → 100,000). */
@@ -72,9 +75,11 @@ export type IcProjectsHybridAxisScale = {
 /** Round up IC project count axis max for linear Projects by Institute chart. */
 export function roundUpIcProjectsLinearAxisMax(maxValue: number): number {
   if (!Number.isFinite(maxValue) || maxValue <= 0) {
-    return 25;
+    return 1;
   }
-  if (maxValue < 25) return 25;
+  if (maxValue < 25) {
+    return niceAxisCeil(maxValue, 0);
+  }
   if (maxValue < 50) return 50;
   if (maxValue < 75) return 75;
   if (maxValue <= 100) return 100;
@@ -103,7 +108,27 @@ export function computeIcLogAxisMax(dataMax: number): number {
   if (dataMax < IC_HYBRID_LINEAR_MIN_DEFAULT) {
     return Math.ceil(dataMax / 5000) * 5000;
   }
-  return niceAxisCeil(dataMax, 0);
+  return roundUpIcProjectsLinearAxisMax(dataMax);
+}
+
+/** Tick step for the hybrid IC chart linear segment above hybridLinearMin. */
+function chooseIcHybridLinearUpperStep(linearSpan: number): number {
+  if (linearSpan <= 0) {
+    return 1_000;
+  }
+  if (linearSpan <= 2_500) {
+    return 1_000;
+  }
+  if (linearSpan <= 6_000) {
+    return 2_000;
+  }
+  if (linearSpan <= 15_000) {
+    return 5_000;
+  }
+  if (linearSpan <= 50_000) {
+    return 10_000;
+  }
+  return niceStepForMagnitude(linearSpan / 3);
 }
 
 function computeIcLogMiddleTick(linearMax: number): number | null {
@@ -152,7 +177,7 @@ function buildIcHybridTickValues(linearMax: number, hybridLinearMin: number): nu
   ticks.add(hybridLinearMin);
 
   const linearSpan = linearMax - hybridLinearMin;
-  const step = niceStepForMagnitude(linearSpan / 3);
+  const step = chooseIcHybridLinearUpperStep(linearSpan);
   let value = Math.ceil(hybridLinearMin / step) * step;
   if (value <= hybridLinearMin) {
     value += step;
@@ -165,18 +190,49 @@ function buildIcHybridTickValues(linearMax: number, hybridLinearMin: number): nu
   return [...ticks].sort((a, b) => a - b);
 }
 
-function buildIcProjectsLinearTickValues(axisMax: number): number[] {
-  if (axisMax <= 25) return [0, 25];
-  if (axisMax <= 50) return [0, 25, 50];
-  if (axisMax <= 75) return [0, 25, 50, 75];
-  if (axisMax <= 100) return [0, 25, 50, 75, 100];
+function buildIntegerEvenTickValues(axisMax: number, tickCount: number): number[] {
+  const intervals = Math.max(1, tickCount - 1);
+  const ticks: number[] = [];
+  for (let index = 0; index <= intervals; index += 1) {
+    ticks.push(Math.round((axisMax * index) / intervals));
+  }
+  const unique: number[] = [];
+  for (const tick of ticks) {
+    if (!unique.includes(tick)) {
+      unique.push(tick);
+    }
+  }
+  if (unique[unique.length - 1] !== axisMax) {
+    unique.push(axisMax);
+  }
+  return unique;
+}
 
-  const step = axisMax < 10_000 ? 100 : 1_000;
+const IC_PROJECTS_LINEAR_MAX_TICKS = 6;
+
+/** Smallest nice step that keeps tick count at or below IC_PROJECTS_LINEAR_MAX_TICKS. */
+function roundUpIcProjectsLinearTickStep(minStep: number): number {
+  if (!Number.isFinite(minStep) || minStep <= 0) {
+    return 1;
+  }
+  const magnitude = niceStepForMagnitude(minStep);
+  return Math.ceil(minStep / magnitude) * magnitude;
+}
+
+function buildIcProjectsLinearTickValues(axisMax: number): number[] {
+  if (axisMax <= 100) {
+    return buildIntegerEvenTickValues(axisMax, 4);
+  }
+
+  const maxIntervals = IC_PROJECTS_LINEAR_MAX_TICKS - 1;
+  const step = roundUpIcProjectsLinearTickStep(axisMax / maxIntervals);
   const ticks: number[] = [0];
   for (let value = step; value < axisMax; value += step) {
     ticks.push(value);
   }
-  ticks.push(axisMax);
+  if (ticks[ticks.length - 1] !== axisMax) {
+    ticks.push(axisMax);
+  }
   return ticks;
 }
 
@@ -184,7 +240,7 @@ function buildIcProjectsLinearTickValues(axisMax: number): number[] {
 export function buildIcProjectsLinearAxisMax(values: number[]): number {
   const positives = values.filter((v) => Number.isFinite(v) && v > 0);
   if (positives.length === 0) {
-    return 25;
+    return 1;
   }
   return roundUpIcProjectsLinearAxisMax(Math.max(...positives));
 }
@@ -208,27 +264,20 @@ export type LinearBarAxisScale = {
   tickValues: number[];
 };
 
-function computeBarAxisStep(dataMax: number, targetTickCount: number): number {
-  let step = niceStepForMagnitude(dataMax / Math.max(targetTickCount - 1, 1));
-  while (dataMax / step > targetTickCount - 1) {
-    step *= 2;
+/** Evenly spaced ticks from 0 through axisMax (inclusive). */
+function buildEvenLinearBarTickValues(axisMax: number, tickCount: number): number[] {
+  const intervals = Math.max(1, tickCount - 1);
+  const ticks: number[] = [];
+  for (let index = 0; index <= intervals; index += 1) {
+    ticks.push((axisMax * index) / intervals);
   }
-  return step;
-}
-
-function buildLinearBarTickValues(axisMax: number, step: number): number[] {
-  const ticks = [0];
-  for (let value = step; value < axisMax - step * 0.001; value += step) {
-    ticks.push(value);
-  }
-  ticks.push(axisMax);
   return ticks;
 }
 
 /** Axis max and evenly spaced y-axis ticks for funding/count bar charts. */
 export function buildLinearBarAxisScale(
   values: number[],
-  targetTickCount = 5,
+  targetTickCount = 4,
 ): LinearBarAxisScale {
   const positives = values.filter((v) => Number.isFinite(v) && v > 0);
   if (positives.length === 0) {
@@ -237,11 +286,11 @@ export function buildLinearBarAxisScale(
 
   const dataMax = Math.max(...positives);
   const axisMax = niceAxisCeil(dataMax, 0);
-  const step = computeBarAxisStep(axisMax, targetTickCount);
+  const tickCount = Math.min(5, Math.max(3, targetTickCount));
 
   return {
     axisMax,
-    tickValues: buildLinearBarTickValues(axisMax, step),
+    tickValues: buildEvenLinearBarTickValues(axisMax, tickCount),
   };
 }
 

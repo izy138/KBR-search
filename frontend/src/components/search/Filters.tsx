@@ -6,6 +6,7 @@ import {
 import { useFilterDraft } from "../../hooks/useFilterDraft";
 import type { FilterValues } from "../../types/filters";
 import { hasActiveFilters, normalizeFiltersOnApply } from "../../types/filters";
+import { CLS_FILTER_CONTROL_ACTIVE } from "../../utils/filterFieldStyles";
 import { buildCascadingSelectOptions } from "../../utils/cascadingFilterOptions";
 import {
   formatAllCapsLabel,
@@ -114,6 +115,8 @@ type FiltersProps = {
   helpTooltip?: ReactNode;
   /** Dashboard: drives activity-code preview in the funding pie chart area. */
   onActivityCodeHover?: (code: string | null) => void;
+  /** Dashboard: highlight applied facet filters with pulsing border. */
+  highlightActiveFilters?: boolean;
 };
 
 function FiltersIcon() {
@@ -150,8 +153,17 @@ function Filters({
   searchSlot,
   helpTooltip,
   onActivityCodeHover,
+  highlightActiveFilters = false,
 }: FiltersProps) {
   const { draft, patch, resetDraft } = useFilterDraft(applied);
+
+  const isAppliedFilterActive = useCallback(
+    (key: SelectFieldKey | "pi"): boolean => {
+      if (!highlightActiveFilters) return false;
+      return Boolean(applied[key].trim());
+    },
+    [applied, highlightActiveFilters],
+  );
   const cascadingAvailability = useCascadingFilterAvailability(draft);
   const [filtersMenuOpen, setFiltersMenuOpen] = useState(false);
   const mobileMenuRef = useRef<HTMLDivElement>(null);
@@ -258,7 +270,10 @@ function Filters({
           className={piWidth}
         >
           <input
-            className="box-border w-full min-h-[2.5rem] rounded-sm border-2 border-border-input bg-bg px-[0.7rem] py-[0.48rem] font-sans text-[14px] leading-[1.35] text-text-primary outline-none transition-[border-color] duration-150 hover:border-border-strong focus:border-accent placeholder:text-text-muted"
+            className={cn(
+              "box-border w-full min-h-[2.5rem] rounded-sm border-2 border-border-input bg-bg px-[0.7rem] py-[0.48rem] font-sans text-[14px] leading-[1.35] text-text-primary outline-none transition-[border-color] duration-150 hover:border-border-strong focus:border-accent placeholder:text-text-muted",
+              isAppliedFilterActive("pi") && CLS_FILTER_CONTROL_ACTIVE,
+            )}
             type="text"
             placeholder="Type PI name"
             value={draft.pi}
@@ -292,6 +307,7 @@ function Filters({
           >
             <FilterSelect
               value={draft[field.key]}
+              active={isAppliedFilterActive(field.key)}
               onChange={(value) => {
                 const next = { ...draft, [field.key]: value };
                 patch({ [field.key]: value });
@@ -384,12 +400,7 @@ function Filters({
         <div className="absolute top-2.5 right-3 z-10">{helpTooltip}</div>
       ) : null}
       {searchContent ? (
-        <div
-          className={cn(
-            "relative min-w-0 w-full mx-auto pt-0.5 pb-1",
-            showSemanticToggle ? "max-w-[860px]" : "max-w-[720px]",
-          )}
-        >
+        <div className="relative min-w-0 w-full pt-0.5 pb-1">
           {searchContent}
           {filtersMenuOpen ? (
             <div
@@ -415,7 +426,7 @@ function Filters({
         </div>
       ) : null}
 
-      <div className="mx-auto flex min-w-0 w-full max-w-full flex-wrap items-end justify-center gap-5 max-[900px]:hidden">
+      <div className="flex min-w-0 w-full flex-wrap items-end justify-start gap-5 max-[900px]:hidden">
         {renderFilterFields("desktop")}
 
         <div className="shrink-0">
