@@ -10,7 +10,14 @@ from typing import Annotated
 from fastapi import APIRouter, Depends, HTTPException, Query
 
 from .opensearch_client import get_client, get_index_name
-from .query_filters import analytics_filter_params, with_query_filters
+from .query_filters import (
+  AnalyticsScope,
+  analytics_scope,
+  analytics_scope_keyword_kwargs,
+  normalize_core_num,
+  normalize_recurrence_title,
+  with_query_filters,
+)
 
 router = APIRouter()
 INDEX_NAME = get_index_name()
@@ -334,9 +341,169 @@ def get_funding_value(source: dict[str, object]) -> float:
   return 0.0
 
 
+_TOP_FUNDED_SOURCE_FIELDS = [
+  "PROJECT_TITLE",
+  "PI_NAMEs",
+  "TOTAL_COST",
+  "FY",
+  "ACTIVITY",
+  "ORG_STATE",
+  "IC_NAME",
+  "ORG_NAME",
+  "CORE_PROJECT_NUM",
+]
+_TOP_FUNDED_FETCH_CAP = 100
+
+
+def _parse_fy_value(raw: object) -> int | None:
+  if raw is None or raw == "":
+    return None
+  try:
+    return int(raw)
+  except (TypeError, ValueError):
+    return None
+
+
+def _recurrence_title_from_source(source: dict[str, object]) -> str | None:
+  title = source.get("PROJECT_TITLE")
+  if isinstance(title, str):
+    stripped = title.strip()
+    if stripped:
+      return stripped
+  return None
+
+
+def _top_funded_recurrence_key(source: dict[str, object], doc_id: str) -> str:
+  """Match search recurrence: title first so year rows without CORE_PROJECT_NUM still merge."""
+  title = _recurrence_title_from_source(source)
+  if title:
+    return f"title:{normalize_recurrence_title(title)}"
+  core = source.get("CORE_PROJECT_NUM")
+  if isinstance(core, str):
+    stripped = core.strip()
+    if stripped:
+      return f"core:{normalize_core_num(stripped)}"
+  return f"id:{doc_id}"
+
+
+def _first_core_from_entries(entries: list[dict[str, object]]) -> str | None:
+  for entry in entries:
+    source = entry.get("source")
+    if not isinstance(source, dict):
+      continue
+    core = source.get("CORE_PROJECT_NUM")
+    if isinstance(core, str):
+      stripped = core.strip()
+      if stripped:
+        return stripped
+  return None
+
+
+def _top_funded_hit_entry(hit: dict[str, object]) -> dict[str, object]:
+  source = hit.get("_source", {})
+  if not isinstance(source, dict):
+    source = {}
+  doc_id = str(hit.get("_id", ""))
+  return {
+    "doc_id": doc_id,
+    "source": source,
+    "fy": _parse_fy_value(source.get("FY")),
+    "funding": get_funding_value(source),
+  }
+
+
+def _serialize_top_funded_project(entry: dict[str, object], *, group: list[dict[str, object]]) -> dict[str, object]:
+  source = entry.get("source", {})
+  if not isinstance(source, dict):
+    source = {}
+  display_fy = entry.get("fy")
+  fy_counts: dict[int, int] = {}
+  for item in group:
+    fy = item.get("fy")
+    if isinstance(fy, int):
+      fy_counts[fy] = fy_counts.get(fy, 0) + 1
+
+  fy_has_duplicates = isinstance(display_fy, int) and fy_counts.get(display_fy, 0) > 1
+  other_fiscal_years = sorted(
+    (fy for fy in fy_counts if fy != display_fy),
+    reverse=True,
+  )
+  duplicate_fy_count = fy_counts.get(display_fy, 0) if fy_has_duplicates else None
+
+  return {
+    "project_id": str(entry.get("doc_id", "")),
+    "title": str(source.get("PROJECT_TITLE") or "").strip()
+    or f"Project {entry.get('doc_id', '')}",
+    "pi_names": str(source.get("PI_NAMEs") or "").strip(),
+    "total_funding": entry.get("funding", 0.0),
+    "fy": display_fy,
+    "fy_has_duplicates": fy_has_duplicates,
+    "other_fiscal_years": other_fiscal_years,
+    "duplicate_fy_count": duplicate_fy_count,
+    "activity": str(source.get("ACTIVITY") or "").strip(),
+    "state": str(source.get("ORG_STATE") or "").strip(),
+    "institute": str(source.get("IC_NAME") or "").strip(),
+    "organization": str(source.get("ORG_NAME") or "").strip(),
+  }
+
+
+def _dedupe_top_funded_hits(hits: list[dict[str, object]], *, limit: int) -> list[dict[str, object]]:
+  """Collapse recurring awards; keep the highest-funded fiscal year row per grant."""
+  groups: dict[str, list[dict[str, object]]] = {}
+  order: list[str] = []
+  for hit in hits:
+    if not isinstance(hit, dict):
+      continue
+    source = hit.get("_source", {})
+    if not isinstance(source, dict):
+      source = {}
+    key = _top_funded_recurrence_key(source, str(hit.get("_id", "")))
+    if key not in groups:
+      order.append(key)
+    groups.setdefault(key, []).append(_top_funded_hit_entry(hit))
+
+  core_index: dict[str, str] = {}
+  remove_keys: set[str] = set()
+  for key in order:
+    if key in remove_keys:
+      continue
+    entries = groups.get(key, [])
+    core = _first_core_from_entries(entries)
+    if not core:
+      continue
+    norm_core = normalize_core_num(core)
+    existing_key = core_index.get(norm_core)
+    if existing_key is not None and existing_key != key:
+      groups[existing_key].extend(entries)
+      remove_keys.add(key)
+      continue
+    core_index[norm_core] = key
+
+  merged_order = [key for key in order if key not in remove_keys]
+  rows: list[dict[str, object]] = []
+  for key in merged_order:
+    group = groups.get(key, [])
+    if not group:
+      continue
+    representative = max(
+      group,
+      key=lambda item: (
+        item.get("funding") if isinstance(item.get("funding"), (int, float)) else 0.0,
+        item.get("fy") if isinstance(item.get("fy"), int) else -1,
+      ),
+    )
+    rows.append(_serialize_top_funded_project(representative, group=group))
+
+  rows.sort(
+    key=lambda row: row.get("total_funding") if isinstance(row.get("total_funding"), (int, float)) else 0.0,
+    reverse=True,
+  )
+  return rows[:limit]
+
+
 @router.get("/summary")
 def analytics_summary(
-  filters: Annotated[list[dict[str, object]], Depends(analytics_filter_params)],
+  scope: Annotated[AnalyticsScope, Depends(analytics_scope)],
 ) -> dict[str, object]:
   client = get_client()
   body = with_query_filters(
@@ -351,7 +518,8 @@ def analytics_summary(
         "unique_activities": {"cardinality": {"field": "ACTIVITY.keyword"}},
       },
     },
-    filters,
+    scope.filters,
+    **analytics_scope_keyword_kwargs(scope),
   )
   response = client.search(index=INDEX_NAME, body=body)
 
@@ -372,7 +540,7 @@ def analytics_summary(
 
 @router.get("/by-state")
 def analytics_by_state(
-  filters: Annotated[list[dict[str, object]], Depends(analytics_filter_params)],
+  scope: Annotated[AnalyticsScope, Depends(analytics_scope)],
 ) -> list[dict[str, object]]:
   client = get_client()
   body = with_query_filters(
@@ -387,7 +555,8 @@ def analytics_by_state(
         },
       },
     },
-    filters,
+    scope.filters,
+    **analytics_scope_keyword_kwargs(scope),
   )
   response = client.search(index=INDEX_NAME, body=body)
   buckets = response.get("aggregations", {}).get("by_state", {}).get("buckets", [])
@@ -399,6 +568,7 @@ def analytics_by_state(
       "total_funding": b.get("total_funding", {}).get("value", 0.0),
     }
     for b in buckets
+    if str(b.get("key", "")).strip()
   ]
   results.sort(key=lambda x: x["total_funding"], reverse=True)
   return results
@@ -406,7 +576,7 @@ def analytics_by_state(
 
 @router.get("/by-ic")
 def analytics_by_ic(
-  filters: Annotated[list[dict[str, object]], Depends(analytics_filter_params)],
+  scope: Annotated[AnalyticsScope, Depends(analytics_scope)],
   fy: int | None = Query(default=None, ge=2000, le=2100, description="Optional fiscal year filter"),
 ) -> list[dict[str, object]]:
   client = get_client()
@@ -419,7 +589,11 @@ def analytics_by_ic(
   }
 
   if fy is None:
-    body = with_query_filters({"size": 0, "aggs": {"all_ics": all_ics_agg}}, filters)
+    body = with_query_filters(
+      {"size": 0, "aggs": {"all_ics": all_ics_agg}},
+      scope.filters,
+      **analytics_scope_keyword_kwargs(scope),
+    )
     response = client.search(index=INDEX_NAME, body=body)
     buckets = response.get("aggregations", {}).get("all_ics", {}).get("buckets", [])
     return [{"label": b["key"], "value": b["doc_count"]} for b in buckets]
@@ -439,7 +613,8 @@ def analytics_by_ic(
         },
       },
     },
-    filters,
+    scope.filters,
+    **analytics_scope_keyword_kwargs(scope),
   )
   response = client.search(index=INDEX_NAME, body=body)
   all_buckets = response.get("aggregations", {}).get("all_ics", {}).get("buckets", [])
@@ -454,14 +629,49 @@ def analytics_by_ic(
   return [{"label": b["key"], "value": counts.get(b["key"], 0)} for b in all_buckets]
 
 
+@router.get("/by-org")
+def analytics_by_org(
+  scope: Annotated[AnalyticsScope, Depends(analytics_scope)],
+  limit: int = Query(default=100, ge=1, le=500, description="Max organizations to return"),
+  min_projects: int = Query(
+    default=5001,
+    ge=1,
+    description="Minimum indexed awards per org (5001 = more than 5,000 projects)",
+  ),
+) -> list[dict[str, object]]:
+  client = get_client()
+  body = with_query_filters(
+    {
+      "size": 0,
+      "aggs": {
+        "all_orgs": {
+          "terms": {
+            "field": "ORG_NAME.keyword",
+            "size": limit,
+            "min_doc_count": min_projects,
+            "order": {"_count": "desc"},
+          },
+        },
+      },
+    },
+    scope.filters,
+    **analytics_scope_keyword_kwargs(scope),
+  )
+  response = client.search(index=INDEX_NAME, body=body)
+  buckets = response.get("aggregations", {}).get("all_orgs", {}).get("buckets", [])
+  return [{"label": b["key"], "value": b["doc_count"]} for b in buckets]
+
+
 def _activity_funding_buckets(
   client: object,
   *,
   bucket_size: int,
-  filters: list[dict[str, object]] | None = None,
+  scope: AnalyticsScope | None = None,
 ) -> tuple[list[dict[str, object]], dict[str, object]]:
   """Return (activity buckets, root aggregations) from a single search."""
   size = max(1, min(bucket_size, 500))
+  filters = scope.filters if scope else []
+  keyword_kwargs = analytics_scope_keyword_kwargs(scope) if scope else {"q": ""}
   body = with_query_filters(
     {
       "size": 0,
@@ -481,7 +691,8 @@ def _activity_funding_buckets(
         },
       },
     },
-    filters or [],
+    filters,
+    **keyword_kwargs,
   )
   response = client.search(index=INDEX_NAME, body=body)
   aggs = response.get("aggregations", {})
@@ -491,11 +702,11 @@ def _activity_funding_buckets(
 
 @router.get("/by-activity")
 def analytics_by_activity(
-  filters: Annotated[list[dict[str, object]], Depends(analytics_filter_params)],
+  scope: Annotated[AnalyticsScope, Depends(analytics_scope)],
   limit: int = Query(default=50, ge=1, le=200, description="Max activity codes to return"),
 ) -> list[dict[str, object]]:
   client = get_client()
-  buckets, _ = _activity_funding_buckets(client, bucket_size=limit, filters=filters)
+  buckets, _ = _activity_funding_buckets(client, bucket_size=limit, scope=scope)
 
   results = [
     {
@@ -510,7 +721,7 @@ def analytics_by_activity(
 
 @router.get("/by-activity-funding-pie")
 def analytics_by_activity_funding_pie(
-  filters: Annotated[list[dict[str, object]], Depends(analytics_filter_params)],
+  scope: Annotated[AnalyticsScope, Depends(analytics_scope)],
   limit: int = Query(
     default=80,
     ge=10,
@@ -533,7 +744,7 @@ def analytics_by_activity_funding_pie(
 ) -> dict[str, object]:
   """JSON for dashboard pie: activity code share of TOTAL_COST (indexed data = export pipeline)."""
   client = get_client()
-  buckets, aggs = _activity_funding_buckets(client, bucket_size=limit, filters=filters)
+  buckets, aggs = _activity_funding_buckets(client, bucket_size=limit, scope=scope)
   global_total = float(aggs.get("total_funding_all", {}).get("value") or 0.0)
 
   rows = [
@@ -635,18 +846,22 @@ def analytics_project_term_theme_cloud() -> dict[str, object]:
   buckets = payload.get("buckets")
   if not isinstance(buckets, list):
     buckets = []
+  tree = payload.get("tree")
+  if not isinstance(tree, list):
+    tree = []
   return {
     "generated_at": payload.get("generated_at"),
     "method": payload.get("method"),
     "low_confidence_cosine": payload.get("low_confidence_cosine"),
     "buckets": buckets,
+    "tree": tree,
     "source_path": str(path.resolve()),
   }
 
 
 @router.get("/by-year")
 def analytics_by_year(
-  filters: Annotated[list[dict[str, object]], Depends(analytics_filter_params)],
+  scope: Annotated[AnalyticsScope, Depends(analytics_scope)],
 ) -> list[dict[str, object]]:
   client = get_client()
   body = with_query_filters(
@@ -665,7 +880,8 @@ def analytics_by_year(
         },
       },
     },
-    filters,
+    scope.filters,
+    **analytics_scope_keyword_kwargs(scope),
   )
   response = client.search(index=INDEX_NAME, body=body)
   buckets = response.get("aggregations", {}).get("by_year", {}).get("buckets", [])
@@ -682,7 +898,8 @@ def analytics_by_year(
 
 @router.get("/top-orgs")
 def analytics_top_orgs(
-  filters: Annotated[list[dict[str, object]], Depends(analytics_filter_params)],
+  scope: Annotated[AnalyticsScope, Depends(analytics_scope)],
+  limit: int = Query(default=15, ge=1, le=50),
 ) -> list[dict[str, object]]:
   client = get_client()
   body = with_query_filters(
@@ -692,7 +909,7 @@ def analytics_top_orgs(
         "top_orgs": {
           "terms": {
             "field": "ORG_NAME.keyword",
-            "size": 15,
+            "size": limit,
             "order": {"total_funding": "desc"},
           },
           "aggs": {
@@ -701,7 +918,8 @@ def analytics_top_orgs(
         },
       },
     },
-    filters,
+    scope.filters,
+    **analytics_scope_keyword_kwargs(scope),
   )
   response = client.search(index=INDEX_NAME, body=body)
   buckets = response.get("aggregations", {}).get("top_orgs", {}).get("buckets", [])
@@ -715,9 +933,33 @@ def analytics_top_orgs(
   ]
 
 
+@router.get("/top-funded-projects")
+def analytics_top_funded_projects(
+  scope: Annotated[AnalyticsScope, Depends(analytics_scope)],
+  limit: int = Query(default=15, ge=1, le=15),
+) -> list[dict[str, object]]:
+  """Return the highest-funded projects matching dashboard filters and keyword scope."""
+  client = get_client()
+  fetch_size = min(_TOP_FUNDED_FETCH_CAP, max(limit * 30, 180))
+  body = with_query_filters(
+    {
+      "size": fetch_size,
+      "_source": _TOP_FUNDED_SOURCE_FIELDS,
+      "sort": [{"TOTAL_COST": {"order": "desc", "unmapped_type": "double"}}],
+    },
+    scope.filters,
+    **analytics_scope_keyword_kwargs(scope),
+  )
+  response = client.search(index=INDEX_NAME, body=body)
+  hits = response.get("hits", {}).get("hits", [])
+  if not isinstance(hits, list):
+    return []
+  return _dedupe_top_funded_hits(hits, limit=limit)
+
+
 @router.get("/avg-grant-by-ic")
 def analytics_avg_grant_by_ic(
-  filters: Annotated[list[dict[str, object]], Depends(analytics_filter_params)],
+  scope: Annotated[AnalyticsScope, Depends(analytics_scope)],
 ) -> list[dict[str, object]]:
   client = get_client()
   body = with_query_filters(
@@ -736,7 +978,8 @@ def analytics_avg_grant_by_ic(
         },
       },
     },
-    filters,
+    scope.filters,
+    **analytics_scope_keyword_kwargs(scope),
   )
   response = client.search(index=INDEX_NAME, body=body)
   buckets = response.get("aggregations", {}).get("by_ic", {}).get("buckets", [])
@@ -874,18 +1117,19 @@ def analytics_by_activity_project_compare(
 
 @router.get("/term-tree")
 def analytics_term_tree() -> list[dict[str, object]]:
-  """Return the static 3-level NIH research term hierarchy for the frontend term-cloud browser.
+  """Return the 3-level term hierarchy for the TermCloud browser.
 
-  The hierarchy is hardcoded — no OpenSearch lookup is performed. Leaf labels
-  are drawn from NIH PROJECT_TERMS vocabulary and organised into 6 top-level
-  categories: Health, Life Sciences, Computing & AI, Environmental, Engineering,
-  and Education & Social Sciences.
-
-  Returns:
-    A list of top-level category nodes. Each node contains:
-      - id (str): dot-notation identifier.
-      - label (str): human-readable name.
-      - children (list[dict]): subcategory nodes, each with the same shape.
-        Leaf nodes omit the ``children`` key.
+  Uses ``tree`` from ``project_term_theme_counts.json`` when present (built from
+  ``THEME_TAXONOMY`` in ``indexer/build_project_term_theme_counts.py``). Otherwise
+  falls back to the static ``_TERM_HIERARCHY``.
   """
+  path = _THEME_COUNTS_PATH
+  if path.is_file():
+    try:
+      payload = json.loads(path.read_text(encoding="utf-8"))
+      tree = payload.get("tree")
+      if isinstance(tree, list) and tree:
+        return tree
+    except (OSError, json.JSONDecodeError):
+      pass
   return _TERM_HIERARCHY

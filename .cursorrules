@@ -1,0 +1,64 @@
+# Styling Convention
+
+- Use Tailwind utility classes exclusively for all component styling.
+- Never create or edit CSS class rules in .css files (styles.css is for CSS custom properties and the filter-select portal only).
+- Never use BEM naming (block__element--modifier) or semantic className values that require a stylesheet.
+- Every className must resolve to Tailwind utilities or reference a constant from utils/.
+- Use the `cn()` utility from `utils/cn.ts` for conditional/dynamic classes.
+- Reusable class compositions live in `utils/chartStyles.ts`, `utils/sharedStyles.ts`, or `utils/filtersLayout.ts` as exported string constants (CLS_* naming).
+- For SVG elements inside Recharts, use inline `style` props — Tailwind cannot target SVG internals.
+- For Recharts portaled components, use `wrapperStyle` prop or arbitrary variants like `[&_.recharts-class]:utility`.
+- CSS custom properties are defined in `styles.css` (:root) and mapped to Tailwind via `@theme` in `index.css`.
+
+# Available Theme Tokens
+
+Colors: bg, surface, surface-hover, border, border-strong, text-primary, text-secondary, text-muted, accent, accent-hover, accent-light, accent-text, green, green-light, tag-bg, tag-text, sort-asc, sort-desc
+Radii: radius-sm (6px), radius-md (10px), radius-lg (14px)
+Shadows: shadow-sm, shadow-md
+Fonts: font-sans (DM Sans), font-mono (DM Mono)
+
+# Usage Examples
+
+```tsx
+// Correct: Tailwind utility classes
+<div className={cn(CLS_CHART_PANEL, "min-h-[330px]")}>
+
+// Correct: conditional classes
+<button className={cn(CLS_CHART_SCALE_TOGGLE_BTN, isActive && CLS_CHART_SCALE_TOGGLE_BTN_ACTIVE)}>
+
+// Wrong: BEM class requiring stylesheet
+<div className="chart-panel chart-panel--pie">
+```
+
+# Dashboard & Chart Performance (do not regress)
+
+These rules exist because of confirmed regressions (layout thrashing, bar flicker on hover, lag when picking an institute). Do not change or remove them without explicitly re-testing all dashboard bar charts with the mouse held over the chart during load and filter changes.
+
+## Dashboard layout (`Dashboard.tsx`)
+
+- The state-map + main-chart grid row must use **`items-stretch`** and the same cell wrapper class on both columns (`MAP_CHART_ROW_CELL_CLASS`: `flex h-full min-h-[310px] flex-col`). Both `StateMap` and `BarChartPanel` (`fillHeight`, `h-full flex-1`) must fill their cell. Do **not** set a fixed `height`/`maxHeight` on only the chart column from a JS measurement of the map — that locks the chart shorter than the row when the grid stretches.
+- When filters change, refetch only **filter-aware** analytics endpoints. Do not re-call endpoints that ignore filters (e.g. `getProjectTermThemeCloud()`) on every `analyticsOptions` change — load those once on mount.
+- Do not remount heavy chart panels on every filter change via a composite `key` (e.g. `activityPieFilterKey`) unless unavoidable; prefer updating `data` / `pie` props.
+- While filtered data is refetching (`refreshing`), pass `suppressAnimation` (or equivalent) to bar charts so bars snap instead of re-animating on stale data.
+- Defer swapping the main slot from IC chart → Top Orgs until fresh data is ready when the IC filter was **just** applied (avoid showing stale org data mid-fetch).
+
+## Bar charts (`BarChartPanel.tsx`, `VerticalOnlyBarShape.tsx`)
+
+- **Do not combine** `barAnimation="vertical"` (custom `VerticalOnlyBarShape` + per-bar `requestAnimationFrame` + `setState`) with mouse-driven parent re-renders. That pairing caused bars to rise/fall repeatedly on hover. Default: use Recharts built-in animation (`barAnimation` omitted or `"default"`).
+- **Do not** drive bar-chart tooltips with React state updated on every `mousemove` (e.g. `useChartCursorTooltip` setting position state each frame). Tooltips must not force a full `BarChartPanel` re-render on cursor movement. Use Recharts’ anchored tooltip or update a fixed overlay via DOM refs without re-rendering the chart.
+- **Do not** tie `VerticalOnlyBarShape` bar ids to Recharts’ `x` coordinate; use stable payload fields (`full_label`, `short_label`, etc.).
+- `ResizeObserver` for `fillHeight`: debounce with `requestAnimationFrame`, ignore sub-pixel height deltas (< 1px), prefer `getBoundingClientRect().height` over raw `offsetHeight` if layout is in flux.
+- Avoid `syncVerticalBarSnapKey` / `clearVerticalBarHeightStore` running in render in ways that reset animation during unrelated parent updates.
+
+## Recharts tooltips & cursor
+
+- `Tooltip` `cursor` highlight on horizontal bar charts is allowed; it must not be the only guard if custom bar shapes are used — custom shapes must tolerate Recharts relayout without restarting animation.
+- `useChartCursorTooltip` is acceptable on **line** charts (`LineChartPanel.tsx`) where there are no custom per-bar RAF animations. Do not wire the same mousemove→setState pattern into `BarChartPanel` without the DOM-ref pattern above.
+
+## Before merging dashboard/chart changes
+
+Manually verify on `/dashboard`:
+
+1. Projects by Institute — load chart, keep mouse moving over bars during and after animation: bars must not oscillate.
+2. Click an institute bar — filter applies without prolonged jank; Top Orgs chart appears with stable bars.
+3. Apply/clear filters — no full-page chart remount flicker; pie chart does not replay its 700ms intro animation on every filter tweak unless data truly requires it.

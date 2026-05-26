@@ -6,29 +6,44 @@ from concurrent.futures import ThreadPoolExecutor
 import logging
 from typing import Any
 
+import re
+
 from fastapi import APIRouter, HTTPException, Path, Query
+from fastapi.responses import Response
 
 from .embeddings import EMBEDDING_FIELD, embed_query, get_dimension, get_model_name
+from .og_export import (
+    MAX_EXPORT_ROWS,
+    build_export_csv,
+    list_og_files,
+    load_og_rows,
+    normalize_application_id,
+    normalize_fy,
+    ordered_export_rows,
+    resolve_export_columns,
+)
 from .opensearch_client import get_client, get_index_name
+from .query_filters import (
+  SEARCH_FIELDS,
+  build_keyword_must_clauses,
+  build_project_filters,
+  normalize_core_num,
+  normalize_recurrence_title,
+  parse_advanced_q_param,
+)
 
 router = APIRouter()
 
 MAX_PROJECT_TERM_FILTERS = 20
 MAX_PROJECT_TERM_LENGTH = 200
+MAX_QUERY_LENGTH = 1_000
 
 INDEX_NAME = get_index_name()
 MAX_RESULT_WINDOW = 10_000
 
-SEARCH_FIELDS = [
-    "PROJECT_TITLE^4",
-    "PROJECT_TERMS^2",
-    "PI_NAMEs^2",
-    "ORG_NAME",
-    "IC_NAME",
-    "ACTIVITY",
-]
 SIMILAR_DEFAULT_K = 10
-SIMILAR_MAX_K = 50
+SIMILAR_MAX_K = 100
+SIMILAR_FETCH_CAP = 200  # Raw k-NN pool before recurrence grouping (can return fewer than k unique awards).
 HYBRID_DEFAULT_K = 10
 HYBRID_MAX_K = 50
 RRF_K_CONST = 60  # Standard smoothing constant from the original RRF paper.
@@ -39,20 +54,26 @@ _index_embedding_dimension: int | None = None
 logger = logging.getLogger(__name__)
 
 
+def _cache_index_embedding_dimension(client: Any) -> None:
+    """Read embedding dimension from the index mapping (does not load the model)."""
+    global _index_embedding_dimension
+    if _index_embedding_dimension is not None:
+        return
+    try:
+        mapping = client.indices.get_mapping(index=INDEX_NAME)
+        index_block = mapping.get(INDEX_NAME, {})
+        properties = index_block.get("mappings", {}).get("properties", {})
+        embedding = properties.get(EMBEDDING_FIELD, {})
+        dimension = embedding.get("dimension")
+        if isinstance(dimension, int):
+            _index_embedding_dimension = dimension
+    except Exception:
+        return
+
+
 def _require_matching_embedding_dimension(client: Any) -> None:
     """Fail fast when the runtime model does not match the index mapping."""
-    global _index_embedding_dimension
-    if _index_embedding_dimension is None:
-        try:
-            mapping = client.indices.get_mapping(index=INDEX_NAME)
-            index_block = mapping.get(INDEX_NAME, {})
-            properties = index_block.get("mappings", {}).get("properties", {})
-            embedding = properties.get(EMBEDDING_FIELD, {})
-            dimension = embedding.get("dimension")
-            if isinstance(dimension, int):
-                _index_embedding_dimension = dimension
-        except Exception:
-            return
+    _cache_index_embedding_dimension(client)
 
     if _index_embedding_dimension is None:
         return
@@ -92,14 +113,189 @@ def _normalize_project_terms(raw: list[str]) -> list[str]:
     return out
 
 
+SORT_FIELD_MAP: dict[str, str] = {
+    "PROJECT_TITLE": "PROJECT_TITLE.keyword",
+    "PI_NAMEs": "PI_NAMEs.keyword",
+    "ORG_NAME": "ORG_NAME.keyword",
+    "IC_NAME": "IC_NAME.keyword",
+    "ORG_STATE": "ORG_STATE.keyword",
+    "ACTIVITY": "ACTIVITY.keyword",
+    "FY": "FY",
+    "TOTAL_COST": "TOTAL_COST",
+}
+
+NUMERIC_SORT_FIELDS = frozenset({"FY", "TOTAL_COST"})
+
+
+def _must_is_scored(must: list[dict[str, object]]) -> bool:
+    if len(must) == 1 and must[0] == {"match_all": {}}:
+        return False
+    return bool(must)
+
+
+def _build_search_sort(
+    sort_by: str,
+    sort_order: str,
+    *,
+    must: list[dict[str, object]],
+) -> list[dict[str, object]]:
+    """Map API sort params to OpenSearch sort clauses."""
+    normalized_order = "desc" if sort_order.strip().lower() == "desc" else "asc"
+    stripped = sort_by.strip()
+    if not stripped:
+        if _must_is_scored(must):
+            return [{"_score": {"order": "desc"}}]
+        return []
+
+    os_field = SORT_FIELD_MAP.get(stripped)
+    if os_field is None:
+        raise HTTPException(status_code=400, detail=f"Unsupported sort_by field: {stripped}")
+
+    unmapped_type = "long" if stripped in NUMERIC_SORT_FIELDS else "keyword"
+    return [{os_field: {"order": normalized_order, "unmapped_type": unmapped_type}}]
+
+
+def _build_search_bool_query(
+    *,
+    q: str,
+    parsed_advanced: tuple[list[dict[str, object]], list[str]] | None,
+    normalized_terms: list[str],
+    normalized_exclude_terms: list[str],
+    category: str,
+    pi: str,
+    ic: str,
+    org: str,
+    activity: str,
+    state: str,
+    fy_min: int | None,
+    fy_max: int | None,
+) -> tuple[dict[str, object], list[dict[str, object]]]:
+    must: list[dict[str, object]] = []
+    must_not: list[dict[str, object]] = []
+    if parsed_advanced is not None:
+        adv_clauses, adv_operators = parsed_advanced
+        must.extend(
+            build_keyword_must_clauses(
+                q,
+                advanced_clauses=adv_clauses,
+                advanced_operators=adv_operators,
+            ),
+        )
+    else:
+        must.extend(build_keyword_must_clauses(q))
+    for term in normalized_terms:
+        must.append(
+            {"match": {"PROJECT_TERMS": {"query": term, "operator": "and"}}},
+        )
+    for term in normalized_exclude_terms:
+        must_not.append(
+            {"match": {"PROJECT_TERMS": {"query": term, "operator": "and"}}},
+        )
+    if not must:
+        must.append({"match_all": {}})
+    if category:
+        must.append({"term": {"category.keyword": category}})
+    filters = build_project_filters(
+        pi=pi, ic=ic, org=org, activity=activity,
+        state=state, fy_min=fy_min, fy_max=fy_max,
+    )
+    if len(must) == 1 and not filters and not must_not:
+        return must[0], must
+    bool_query: dict[str, object] = {"must": must}
+    if filters:
+        bool_query["filter"] = filters
+    if must_not:
+        bool_query["must_not"] = must_not
+    return {"bool": bool_query}, must
+
+
+def _collect_search_hits(
+    client: Any,
+    os_query: dict[str, object],
+    *,
+    max_rows: int,
+    source_includes: list[str] | None = None,
+) -> list[dict[str, object]]:
+    hits: list[dict[str, object]] = []
+    from_ = 0
+    page_size = 1_000
+    while len(hits) < max_rows:
+        size = min(page_size, max_rows - len(hits), MAX_RESULT_WINDOW - from_)
+        if size <= 0:
+            break
+        body: dict[str, object] = {
+            "from": from_,
+            "size": size,
+            "query": os_query,
+            "track_total_hits": len(hits) == 0,
+        }
+        if source_includes is not None:
+            body["_source"] = {"includes": source_includes}
+        response = client.search(index=INDEX_NAME, body=body)
+        batch = response.get("hits", {}).get("hits", [])
+        if not batch:
+            break
+        hits.extend(batch)
+        from_ += len(batch)
+        if len(batch) < size:
+            break
+    return hits
+
+
+def _collect_export_hits(
+    client: Any,
+    os_query: dict[str, object],
+    *,
+    max_rows: int,
+) -> list[dict[str, object]]:
+    """Scroll OpenSearch for APPLICATION_ID + FY keys that match the search."""
+    page_size = min(1_000, max_rows)
+    body: dict[str, object] = {
+        "size": page_size,
+        "query": os_query,
+        "_source": {"includes": ["APPLICATION_ID", "FY"]},
+    }
+    response = client.search(index=INDEX_NAME, body=body, scroll="2m")
+    scroll_id = response.get("_scroll_id")
+    hits: list[dict[str, object]] = list(response.get("hits", {}).get("hits", []))
+
+    try:
+        while len(hits) < max_rows and scroll_id:
+            response = client.scroll(scroll_id=scroll_id, scroll="2m")
+            batch = response.get("hits", {}).get("hits", [])
+            if not batch:
+                break
+            hits.extend(batch)
+    finally:
+        if scroll_id:
+            try:
+                client.clear_scroll(scroll_id=scroll_id)
+            except Exception:
+                pass
+
+    return hits[:max_rows]
+
+
+def _safe_export_filename(query_label: str) -> str:
+    slug = re.sub(r"[^\w\-]+", "-", query_label.strip().lower()).strip("-")
+    if not slug:
+        slug = "search-results"
+    return f"{slug[:60]}.csv"
+
+
 @router.get("/")
 def search(
     q: str = Query(default="", description="Search query"),
+    advanced_q: str = Query(
+        default="",
+        description="JSON advanced query: { clauses: [{text, negated}], operators: [and|or] }",
+    ),
     limit: int = Query(default=10, ge=1, le=100),
     page: int = Query(default=1, ge=1, description="1-based page index"),
     category: str = Query(default="", description="Filter by category (category.keyword)"),
     pi: str = Query(default="", description="Filter by PI_NAMEs"),
     ic: str = Query(default="", description="Filter by IC_NAME"),
+    org: str = Query(default="", description="Filter by ORG_NAME"),
     activity: str = Query(default="", description="Filter by ACTIVITY"),
     state: str = Query(default="", description="Filter by ORG_STATE"),
     fy_min: int | None = Query(default=None, description="Minimum fiscal year"),
@@ -108,68 +304,34 @@ def search(
         default_factory=list,
         description="Each phrase must match PROJECT_TERMS (AND across phrases); repeat param",
     ),
+    exclude_project_terms: list[str] = Query(
+        default_factory=list,
+        description="Exclude projects whose PROJECT_TERMS match each phrase; repeat param",
+    ),
+    sort_by: str = Query(default="", description="Sort field (e.g. PROJECT_TITLE, FY)"),
+    sort_order: str = Query(default="asc", description="asc or desc"),
 ) -> dict[str, object]:
+    if len(q) > MAX_QUERY_LENGTH:
+      raise HTTPException(status_code=400, detail=f"Query exceeds maximum length of {MAX_QUERY_LENGTH} characters")
 
     client = get_client()
     normalized_terms = _normalize_project_terms(project_terms)
-    must: list[dict[str, object]] = []
-    filters: list[dict[str, object]] = []
-    if q:
-        must.append(
-            {
-                "multi_match": {
-                    "query": q,
-                    "fields": SEARCH_FIELDS,
-                    "type": "best_fields",
-                    "operator": "and",
-                }
-            }
-        )
-    for term in normalized_terms:
-        # `match` tokenizes `term` and, with operator="and", requires all tokens
-        # to appear anywhere in PROJECT_TERMS (order-independent, not exact phrase).
-        must.append(
-            {"match": {"PROJECT_TERMS": {"query": term, "operator": "and"}}},
-        )
-    if not q and not normalized_terms:
-        must.append({"match_all": {}})
-    if category:
-        must.append({"term": {"category.keyword": category}})
-    if pi:
-        # Support both "Last, First" and "First Last" user inputs.
-        # `match` with operator "and" keeps all terms required but does not
-        # force token order, while `match_phrase` preserves exact phrase behavior.
-        filters.append(
-            {
-                "bool": {
-                    "should": [
-                        {"match_phrase": {"PI_NAMEs": pi}},
-                        {"match": {"PI_NAMEs": {"query": pi, "operator": "and"}}},
-                    ],
-                    "minimum_should_match": 1,
-                }
-            }
-        )
-    if ic:
-        filters.append({"term": {"IC_NAME.keyword": ic}})
-    if activity:
-        filters.append({"term": {"ACTIVITY.keyword": activity}})
-    if state:
-        filters.append({"term": {"ORG_STATE.keyword": state}})
-    if fy_min is not None or fy_max is not None:
-        range_clause: dict[str, int] = {}
-        if fy_min is not None:
-            range_clause["gte"] = fy_min
-        if fy_max is not None:
-            range_clause["lte"] = fy_max
-        filters.append({"range": {"FY": range_clause}})
-    if len(must) == 1 and not filters:
-        os_query: dict[str, object] = must[0]
-    else:
-        bool_query: dict[str, object] = {"must": must}
-        if filters:
-            bool_query["filter"] = filters
-        os_query = {"bool": bool_query}
+    normalized_exclude_terms = _normalize_project_terms(exclude_project_terms)
+    parsed_advanced = parse_advanced_q_param(advanced_q) if advanced_q.strip() else None
+    os_query, must = _build_search_bool_query(
+        q=q,
+        parsed_advanced=parsed_advanced,
+        normalized_terms=normalized_terms,
+        normalized_exclude_terms=normalized_exclude_terms,
+        category=category,
+        pi=pi,
+        ic=ic,
+        org=org,
+        activity=activity,
+        state=state,
+        fy_min=fy_min,
+        fy_max=fy_max,
+    )
     from_ = (page - 1) * limit
     if from_ >= MAX_RESULT_WINDOW:
         raise HTTPException(
@@ -177,16 +339,25 @@ def search(
             detail=f"Requested page exceeds max result window ({MAX_RESULT_WINDOW}).",
         )
     size = min(limit, MAX_RESULT_WINDOW - from_)
-    response = client.search(
-        index=INDEX_NAME,
-        body={"from": from_, "size": size, "query": os_query, "track_total_hits": True},
-    )
+    sort_clause = _build_search_sort(sort_by, sort_order, must=must)
+    search_body: dict[str, object] = {
+        "from": from_,
+        "size": size,
+        "query": os_query,
+        "track_total_hits": True,
+    }
+    if sort_clause:
+        search_body["sort"] = sort_clause
+    response = client.search(index=INDEX_NAME, body=search_body)
 
     hits = response.get("hits", {}).get("hits", [])
     results = []
     for item in hits:
         source = item.get("_source", {})
         source["_id"] = item.get("_id")
+        score = item.get("_score")
+        if score is not None:
+            source["_score"] = score
         results.append(source)
 
     total = response.get("hits", {}).get("total", {})
@@ -195,12 +366,119 @@ def search(
 
     return {
         "query": q,
+        "advanced_q": parsed_advanced[0] if parsed_advanced else None,
+        "advanced_operators": parsed_advanced[1] if parsed_advanced else None,
         "project_terms": normalized_terms,
+        "exclude_project_terms": normalized_exclude_terms,
         "limit": limit,
         "total": total_value,
         "visible_total": visible_total,
         "results": results,
     }
+
+
+@router.get("/export")
+def export_search_csv(
+    q: str = Query(default="", description="Search query"),
+    advanced_q: str = Query(
+        default="",
+        description="JSON advanced query: { clauses: [{text, negated}], operators: [and|or] }",
+    ),
+    category: str = Query(default="", description="Filter by category (category.keyword)"),
+    pi: str = Query(default="", description="Filter by PI_NAMEs"),
+    ic: str = Query(default="", description="Filter by IC_NAME"),
+    org: str = Query(default="", description="Filter by ORG_NAME"),
+    activity: str = Query(default="", description="Filter by ACTIVITY"),
+    state: str = Query(default="", description="Filter by ORG_STATE"),
+    fy_min: int | None = Query(default=None, description="Minimum fiscal year"),
+    fy_max: int | None = Query(default=None, description="Maximum fiscal year"),
+    project_terms: list[str] = Query(
+        default_factory=list,
+        description="Each phrase must match PROJECT_TERMS (AND across phrases); repeat param",
+    ),
+    exclude_project_terms: list[str] = Query(
+        default_factory=list,
+        description="Exclude projects whose PROJECT_TERMS match each phrase; repeat param",
+    ),
+    max_rows: int = Query(
+        default=MAX_EXPORT_ROWS,
+        ge=1,
+        le=MAX_EXPORT_ROWS,
+        description="Maximum rows to export (capped at OpenSearch result window)",
+    ),
+) -> Response:
+    if len(q) > MAX_QUERY_LENGTH:
+      raise HTTPException(status_code=400, detail=f"Query exceeds maximum length of {MAX_QUERY_LENGTH} characters")
+
+    if not list_og_files():
+        raise HTTPException(
+            status_code=503,
+            detail=(
+                "OGdata CSV files not found under backend/indexer/OGdata. "
+                "Add files such as 2025_PROJECT.csv before exporting."
+            ),
+        )
+
+    client = get_client()
+    normalized_terms = _normalize_project_terms(project_terms)
+    normalized_exclude_terms = _normalize_project_terms(exclude_project_terms)
+    parsed_advanced = parse_advanced_q_param(advanced_q) if advanced_q.strip() else None
+    os_query, _must = _build_search_bool_query(
+        q=q,
+        parsed_advanced=parsed_advanced,
+        normalized_terms=normalized_terms,
+        normalized_exclude_terms=normalized_exclude_terms,
+        category=category,
+        pi=pi,
+        ic=ic,
+        org=org,
+        activity=activity,
+        state=state,
+        fy_min=fy_min,
+        fy_max=fy_max,
+    )
+
+    hits = _collect_export_hits(client, os_query, max_rows=max_rows)
+    if not hits:
+        raise HTTPException(status_code=404, detail="No results to export for this search.")
+
+    keys: list[tuple[int | None, int | None]] = []
+    sample_fy: int | None = None
+    for hit in hits:
+        source = hit.get("_source", {})
+        if not isinstance(source, dict):
+            continue
+        app_id = normalize_application_id(source.get("APPLICATION_ID"))
+        fy = normalize_fy(source.get("FY"))
+        if sample_fy is None and fy is not None:
+            sample_fy = fy
+        keys.append((app_id, fy))
+
+    export_rows = ordered_export_rows(hits, load_og_rows(keys))
+    fieldnames = resolve_export_columns(sample_fy)
+    if not fieldnames:
+        fieldnames = sorted(
+            {key for row in export_rows for key in row.keys() if not str(key).startswith("_")},
+        )
+
+    csv_text = build_export_csv(export_rows, fieldnames)
+    label = q.strip()
+    if not label and normalized_terms:
+        label = "-".join(normalized_terms[:3])
+    if not label and parsed_advanced is not None:
+        clauses, _ = parsed_advanced
+        label = " ".join(
+            str(clause.get("text", "")).strip()
+            for clause in clauses
+            if str(clause.get("text", "")).strip()
+        )
+    filename = _safe_export_filename(label)
+
+    return Response(
+        content=csv_text,
+        media_type="text/csv; charset=utf-8",
+        headers={"Content-Disposition": f'attachment; filename="{filename}"'},
+    )
 
 
 @router.get("/project/{project_id}")
@@ -381,22 +659,14 @@ def _recurrence_must_not(source: dict[str, object]) -> list[dict[str, object]]:
     return clauses
 
 
-def _normalize_core_num(core: str) -> str:
-    return " ".join(core.split()).casefold()
-
-
-def _normalize_recurrence_title(title: str) -> str:
-    return " ".join(title.split()).casefold()
-
-
 def _recurrence_group_key(record: dict[str, object]) -> str:
     """Stable key for deduplicating recurring awards across fiscal years."""
     title = _recurrence_title(record)
     if title:
-        return f"title:{_normalize_recurrence_title(title)}"
+        return f"title:{normalize_recurrence_title(title)}"
     core = _recurrence_core_num(record)
     if core:
-        return f"core:{_normalize_core_num(core)}"
+        return f"core:{normalize_core_num(core)}"
     record_id = record.get("_id")
     if record_id is not None:
         return f"id:{record_id}"
@@ -459,7 +729,7 @@ def _merge_similar_groups_by_core(
             continue
         grouped = groups[key]
         core = _recurrence_core_num(grouped)
-        norm_core = _normalize_core_num(core) if core else None
+        norm_core = normalize_core_num(core) if core else None
         if norm_core and norm_core in core_index:
             _merge_similar_group_into(groups, core_index[norm_core], key)
             continue
@@ -469,47 +739,10 @@ def _merge_similar_groups_by_core(
     return groups, merged_order
 
 
-def _enrich_similar_year_variants(
-    client: object,
-    grouped: dict[str, object],
-) -> None:
-    """Attach all fiscal-year siblings for a recurring award, not only k-NN hits."""
-    project_id = grouped.get("_id")
-    if project_id is None:
-        return
-    if not _recurrence_core_num(grouped) and not _recurrence_title(grouped):
-        return
-    try:
-        years = _collect_recurrence_years(
-            client,
-            grouped,
-            project_id=str(project_id),
-        )
-    except HTTPException:
-        return
-    variants: list[dict[str, object]] = []
-    for year in years:
-        if not isinstance(year, dict):
-            continue
-        pid = year.get("project_id")
-        if pid is None:
-            continue
-        variants.append(
-            {
-                "project_id": pid,
-                "application_id": year.get("application_id"),
-                "fy": year.get("fy"),
-            }
-        )
-    if variants:
-        grouped["year_variants"] = variants
-
-
 def _group_similar_results(
     results: list[dict[str, object]],
     *,
     limit: int,
-    client: object | None = None,
 ) -> list[dict[str, object]]:
     """Collapse recurring fiscal-year rows into one hit with year_variants."""
     groups: dict[str, dict[str, object]] = {}
@@ -565,8 +798,6 @@ def _group_similar_results(
                     item.get("fy") if isinstance(item, dict) else 0,
                 ),
             )
-        if client is not None:
-            _enrich_similar_year_variants(client, grouped)
         grouped_results.append(grouped)
     return grouped_results
 
@@ -626,6 +857,9 @@ def search_similar(
     k: int = Query(default=SIMILAR_DEFAULT_K, ge=1, le=SIMILAR_MAX_K),
 ) -> dict[str, object]:
     """Semantic search: find projects whose embedding is closest to the query."""
+    if len(q) > MAX_QUERY_LENGTH:
+      raise HTTPException(status_code=400, detail=f"Query exceeds maximum length of {MAX_QUERY_LENGTH} characters")
+
     client = get_client()
     _require_matching_embedding_dimension(client)
     query_vector = embed_query(q)
@@ -652,7 +886,8 @@ def search_similar_to_project(
     top-k nearest neighbours (excluding the source document itself).
     """
     client = get_client()
-    _require_matching_embedding_dimension(client)
+    # Stored vectors only — skip loading the embedding model on this hot path.
+    _cache_index_embedding_dimension(client)
     try:
         source_doc = client.get(index=INDEX_NAME, id=project_id)
     except Exception as exc:
@@ -680,7 +915,7 @@ def search_similar_to_project(
             knn_clause["filter"] = {"bool": {"must_not": must_not}}
 
     # Over-fetch so we can return k unique recurring projects after year deduplication.
-    fetch_k = min(SIMILAR_MAX_K, max(k * 4, k + 15))
+    fetch_k = min(SIMILAR_FETCH_CAP, max(k * 4, k + 15))
     knn_clause["k"] = fetch_k + 1
 
     response = client.search(
@@ -696,15 +931,17 @@ def search_similar_to_project(
     return {
         "project_id": project_id,
         "k": k,
-        "results": _group_similar_results(formatted, limit=k, client=client),
+        "results": _group_similar_results(formatted, limit=k),
     }
 
 
-@router.get("/investigator/{pi_name}")
-def get_projects_for_investigator(
-    pi_name: str = Path(..., description="Principal investigator name"),
-    limit: int = Query(default=25, ge=1, le=100),
-    page: int = Query(default=1, ge=1, description="1-based page index"),
+def _paginated_projects_by_field(
+    *,
+    name: str,
+    limit: int,
+    page: int,
+    keyword_field: str,
+    text_field: str,
 ) -> dict[str, object]:
     client = get_client()
     from_ = (page - 1) * limit
@@ -724,9 +961,9 @@ def get_projects_for_investigator(
             "query": {
                 "bool": {
                     "should": [
-                        {"term": {"PI_NAMEs.keyword": pi_name}},
-                        {"match_phrase": {"PI_NAMEs": pi_name}},
-                        {"match": {"PI_NAMEs": {"query": pi_name, "operator": "and"}}},
+                        {"term": {keyword_field: name}},
+                        {"match_phrase": {text_field: name}},
+                        {"match": {text_field: {"query": name, "operator": "and"}}},
                     ],
                     "minimum_should_match": 1,
                 }
@@ -745,7 +982,6 @@ def get_projects_for_investigator(
     total_value = total.get("value", 0) if isinstance(total, dict) else total
     visible_total = min(total_value, MAX_RESULT_WINDOW)
     return {
-        "investigator_name": pi_name,
         "limit": limit,
         "total": total_value,
         "visible_total": visible_total,
@@ -753,49 +989,71 @@ def get_projects_for_investigator(
     }
 
 
+@router.get("/investigator/{pi_name}")
+def get_projects_for_investigator(
+    pi_name: str = Path(..., description="Principal investigator name"),
+    limit: int = Query(default=25, ge=1, le=100),
+    page: int = Query(default=1, ge=1, description="1-based page index"),
+) -> dict[str, object]:
+    payload = _paginated_projects_by_field(
+        name=pi_name,
+        limit=limit,
+        page=page,
+        keyword_field="PI_NAMEs.keyword",
+        text_field="PI_NAMEs",
+    )
+    return {"investigator_name": pi_name, **payload}
+
+
+@router.get("/organization/{org_name}")
+def get_projects_for_organization(
+    org_name: str = Path(..., description="Organization (university) name"),
+    limit: int = Query(default=25, ge=1, le=100),
+    page: int = Query(default=1, ge=1, description="1-based page index"),
+) -> dict[str, object]:
+    payload = _paginated_projects_by_field(
+        name=org_name,
+        limit=limit,
+        page=page,
+        keyword_field="ORG_NAME.keyword",
+        text_field="ORG_NAME",
+    )
+    return {"organization_name": org_name, **payload}
+
+
+@router.get("/institution/{ic_name}")
+def get_projects_for_institution(
+    ic_name: str = Path(..., description="NIH institute/center name"),
+    limit: int = Query(default=25, ge=1, le=100),
+    page: int = Query(default=1, ge=1, description="1-based page index"),
+) -> dict[str, object]:
+    payload = _paginated_projects_by_field(
+        name=ic_name,
+        limit=limit,
+        page=page,
+        keyword_field="IC_NAME.keyword",
+        text_field="IC_NAME",
+    )
+    return {"institution_name": ic_name, **payload}
+
+
 def _build_hybrid_filters(
     *,
     category: str,
     pi: str,
     ic: str,
+    org: str,
     activity: str,
     state: str,
     fy_min: int | None,
     fy_max: int | None,
 ) -> list[dict[str, Any]]:
-    """Build the shared filter clauses applied to both BM25 and k-NN sides.
-
-    These are non-scoring filters (term/range), so they shrink the candidate set
-    identically for both searches and don't interfere with relevance scoring.
-    """
-    filters: list[dict[str, Any]] = []
+    filters = build_project_filters(
+        pi=pi, ic=ic, org=org, activity=activity,
+        state=state, fy_min=fy_min, fy_max=fy_max,
+    )
     if category:
         filters.append({"term": {"category.keyword": category}})
-    if pi:
-        filters.append(
-            {
-                "bool": {
-                    "should": [
-                        {"match_phrase": {"PI_NAMEs": pi}},
-                        {"match": {"PI_NAMEs": {"query": pi, "operator": "and"}}},
-                    ],
-                    "minimum_should_match": 1,
-                }
-            }
-        )
-    if ic:
-        filters.append({"term": {"IC_NAME.keyword": ic}})
-    if activity:
-        filters.append({"term": {"ACTIVITY.keyword": activity}})
-    if state:
-        filters.append({"term": {"ORG_STATE.keyword": state}})
-    if fy_min is not None or fy_max is not None:
-        range_clause: dict[str, int] = {}
-        if fy_min is not None:
-            range_clause["gte"] = fy_min
-        if fy_max is not None:
-            range_clause["lte"] = fy_max
-        filters.append({"range": {"FY": range_clause}})
     return filters
 
 
@@ -858,6 +1116,7 @@ def search_hybrid(
     category: str = Query(default=""),
     pi: str = Query(default=""),
     ic: str = Query(default=""),
+    org: str = Query(default=""),
     activity: str = Query(default=""),
     state: str = Query(default=""),
     fy_min: int | None = Query(default=None),
@@ -870,6 +1129,9 @@ def search_hybrid(
     score, each annotated with its rank in the individual lists for
     transparency.
     """
+    if len(q) > MAX_QUERY_LENGTH:
+      raise HTTPException(status_code=400, detail=f"Query exceeds maximum length of {MAX_QUERY_LENGTH} characters")
+
     client = get_client()
     _require_matching_embedding_dimension(client)
 
@@ -877,6 +1139,7 @@ def search_hybrid(
         category=category,
         pi=pi,
         ic=ic,
+        org=org,
         activity=activity,
         state=state,
         fy_min=fy_min,

@@ -4,7 +4,14 @@ This repo runs three services together:
 
 - OpenSearch (data store + search engine)
 - FastAPI backend (search + analytics API)
-- React frontend (user interface)
+- React, Tailwind CSS frontend (user interface)
+
+## Styling Conventions
+- Use Tailwind utility classes exclusively. Do NOT edit styles.css or any .css files.
+- Do NOT use BEM class names (e.g. `activity-pie-tail-panel__header`). Convert to Tailwind inline.
+- Do NOT use `className="some-semantic-name"` that requires a stylesheet. Every className must be resolvable by Tailwind.
+- The `cn()` utility from `../../utils/cn` is available for conditional classes.
+
 
 ## Project Structure
 

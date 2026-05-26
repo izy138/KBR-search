@@ -1,135 +1,148 @@
 import {
-  type ChangeEvent,
   type FormEvent,
+  lazy,
+  Suspense,
   useCallback,
   useEffect,
+  useMemo,
   useRef,
   useState,
 } from "react";
+import { useTheme } from "./hooks/useTheme";
+import { useProjectDetails } from "./hooks/useProjectDetails";
+import { useSimilarProjects } from "./hooks/useSimilarProjects";
+import { stubProjectFromId } from "./utils/stubProject";
+import { useInvestigatorProjects, ENTITY_LIST_PER_PAGE } from "./hooks/useInvestigatorProjects";
+import { useOrganizationProjects } from "./hooks/useOrganizationProjects";
+import { useInstitutionProjects } from "./hooks/useInstitutionProjects";
+import { useSearch } from "./hooks/useSearch";
+import { readInitialDashboardFromWindow, useDashboardUrlSync } from "./hooks/useDashboardUrlSync";
+import { readInitialSearchFromWindow, useSearchUrlSync } from "./hooks/useSearchUrlSync";
 import { matchPath, useLocation, useNavigate } from "react-router-dom";
-import Dashboard, { type DashboardSearchFilters } from "./components/Dashboard";
-import Filters from "./components/Filters";
-import InvestigatorPage from "./components/InvestigatorPage";
-import ProjectDetailsPage from "./components/ProjectDetailsPage";
-import ResultsList from "./components/ResultsList";
-import SearchBar from "./components/SearchBar";
-import TermCloud from "./components/TermCloud";
-import SemanticSimilarProjectPage from "./components/SemanticSimilarProjectPage";
-import SemanticVectorLabPage from "./components/SemanticVectorLabPage";
+import type { SortOption } from "./utils/searchUrlParams";
+import Filters from "./components/search/Filters";
+import FilterSelect from "./components/search/FilterSelect";
+import InvestigatorPage from "./components/investigator/InvestigatorPage";
+import ResultsList, { type SortState as ResultsSortState } from "./components/search/ResultsList";
+import BackToResultsButton from "./components/shared/BackToResultsButton";
+import Pagination, { getPageNumbers } from "./components/shared/Pagination";
+import ErrorBoundary from "./components/shared/ErrorBoundary";
 import {
-  getActivityData,
-  getIcData,
-  getProjectsByInvestigator,
-  getProjectById,
-  getStateData,
-  getYearData,
+  downloadSearchResultsCsv,
   type SearchResultRecord,
-  searchProjects,
+  type SearchSortDirection,
+  type SearchSortField,
 } from "./api";
+import HelpTooltip from "./components/shared/HelpTooltip";
+import {
+  HELP_SEARCH,
+  HELP_SEARCH_FILTER_ACTIVITY,
+  HELP_SEARCH_FILTER_FY,
+  HELP_SEARCH_FILTER_IC,
+  HELP_SEARCH_FILTER_ORG,
+  HELP_SEARCH_FILTER_PI,
+  HELP_SEARCH_FILTER_STATE,
+} from "./utils/helpContent";
+import {
+  hasAdvancedSearchContent,
+  normalizeUnifiedSearch,
+  parseUnifiedSearch,
+} from "./utils/advancedSearch";
+import { unifiedSearchFromParsed } from "./utils/searchUrlParams";
+import { useFilterCatalog } from "./hooks/useFilterCatalog";
+import type { FilterValues } from "./types/filters";
+import {
+  type FilterBreadcrumbKey,
+  filterBreadcrumbOrderFromSearchParams,
+  updateFilterBreadcrumbOrder,
+} from "./utils/filterBreadcrumbOrder";
+import { cn } from "./utils/cn";
+import {
+  getListReturnForProjectNavigation,
+  navigateBackToList,
+  navigateToProject,
+} from "./utils/navigationState";
 
-type View = "search" | "dashboard";
+const Dashboard = lazy(() => import("./components/dashboard/Dashboard"));
+const ProjectDetailsPage = lazy(() => import("./components/project/ProjectDetailsPage"));
+const SemanticVectorLabPage = lazy(() => import("./components/semantic/SemanticVectorLabPage"));
+const SemanticSimilarProjectPage = lazy(() => import("./components/semantic/SemanticSimilarProjectPage"));
 
-function getPageNumbers(page: number, totalPageCount: number): Array<number | "..."> {
-  if (totalPageCount <= 5) {
-    return Array.from({ length: totalPageCount }, (_, i) => i + 1);
-  }
-  const start = Math.max(1, page);
-  const end = Math.min(totalPageCount, start + 2);
-  const pages: Array<number | "..."> = [];
+const SORT_SELECT_OPTIONS = [
+  { value: "relevant", label: "Most Relevant" },
+  { value: "alphaAsc", label: "Title: A to Z" },
+  { value: "alphaDesc", label: "Title: Z to A" },
+] as const;
 
-  for (let p = start; p <= end; p++) {
-    pages.push(p);
-  }
-  if (end < totalPageCount - 1) {
-    pages.push("...");
-  }
-  if (end < totalPageCount) {
-    pages.push(totalPageCount);
-  }
-
-  return pages;
-}
+const PER_PAGE_SELECT_OPTIONS = [10, 25, 50, 100].map((n) => ({
+  value: String(n),
+  label: `${n} per page`,
+}));
 
 export default function App() {
-  type SortOption = "relevant" | "alphaAsc" | "alphaDesc";
-  type Theme = "light" | "dark";
-  type LightTheme = "default" | "blueAccent" | "yellowBeige" | "mintSlate" | "blueModified";
+  const initialSearchUrl =
+    readInitialSearchFromWindow() ?? readInitialDashboardFromWindow();
 
-  const [view, setView] = useState<View>("search");
-  const [query, setQuery] = useState("");
-  const [projectTermFilters, setProjectTermFilters] = useState<string[]>([]);
-  const [results, setResults] = useState<SearchResultRecord[]>([]);
-  const [loading, setLoading] = useState(false);
+  const [searchQuery, setSearchQuery] = useState(() =>
+    initialSearchUrl ? unifiedSearchFromParsed(initialSearchUrl) : "",
+  );
+  const [semanticSearchMode, setSemanticSearchMode] = useState(
+    () => initialSearchUrl?.semantic ?? false,
+  );
+  const [semanticSearchCommitted, setSemanticSearchCommitted] = useState(
+    () => initialSearchUrl?.semantic ?? false,
+  );
+  const [selectedPI, setSelectedPI] = useState(() => initialSearchUrl?.pi ?? "");
+  const [selectedIC, setSelectedIC] = useState(() => initialSearchUrl?.ic ?? "");
+  const [selectedOrg, setSelectedOrg] = useState(() => initialSearchUrl?.org ?? "");
+  const [selectedActivity, setSelectedActivity] = useState(
+    () => initialSearchUrl?.activity ?? "",
+  );
+  const [selectedState, setSelectedState] = useState(() => initialSearchUrl?.state ?? "");
+  const [filterBreadcrumbOrder, setFilterBreadcrumbOrder] = useState<FilterBreadcrumbKey[]>(
+    () =>
+      typeof window !== "undefined"
+        ? filterBreadcrumbOrderFromSearchParams(new URLSearchParams(window.location.search))
+        : [],
+  );
+  const [fyMin, setFyMin] = useState(() => initialSearchUrl?.fyMin ?? "");
+  const [fyMax, setFyMax] = useState(() => initialSearchUrl?.fyMax ?? "");
 
-  // Filters
-  const [selectedPI, setSelectedPI] = useState("");
-  const [selectedIC, setSelectedIC] = useState("");
-  const [selectedActivity, setSelectedActivity] = useState("");
-  const [selectedState, setSelectedState] = useState("");
-  const [fyMin, setFyMin] = useState("");
-  const [fyMax, setFyMax] = useState("");
-
-  // Pagination
-  const [resultsPerPage, setResultsPerPage] = useState(25);
-  const [currentPage, setCurrentPage] = useState(1);
-  const [jumpToPageInput, setJumpToPageInput] = useState("1");
-  const [total, setTotal] = useState(0);
-  const [visibleTotal, setVisibleTotal] = useState(0);
-  const [sortOption, setSortOption] = useState<SortOption>("relevant");
-  const [selectedProject, setSelectedProject] = useState<SearchResultRecord | null>(null);
-  const [projectLoading, setProjectLoading] = useState(false);
-  const [projectError, setProjectError] = useState<string>("");
-  const [investigatorResults, setInvestigatorResults] = useState<SearchResultRecord[]>([]);
-  const [investigatorLoading, setInvestigatorLoading] = useState(false);
-  const [investigatorError, setInvestigatorError] = useState<string>("");
+  const [resultsPerPage, setResultsPerPage] = useState(() => initialSearchUrl?.limit ?? 25);
+  const [currentPage, setCurrentPage] = useState(() => initialSearchUrl?.page ?? 1);
+  const [jumpToPageInput, setJumpToPageInput] = useState(() =>
+    String(initialSearchUrl?.page ?? 1),
+  );
+  const [sortOption, setSortOption] = useState<SortOption>(
+    () => initialSearchUrl?.sortOption ?? "relevant",
+  );
+  /**
+   * Tracks the active column-header sort. When set, it takes precedence over
+   * `sortOption` so the column the user clicked is what gets pushed to the
+   * backend (which sorts the full result set, not just the current page).
+   */
+  const [columnSort, setColumnSort] = useState<ResultsSortState>(
+    () => initialSearchUrl?.columnSort ?? { column: null, direction: "none" },
+  );
   const [investigatorPage, setInvestigatorPage] = useState(1);
-  const [investigatorTotal, setInvestigatorTotal] = useState(0);
-  const [investigatorVisibleTotal, setInvestigatorVisibleTotal] = useState(0);
+  const [organizationPage, setOrganizationPage] = useState(1);
+  const [institutionPage, setInstitutionPage] = useState(1);
+  const [exportingCsv, setExportingCsv] = useState(false);
+  const [exportCsvError, setExportCsvError] = useState<string | null>(null);
   const [showScrollTop, setShowScrollTop] = useState(false);
   const navigate = useNavigate();
   const location = useLocation();
-  const [theme, setTheme] = useState<Theme>(() => {
-    if (typeof window === "undefined") return "light";
-    const storedTheme = window.localStorage.getItem("theme");
-    if (storedTheme === "light" || storedTheme === "dark") {
-      return storedTheme;
-    }
-    return window.matchMedia("(prefers-color-scheme: dark)").matches ? "dark" : "light";
-  });
-  const [lightTheme, setLightTheme] = useState<LightTheme>(() => {
-    if (typeof window === "undefined") return "default";
-    const storedLightTheme = window.localStorage.getItem("lightTheme");
-    if (
-      storedLightTheme === "default"
-      || storedLightTheme === "blueAccent"
-      || storedLightTheme === "yellowBeige"
-      || storedLightTheme === "mintSlate"
-      || storedLightTheme === "blueModified"
-    ) {
-      return storedLightTheme;
-    }
-    return "default";
-  });
+  const { theme, handleThemeToggle } = useTheme();
 
-  const totalPages = Math.max(1, Math.ceil(visibleTotal / resultsPerPage));
-  const pageNumbers = getPageNumbers(currentPage, totalPages);
+  const isDashboardRoute =
+    location.pathname === "/"
+    || location.pathname === "/dashboard"
+    || location.pathname === "/dashboard/";
+  const isSearchRoute =
+    location.pathname === "/search" || location.pathname === "/search/";
+  const view = isDashboardRoute ? "dashboard" : "search";
+
   const mainRef = useRef<HTMLElement | null>(null);
-  const searchFiltersRef = useRef({
-    pi: selectedPI,
-    ic: selectedIC,
-    activity: selectedActivity,
-    state: selectedState,
-    fyMin,
-    fyMax,
-  });
-  searchFiltersRef.current = {
-    pi: selectedPI,
-    ic: selectedIC,
-    activity: selectedActivity,
-    state: selectedState,
-    fyMin,
-    fyMax,
-  };
   const projectRouteMatch = matchPath("/projects/:projectId", location.pathname);
   const selectedProjectId = projectRouteMatch?.params.projectId ?? null;
   const semanticSimilarMatch = matchPath("/semantic/similar/:projectId", location.pathname);
@@ -141,121 +154,223 @@ export default function App() {
   const selectedInvestigatorName = investigatorRouteMatch?.params.investigatorName
     ? decodeURIComponent(investigatorRouteMatch.params.investigatorName)
     : null;
-  const investigatorPerPage = 25;
-  const investigatorTotalPages = Math.max(1, Math.ceil(investigatorVisibleTotal / investigatorPerPage));
-  const investigatorPageNumbers = getPageNumbers(investigatorPage, investigatorTotalPages);
+  const organizationRouteMatch = matchPath("/organizations/:organizationName", location.pathname);
+  const selectedOrganizationName = organizationRouteMatch?.params.organizationName
+    ? decodeURIComponent(organizationRouteMatch.params.organizationName)
+    : null;
+  const institutionRouteMatch = matchPath("/institutions/:institutionName", location.pathname);
+  const selectedInstitutionName = institutionRouteMatch?.params.institutionName
+    ? decodeURIComponent(institutionRouteMatch.params.institutionName)
+    : null;
+  const searchEnabled =
+    isSearchRoute
+    && !selectedProjectId
+    && !selectedInvestigatorName
+    && !selectedOrganizationName
+    && !selectedInstitutionName
+    && !semanticSimilarProjectId
+    && !isSemanticHub;
 
-  /** Same analytics-driven option lists as `Dashboard` / `Filters` there. */
-  const [searchFilterCatalog, setSearchFilterCatalog] = useState<{
-    icNames: string[];
-    activityCodes: string[];
-    states: string[];
-    fiscalYearOptions: number[];
-  } | null>(null);
+  const dashboardUrlSyncEnabled = isDashboardRoute && !isSemanticRoute;
 
-  useEffect(() => {
-    let cancelled = false;
-    const load = async () => {
-      try {
-        const [icData, activityData, stateData, yearData] = await Promise.all([
-          getIcData(),
-          getActivityData(80),
-          getStateData(),
-          getYearData(),
-        ]);
-        if (cancelled) return;
-        setSearchFilterCatalog({
-          icNames: icData.map((p) => p.label),
-          activityCodes: activityData.map((p) => p.label),
-          states: stateData.map((p) => p.state),
-          fiscalYearOptions: yearData.map((d) => d.year),
-        });
-      } catch {
-        if (!cancelled) setSearchFilterCatalog(null);
-      }
-    };
-    void load();
-    return () => {
-      cancelled = true;
-    };
-  }, []);
-
-  const runSearch = useCallback(
-    async (q: string, page: number, limit: number) => {
-      const {
-        pi,
-        ic,
-        activity,
-        state,
-        fyMin: fyMinValue,
-        fyMax: fyMaxValue,
-      } = searchFiltersRef.current;
-      setLoading(true);
-      try {
-        const payload = await searchProjects(q, {
-          page,
-          limit,
-          pi,
-          ic,
-          activity,
-          state,
-          fyMin: fyMinValue,
-          fyMax: fyMaxValue,
-          projectTerms: projectTermFilters,
-        });
-        setResults(payload.results ?? []);
-        setTotal(payload.total ?? 0);
-        setVisibleTotal(payload.visible_total ?? payload.total ?? 0);
-      } finally {
-        setLoading(false);
-      }
-    },
-    [projectTermFilters],
-  );
-
-  useEffect(() => {
-    if (
-      view === "dashboard"
-      || selectedProjectId
-      || selectedInvestigatorName
-      || semanticSimilarProjectId
-      || isSemanticHub
-    ) {
-      return;
+  const { sortBy, sortOrder } = useMemo<{
+    sortBy: SearchSortField | "";
+    sortOrder: SearchSortDirection;
+  }>(() => {
+    // Column-header sort wins over the primary dropdown so the chevron the
+    // user is actively pointing at always matches what the API returned.
+    if (columnSort.column && columnSort.direction !== "none") {
+      return { sortBy: columnSort.column, sortOrder: columnSort.direction };
     }
-    void runSearch(query, currentPage, resultsPerPage);
-  }, [
-    query,
+    if (sortOption === "alphaAsc") return { sortBy: "PROJECT_TITLE", sortOrder: "asc" };
+    if (sortOption === "alphaDesc") return { sortBy: "PROJECT_TITLE", sortOrder: "desc" };
+    return { sortBy: "", sortOrder: "asc" };
+  }, [columnSort, sortOption]);
+
+  const [projectTermFilters, setProjectTermFilters] = useState<string[]>(
+    () => initialSearchUrl?.projectTerms ?? [],
+  );
+  const [excludeProjectTermFilters, setExcludeProjectTermFilters] = useState<string[]>([]);
+
+  useDashboardUrlSync({
+    enabled: dashboardUrlSyncEnabled,
+    state: {
+      q: searchQuery,
+      pi: selectedPI,
+      ic: selectedIC,
+      org: selectedOrg,
+      activity: selectedActivity,
+      state: selectedState,
+      fyMin,
+      fyMax,
+      semanticMode: semanticSearchMode,
+      semanticCommitted: semanticSearchCommitted,
+    },
+    setters: {
+      setQ: setSearchQuery,
+      setPi: setSelectedPI,
+      setIc: setSelectedIC,
+      setOrg: setSelectedOrg,
+      setActivity: setSelectedActivity,
+      setState: setSelectedState,
+      setFyMin,
+      setFyMax,
+      setSemanticMode: setSemanticSearchMode,
+      setSemanticCommitted: setSemanticSearchCommitted,
+      setFilterBreadcrumbOrder,
+    },
+  });
+
+  const { navigateToSearch } = useSearchUrlSync({
+    enabled: searchEnabled,
+    state: {
+      q: searchQuery,
+      page: currentPage,
+      limit: resultsPerPage,
+      pi: selectedPI,
+      ic: selectedIC,
+      org: selectedOrg,
+      activity: selectedActivity,
+      state: selectedState,
+      fyMin,
+      fyMax,
+      projectTerms: projectTermFilters,
+      sortBy,
+      sortOrder,
+      sortOption,
+      columnSort,
+      semanticMode: semanticSearchMode,
+      semanticCommitted: semanticSearchCommitted,
+    },
+    setters: {
+      setQ: setSearchQuery,
+      setPage: setCurrentPage,
+      setLimit: setResultsPerPage,
+      setPi: setSelectedPI,
+      setIc: setSelectedIC,
+      setOrg: setSelectedOrg,
+      setActivity: setSelectedActivity,
+      setState: setSelectedState,
+      setFyMin,
+      setFyMax,
+      setProjectTerms: setProjectTermFilters,
+      setSortOption,
+      setColumnSort,
+      setSemanticMode: setSemanticSearchMode,
+      setSemanticCommitted: setSemanticSearchCommitted,
+    },
+  });
+
+  const {
+    results,
+    loading,
+    total,
+    visibleTotal,
+  } = useSearch({
+    query: searchQuery,
+    setQuery: setSearchQuery,
     projectTermFilters,
-    currentPage,
-    resultsPerPage,
-    runSearch,
-    view,
+    excludeProjectTermFilters,
     selectedPI,
     selectedIC,
+    selectedOrg,
     selectedActivity,
     selectedState,
     fyMin,
     fyMax,
+    currentPage,
+    resultsPerPage,
+    sortBy,
+    sortOrder,
+    semanticMode: semanticSearchMode,
+    semanticSearchCommitted,
+    enabled: searchEnabled,
+  });
+
+  const { selectedProject, projectLoading, projectError } = useProjectDetails(
     selectedProjectId,
-    selectedInvestigatorName,
-    semanticSimilarProjectId,
-    isSemanticHub,
-  ]);
+    results,
+  );
+  const { similarNeighbors, similarLoading, similarError } =
+    useSimilarProjects(selectedProjectId);
+
+  useEffect(() => {
+    if (!selectedProjectId) return;
+    void import("./components/project/ProjectDetailsPage");
+  }, [selectedProjectId]);
+
+  const {
+    results: investigatorResults,
+    loading: investigatorLoading,
+    error: investigatorError,
+    total: investigatorTotal,
+    visibleTotal: investigatorVisibleTotal,
+  } = useInvestigatorProjects(selectedInvestigatorName, investigatorPage);
+  const {
+    results: organizationResults,
+    loading: organizationLoading,
+    error: organizationError,
+    total: organizationTotal,
+    visibleTotal: organizationVisibleTotal,
+  } = useOrganizationProjects(selectedOrganizationName, organizationPage);
+  const {
+    results: institutionResults,
+    loading: institutionLoading,
+    error: institutionError,
+    total: institutionTotal,
+    visibleTotal: institutionVisibleTotal,
+  } = useInstitutionProjects(selectedInstitutionName, institutionPage);
+  const investigatorTotalPages = Math.max(
+    1,
+    Math.ceil(investigatorVisibleTotal / ENTITY_LIST_PER_PAGE),
+  );
+  const investigatorPageNumbers = getPageNumbers(investigatorPage, investigatorTotalPages);
+  const organizationTotalPages = Math.max(
+    1,
+    Math.ceil(organizationVisibleTotal / ENTITY_LIST_PER_PAGE),
+  );
+  const organizationPageNumbers = getPageNumbers(organizationPage, organizationTotalPages);
+  const institutionTotalPages = Math.max(
+    1,
+    Math.ceil(institutionVisibleTotal / ENTITY_LIST_PER_PAGE),
+  );
+  const institutionPageNumbers = getPageNumbers(institutionPage, institutionTotalPages);
+
+  const totalPages = Math.max(1, Math.ceil(visibleTotal / resultsPerPage));
+  const pageNumbers = getPageNumbers(currentPage, totalPages);
+
+  const searchFilterCatalog = useFilterCatalog();
+
+  const appliedFilters = useMemo<FilterValues>(
+    () => ({
+      pi: selectedPI,
+      ic: selectedIC,
+      org: selectedOrg,
+      activity: selectedActivity,
+      state: selectedState,
+      fyMin,
+      fyMax,
+    }),
+    [selectedPI, selectedIC, selectedOrg, selectedActivity, selectedState, fyMin, fyMax],
+  );
+
+  const appliedFiltersRef = useRef(appliedFilters);
+  appliedFiltersRef.current = appliedFilters;
+
+  const filterCatalog = useMemo(
+    () => ({
+      icNames: searchFilterCatalog?.icNames ?? [],
+      orgNames: searchFilterCatalog?.orgNames ?? [],
+      activityCodes: searchFilterCatalog?.activityCodes ?? [],
+      states: searchFilterCatalog?.states ?? [],
+      fiscalYearOptions: searchFilterCatalog?.fiscalYearOptions,
+    }),
+    [searchFilterCatalog],
+  );
 
   useEffect(() => {
     setJumpToPageInput(String(currentPage));
   }, [currentPage]);
-
-  useEffect(() => {
-    document.documentElement.setAttribute("data-theme", theme);
-    window.localStorage.setItem("theme", theme);
-  }, [theme]);
-
-  useEffect(() => {
-    document.documentElement.setAttribute("data-light-theme", lightTheme);
-    window.localStorage.setItem("lightTheme", lightTheme);
-  }, [lightTheme]);
 
   useEffect(() => {
     const mainElement = mainRef.current;
@@ -277,84 +392,213 @@ export default function App() {
   }, []);
 
   const handleSearch = (nextQuery: string) => {
-    setQuery(nextQuery);
+    setSemanticSearchCommitted(semanticSearchMode);
+    setSearchQuery(normalizeUnifiedSearch(nextQuery));
     setProjectTermFilters([]);
+    setExcludeProjectTermFilters([]);
     setCurrentPage(1);
   };
 
-  const handleTermCloudSearch = (terms: string[]) => {
-    setProjectTermFilters(terms);
-    setCurrentPage(1);
-  };
+  const handleSemanticModeChange = useCallback((enabled: boolean) => {
+    setSemanticSearchMode(enabled);
+    if (!enabled) {
+      setSemanticSearchCommitted(false);
+    }
+  }, []);
 
-  const handleApplyFilters = (filters: {
-    pi: string;
-    ic: string;
-    activity: string;
-    state: string;
-    fyMin: string;
-    fyMax: string;
-  }) => {
+  const activeSearchLabel = useMemo(
+    () => normalizeUnifiedSearch(searchQuery).trim(),
+    [searchQuery],
+  );
+
+  const handleDownloadCsv = useCallback(async (): Promise<void> => {
+    setExportingCsv(true);
+    setExportCsvError(null);
+    try {
+      const { plainQ, advanced } = parseUnifiedSearch(searchQuery);
+      await downloadSearchResultsCsv(plainQ, {
+        pi: selectedPI,
+        ic: selectedIC,
+        org: selectedOrg,
+        activity: selectedActivity,
+        state: selectedState,
+        fyMin,
+        fyMax,
+        projectTerms: projectTermFilters,
+        excludeProjectTerms: excludeProjectTermFilters,
+        advancedSearch:
+          advanced && hasAdvancedSearchContent(advanced) ? advanced : null,
+      });
+    } catch (err) {
+      setExportCsvError(err instanceof Error ? err.message : "Export failed");
+    } finally {
+      setExportingCsv(false);
+    }
+  }, [
+    searchQuery,
+    selectedPI,
+    selectedIC,
+    selectedOrg,
+    selectedActivity,
+    selectedState,
+    fyMin,
+    fyMax,
+    projectTermFilters,
+    excludeProjectTermFilters,
+  ]);
+
+  const handleApplyFilters = useCallback((filters: FilterValues) => {
+    setFilterBreadcrumbOrder((order) =>
+      updateFilterBreadcrumbOrder(order, appliedFiltersRef.current, filters),
+    );
     setSelectedPI(filters.pi);
     setSelectedIC(filters.ic);
+    setSelectedOrg(filters.org);
     setSelectedActivity(filters.activity);
     setSelectedState(filters.state);
     setFyMin(filters.fyMin);
     setFyMax(filters.fyMax);
     setCurrentPage(1);
-  };
+  }, []);
 
-  const handleClearFilters = () => {
+  const handleClearFilters = useCallback(() => {
+    setFilterBreadcrumbOrder([]);
     setSelectedPI("");
     setSelectedIC("");
+    setSelectedOrg("");
     setSelectedActivity("");
     setSelectedState("");
     setFyMin("");
     setFyMax("");
     setProjectTermFilters([]);
+    setExcludeProjectTermFilters([]);
+    setColumnSort({ column: null, direction: "none" });
+    setSortOption("relevant");
+    setSearchQuery("");
+    setSemanticSearchMode(false);
+    setSemanticSearchCommitted(false);
     setCurrentPage(1);
-  };
+  }, []);
+
+  const handleDashboardQueryUpdate = useCallback((nextQuery: string) => {
+    setSearchQuery(normalizeUnifiedSearch(nextQuery));
+  }, []);
 
   const handleDashboardSearchNavigate = useCallback(
-    (searchQuery: string, filters: DashboardSearchFilters) => {
-      searchFiltersRef.current = {
-        pi: filters.pi,
-        ic: filters.ic,
-        activity: filters.activity,
-        state: filters.state,
-        fyMin: filters.fyMin,
-        fyMax: filters.fyMax,
-      };
-      setSelectedPI(filters.pi);
-      setSelectedIC(filters.ic);
-      setSelectedActivity(filters.activity);
-      setSelectedState(filters.state);
-      setFyMin(filters.fyMin);
-      setFyMax(filters.fyMax);
-      setQuery(searchQuery);
+    (nextQuery: string, filters?: FilterValues) => {
+      setSemanticSearchCommitted(semanticSearchMode);
+      const unified = normalizeUnifiedSearch(nextQuery);
+      const f = filters ?? appliedFilters;
+      if (filters) {
+        setSelectedPI(f.pi);
+        setSelectedIC(f.ic);
+        setSelectedOrg(f.org);
+        setSelectedActivity(f.activity);
+        setSelectedState(f.state);
+        setFyMin(f.fyMin);
+        setFyMax(f.fyMax);
+      }
+      setSearchQuery(unified);
       setProjectTermFilters([]);
+      setExcludeProjectTermFilters([]);
       setCurrentPage(1);
-      setView("search");
-      navigate("/");
+      navigateToSearch({
+        q: unified,
+        pi: f.pi,
+        ic: f.ic,
+        org: f.org,
+        activity: f.activity,
+        state: f.state,
+        fyMin: f.fyMin,
+        fyMax: f.fyMax,
+        projectTerms: [],
+        page: 1,
+        semanticMode: semanticSearchMode,
+        semanticCommitted: semanticSearchMode,
+      });
     },
-    [navigate],
+    [navigateToSearch, appliedFilters, semanticSearchMode],
+  );
+
+  const handleDashboardTermSearchNavigate = useCallback(
+    (terms: string[]) => {
+      setProjectTermFilters(terms);
+      setExcludeProjectTermFilters([]);
+      setCurrentPage(1);
+      navigateToSearch({ projectTerms: terms, page: 1 });
+    },
+    [navigateToSearch],
+  );
+
+  const handleViewAllProjects = useCallback(() => {
+    setProjectTermFilters([]);
+    setExcludeProjectTermFilters([]);
+    setColumnSort({ column: null, direction: "none" });
+    setSortOption("relevant");
+    setSemanticSearchMode(false);
+    setSemanticSearchCommitted(false);
+    setCurrentPage(1);
+    navigateToSearch({
+      page: 1,
+      projectTerms: [],
+      semanticMode: false,
+      semanticCommitted: false,
+    });
+  }, [navigateToSearch]);
+  const handleDashboardYearSearchNavigate = useCallback(
+    (year: number) => {
+      const yearStr = String(year);
+      setFyMin(yearStr);
+      setFyMax(yearStr);
+      setCurrentPage(1);
+      navigateToSearch({
+        fyMin: yearStr,
+        fyMax: yearStr,
+        page: 1,
+      });
+    },
+    [navigateToSearch],
   );
 
   const handleSearchFromProjectTerms = useCallback(
-    (payload: { terms: string[]; additionalQuery: string }) => {
+    (payload: { terms: string[]; excludedTerms: string[]; additionalQuery: string }) => {
+      setSemanticSearchMode(false);
+      setSemanticSearchCommitted(false);
       setProjectTermFilters(payload.terms);
-      setQuery(payload.additionalQuery.trim());
+      setExcludeProjectTermFilters(payload.excludedTerms);
+      const unified = normalizeUnifiedSearch(payload.additionalQuery);
+      setSearchQuery(unified);
       setCurrentPage(1);
-      setView("search");
-      navigate("/");
+      navigateToSearch({
+        q: unified,
+        projectTerms: payload.terms,
+        page: 1,
+        semanticMode: false,
+        semanticCommitted: false,
+      });
     },
-    [navigate],
+    [navigateToSearch],
   );
 
-  const handlePerPageChange = (e: ChangeEvent<HTMLSelectElement>) => {
-    setResultsPerPage(Number(e.target.value));
+  const handleBackToList = useCallback(() => {
+    navigateBackToList(navigate, location, navigateToSearch);
+  }, [navigate, location, navigateToSearch]);
+
+  const handlePerPageChange = useCallback((value: string) => {
+    setResultsPerPage(Number(value));
     setCurrentPage(1);
-  };
+  }, []);
+
+  const handleSortOptionChange = useCallback((value: string) => {
+    setSortOption(value as SortOption);
+    setColumnSort({ column: null, direction: "none" });
+    setCurrentPage(1);
+  }, []);
+
+  const handleColumnSortChange = useCallback((next: ResultsSortState) => {
+    setColumnSort(next);
+    setCurrentPage(1);
+  }, []);
 
   const handleJumpToPageSubmit = (e: FormEvent<HTMLFormElement>) => {
     e.preventDefault();
@@ -371,15 +615,23 @@ export default function App() {
   const handleOpenDetails = (item: SearchResultRecord): void => {
     const projectId = item._id ?? item.id;
     if (!projectId) return;
-    navigate(`/projects/${encodeURIComponent(projectId)}`);
+    navigateToProject(
+      navigate,
+      projectId,
+      getListReturnForProjectNavigation(location),
+    );
   };
   const handleOpenInvestigator = (name: string): void => {
     setInvestigatorPage(1);
     navigate(`/investigators/${encodeURIComponent(name)}`);
   };
-
-  const handleThemeToggle = () => {
-    setTheme((prev) => (prev === "light" ? "dark" : "light"));
+  const handleOpenOrganization = (name: string): void => {
+    setOrganizationPage(1);
+    navigate(`/organizations/${encodeURIComponent(name)}`);
+  };
+  const handleOpenInstitution = (name: string): void => {
+    setInstitutionPage(1);
+    navigate(`/institutions/${encodeURIComponent(name)}`);
   };
 
   const handleScrollToTop = () => {
@@ -393,422 +645,420 @@ export default function App() {
     });
   };
 
-  useEffect(() => {
-    let isCancelled = false;
-    if (!selectedProjectId) {
-      setSelectedProject(null);
-      setProjectLoading(false);
-      setProjectError("");
-      return;
-    }
-
-    const projectFromResults = results.find(
-      (item) => (item._id ?? item.id) === selectedProjectId,
-    );
-    if (projectFromResults) {
-      setSelectedProject(projectFromResults);
-      setProjectLoading(false);
-      setProjectError("");
-      return;
-    }
-
-    setProjectLoading(true);
-    setProjectError("");
-    void getProjectById(selectedProjectId)
-      .then((project) => {
-        if (isCancelled) return;
-        setSelectedProject(project);
-      })
-      .catch(() => {
-        if (isCancelled) return;
-        setSelectedProject(null);
-        setProjectError("Unable to load this project right now.");
-      })
-      .finally(() => {
-        if (isCancelled) return;
-        setProjectLoading(false);
-      });
-
-    return () => {
-      isCancelled = true;
-    };
-  }, [selectedProjectId, results]);
-
-  useEffect(() => {
-    let isCancelled = false;
-    if (!selectedInvestigatorName) {
-      setInvestigatorResults([]);
-      setInvestigatorError("");
-      setInvestigatorLoading(false);
-      return;
-    }
-
-    setInvestigatorLoading(true);
-    setInvestigatorError("");
-    void getProjectsByInvestigator(selectedInvestigatorName, {
-      limit: investigatorPerPage,
-      page: investigatorPage,
-    })
-      .then((payload) => {
-        if (isCancelled) return;
-        setInvestigatorResults(payload.results ?? []);
-        setInvestigatorTotal(payload.total ?? 0);
-        setInvestigatorVisibleTotal(payload.visible_total ?? payload.total ?? 0);
-      })
-      .catch(() => {
-        if (isCancelled) return;
-        setInvestigatorResults([]);
-        setInvestigatorTotal(0);
-        setInvestigatorVisibleTotal(0);
-        setInvestigatorError("Unable to load investigator projects right now.");
-      })
-      .finally(() => {
-        if (isCancelled) return;
-        setInvestigatorLoading(false);
-      });
-
-    return () => {
-      isCancelled = true;
-    };
-  }, [selectedInvestigatorName, investigatorPage]);
+  const isDashboardVisible = view === "dashboard" && !isSemanticRoute;
 
   return (
-    <div className="app-shell">
-      {/* Header */}
-      <header className="app-header">
+    <div className="grid grid-rows-[auto_minmax(0,1fr)] h-full overflow-hidden font-sans">
+      <header className="grid grid-cols-[1fr_auto_1fr] items-center px-6 h-[50px] bg-surface border-b border-border gap-4 max-[900px]:h-[60px] max-[900px]:px-4">
         <button
           type="button"
-          className="header-logo"
+          className="flex items-center gap-[0.4rem] font-semibold text-[15px] text-text-primary bg-transparent border-none cursor-pointer tracking-[0.01em] shrink-0 justify-self-start hover:text-accent focus-visible:outline-2 focus-visible:outline-accent focus-visible:outline-offset-2"
           onClick={() => navigate("/")}
-          aria-label="Return to search results"
+          aria-label="Return to dashboard"
         >
-          <div className="header-logo-dot" />
+          <div className="w-[9px] h-[9px] rounded-full bg-accent" />
           NIH Project Search
         </button>
-        <nav className="nav-tabs" aria-label="Main navigation">
+        <nav className="flex items-center justify-center gap-1" aria-label="Main navigation">
           <button
             type="button"
-            className={`nav-tab${view === "search" && !isSemanticRoute ? " active" : ""}`}
-            onClick={() => {
-              navigate("/");
-              setView("search");
-            }}
-          >
-            Search
-          </button>
-          <button
-            type="button"
-            className={`nav-tab${view === "dashboard" && !isSemanticRoute ? " active" : ""}`}
-            onClick={() => {
-              navigate("/");
-              setView("dashboard");
-            }}
+            className={
+              "px-3 py-[0.35rem] rounded-sm border-none font-sans text-[13px] font-medium cursor-pointer transition-[color,background] duration-150 hover:text-text-primary hover:bg-surface-hover" +
+              (view === "dashboard" && !isSemanticRoute
+                ? " text-accent-text bg-accent-light"
+                : " bg-transparent text-text-muted")
+            }
+            onClick={() => navigate("/")}
           >
             Dashboard
           </button>
           <button
             type="button"
-            className={`nav-tab${isSemanticRoute ? " active" : ""}`}
-            onClick={() => {
-              navigate("/semantic");
-              setView("search");
-            }}
+            className={
+              "px-3 py-[0.35rem] rounded-sm border-none font-sans text-[13px] font-medium cursor-pointer transition-[color,background] duration-150 hover:text-text-primary hover:bg-surface-hover" +
+              ((isSearchRoute
+                || selectedProjectId
+                || selectedInvestigatorName
+                || selectedOrganizationName
+                || selectedInstitutionName) && !isSemanticRoute
+                ? " text-accent-text bg-accent-light"
+                : " bg-transparent text-text-muted")
+            }
+            onClick={() => navigateToSearch()}
           >
-            Vector lab
+            Search
+          </button>
+          <button
+            type="button"
+            className={
+              "px-3 py-[0.35rem] rounded-sm border-none font-sans text-[13px] font-medium cursor-pointer transition-[color,background] duration-150 hover:text-text-primary hover:bg-surface-hover" +
+              (isSemanticRoute
+                ? " text-accent-text bg-accent-light"
+                : " bg-transparent text-text-muted")
+            }
+            onClick={() => navigate("/semantic")}
+          >
+            Hybrid Search
           </button>
         </nav>
 
-        {/* Header right Theme toggle*/}
-        <div className="header-right">
-          {theme === "light" && (
-            <label className="theme-palette-picker">
-              <span className="theme-palette-label">Light theme</span>
-              <select
-                className="theme-palette-select"
-                value={lightTheme}
-                onChange={(event) => setLightTheme(event.target.value as LightTheme)}
-                aria-label="Select light color theme"
-              >
-                <option value="default">Default</option>
-                <option value="blueAccent">Blue accent</option>
-                <option value="yellowBeige">Yellow beige</option>
-                <option value="mintSlate">Mint slate</option>
-                <option value="blueModified">Blue modified</option>
-              </select>
-            </label>
-          )}
-
-          {/* Theme toggle */}
+        <div className="flex items-center justify-end gap-3 max-[900px]:gap-2">
           <button
-            className="theme-toggle"
+            className="flex items-center gap-[0.4rem] px-[0.65rem] py-[0.3rem] rounded-sm bg-surface-hover border border-border text-text-secondary font-sans text-[12px] font-medium cursor-pointer transition-[color,border-color,background] duration-150 hover:border-border-strong hover:text-text-primary hover:bg-surface max-[900px]:hidden"
             type="button"
             onClick={handleThemeToggle}
             aria-label={`Switch to ${theme === "light" ? "dark" : "light"} mode`}
           >
-
             {theme === "light" ? "Dark mode" : "Light mode"}
-            <span className="theme-toggle-icon" aria-hidden="true">
+            <span className="text-sm" aria-hidden="true">
               {theme === "light" ? "🌙" : "☀️"}
             </span>
           </button>
 
-          {/* Partner logos */}
-          <div className="header-images" aria-label="Partner logos">
-            <img src="/Images/KBR_(company)_logo.svg" alt="KBR logo" className="header-image header-image-kbr" />
+          <div className="flex items-center gap-2 max-[900px]:gap-1" aria-label="Partner logos">
             <img
-              src="/Images/Florida_International_University_FIU_logo.svg.png"
+              src="/Images/KBR_logo.svg"
+              alt="KBR logo"
+              className="object-contain h-[28px] max-[900px]:h-5"
+            />
+            <img
+              src="/Images/FIU_logo.svg.png"
               alt="FIU logo"
-              className="header-image header-image-fiu"
+              className="object-contain h-[20px] max-[900px]:h-6 mt-2"
             />
           </div>
         </div>
       </header>
 
-      {/* Main content */}
-      <section
-        style={view === "dashboard" && !isSemanticRoute ? undefined : { display: "none" }}
-        aria-hidden={view !== "dashboard" || isSemanticRoute}
-      >
-        <Dashboard onSearchNavigate={handleDashboardSearchNavigate} />
-      </section>
       <main
-        className="app-main"
         ref={mainRef}
-        style={view === "dashboard" && !isSemanticRoute ? { display: "none" } : undefined}
-        aria-hidden={view === "dashboard" && !isSemanticRoute}
+        className={
+          "min-h-0 overflow-y-auto" +
+          (isDashboardVisible ? "" : " p-[1.1rem_1.5rem] max-[900px]:px-3 max-[900px]:py-3")
+        }
       >
-        {semanticSimilarProjectId ? (
-          <SemanticSimilarProjectPage
-            projectId={decodeURIComponent(semanticSimilarProjectId)}
-            onBackToLab={() => navigate("/semantic")}
-            onOpenFullProject={(id) => navigate(`/projects/${encodeURIComponent(id)}`)}
-            onOpenInvestigator={handleOpenInvestigator}
-          />
-        ) : isSemanticHub ? (
-          <SemanticVectorLabPage />
-        ) : selectedProjectId ? (
-          projectLoading ? (
-            <div className="empty-state" role="status" aria-live="polite">
-              <strong style={{ color: "var(--text-secondary)", fontSize: 15 }}>Loading project…</strong>
+        <ErrorBoundary>
+          <Suspense fallback={
+            <div className="flex flex-col items-center justify-center px-6 py-12 text-center text-text-muted text-[0.92rem]" role="status">
+              <span className="text-text-secondary text-sm">Loading…</span>
             </div>
-          ) : projectError ? (
-            <div className="empty-state" role="status" aria-live="polite">
-              <strong style={{ color: "var(--text-secondary)", fontSize: 15 }}>{projectError}</strong>
-              <button
-                type="button"
-                className="project-back-link"
-                onClick={() => navigate("/")}
-                style={{ marginTop: "0.85rem" }}
-              >
-                Back to results
-              </button>
-            </div>
+          }>
+            {isDashboardVisible ? (
+              <Dashboard
+                searchQuery={searchQuery}
+                semanticMode={semanticSearchMode}
+                onSemanticModeChange={handleSemanticModeChange}
+                onUpdateDashboard={handleDashboardQueryUpdate}
+                onSearchNavigate={handleDashboardSearchNavigate}
+                appliedFilters={appliedFilters}
+                filterBreadcrumbOrder={filterBreadcrumbOrder}
+                onApplyFilters={handleApplyFilters}
+                onClearFilters={handleClearFilters}
+                onTermSearchNavigate={handleDashboardTermSearchNavigate}
+                onViewAllProjects={handleViewAllProjects}
+                onYearSearchNavigate={handleDashboardYearSearchNavigate}
+                onOpenProject={(projectId) =>
+                  navigateToProject(
+                    navigate,
+                    projectId,
+                    getListReturnForProjectNavigation(location),
+                  )
+                }
+              />
+            ) : semanticSimilarProjectId ? (
+              <SemanticSimilarProjectPage
+                projectId={decodeURIComponent(semanticSimilarProjectId)}
+                onBackToLab={() => navigate("/semantic")}
+                onOpenFullProject={(id) =>
+                  navigateToProject(
+                    navigate,
+                    id,
+                    getListReturnForProjectNavigation(location),
+                  )
+                }
+                onOpenInvestigator={handleOpenInvestigator}
+                onOpenOrganization={handleOpenOrganization}
+                onOpenInstitution={handleOpenInstitution}
+              />
+            ) : isSemanticHub ? (
+              <SemanticVectorLabPage />
+            ) : selectedProjectId ? (
+              projectError ? (
+                <div className="flex flex-col items-center justify-center px-6 py-12 text-center text-text-muted text-[0.92rem]" role="status" aria-live="polite">
+                  <strong className="text-text-secondary text-[15px]">{projectError}</strong>
+                  <BackToResultsButton
+                    onClick={handleBackToList}
+                    className="mt-[0.85rem]"
+                  />
+                </div>
+              ) : !projectLoading && !selectedProject ? (
+                <div className="flex flex-col items-center justify-center px-6 py-12 text-center text-text-muted text-[0.92rem]" role="status" aria-live="polite">
+                  <strong className="text-text-secondary text-[15px]">Project not found</strong>
+                  <BackToResultsButton
+                    onClick={handleBackToList}
+                    className="mt-[0.85rem]"
+                  />
+                </div>
+              ) : (
+                <ProjectDetailsPage
+                  item={selectedProject ?? stubProjectFromId(selectedProjectId)}
+                  projectContentLoading={projectLoading && !selectedProject}
+                  similarNeighbors={similarNeighbors}
+                  similarLoading={similarLoading}
+                  similarError={similarError}
+                  onBack={handleBackToList}
+                  onOpenInvestigator={handleOpenInvestigator}
+                  onOpenDetails={handleOpenDetails}
+                  onSearchWithProjectTerms={handleSearchFromProjectTerms}
+                />
+              )
+            ) : selectedOrganizationName ? (
+              <InvestigatorPage
+                investigatorName={selectedOrganizationName}
+                loading={organizationLoading}
+                error={organizationError}
+                results={organizationResults}
+                visibleTotal={organizationVisibleTotal}
+                total={organizationTotal}
+                currentPage={organizationPage}
+                totalPages={organizationTotalPages}
+                pageNumbers={organizationPageNumbers}
+                onOpenDetails={handleOpenDetails}
+                onOpenInvestigator={handleOpenInvestigator}
+                onOpenOrganization={handleOpenOrganization}
+                onOpenInstitution={handleOpenInstitution}
+                onPageChange={setOrganizationPage}
+                onBack={handleBackToList}
+              />
+            ) : selectedInstitutionName ? (
+              <InvestigatorPage
+                investigatorName={selectedInstitutionName}
+                loading={institutionLoading}
+                error={institutionError}
+                results={institutionResults}
+                visibleTotal={institutionVisibleTotal}
+                total={institutionTotal}
+                currentPage={institutionPage}
+                totalPages={institutionTotalPages}
+                pageNumbers={institutionPageNumbers}
+                onOpenDetails={handleOpenDetails}
+                onOpenInvestigator={handleOpenInvestigator}
+                onOpenOrganization={handleOpenOrganization}
+                onOpenInstitution={handleOpenInstitution}
+                onPageChange={setInstitutionPage}
+                onBack={handleBackToList}
+              />
+            ) : selectedInvestigatorName ? (
+              <InvestigatorPage
+                investigatorName={selectedInvestigatorName}
+                loading={investigatorLoading}
+                error={investigatorError}
+                results={investigatorResults}
+                visibleTotal={investigatorVisibleTotal}
+                total={investigatorTotal}
+                currentPage={investigatorPage}
+                totalPages={investigatorTotalPages}
+                pageNumbers={investigatorPageNumbers}
+                onOpenDetails={handleOpenDetails}
+                onOpenInvestigator={handleOpenInvestigator}
+                onOpenOrganization={handleOpenOrganization}
+                onOpenInstitution={handleOpenInstitution}
+                onPageChange={setInvestigatorPage}
+                onBack={handleBackToList}
+              />
+            ) : isSearchRoute ? (
+              <>
+                <Filters
+                  applied={appliedFilters}
+                  catalog={filterCatalog}
+                  fieldHelp={{
+                    pi: HELP_SEARCH_FILTER_PI,
+                    ic: HELP_SEARCH_FILTER_IC,
+                    org: HELP_SEARCH_FILTER_ORG,
+                    activity: HELP_SEARCH_FILTER_ACTIVITY,
+                    state: HELP_SEARCH_FILTER_STATE,
+                    fy: HELP_SEARCH_FILTER_FY,
+                  }}
+                  searchQuery={searchQuery}
+                  semanticMode={semanticSearchMode}
+                  onSemanticModeChange={handleSemanticModeChange}
+                  showSemanticToggle
+                  onSearch={handleSearch}
+                  onApply={handleApplyFilters}
+                  onClear={handleClearFilters}
+                  helpTooltip={
+                    <HelpTooltip label={HELP_SEARCH.label}>{HELP_SEARCH.body}</HelpTooltip>
+                  }
+                />
 
-            
-          ) : selectedProject ? (
-            <ProjectDetailsPage
-              item={selectedProject}
-              onBack={() => navigate("/")}
-              onOpenInvestigator={handleOpenInvestigator}
-              onOpenDetails={handleOpenDetails}
-              onSearchWithProjectTerms={handleSearchFromProjectTerms}
-            />
-          ) : (
-            <div className="empty-state" role="status" aria-live="polite">
-              <strong style={{ color: "var(--text-secondary)", fontSize: 15 }}>Project not found</strong>
-              <button
-                type="button"
-                className="project-back-link"
-                onClick={() => navigate("/")}
-                style={{ marginTop: "0.85rem" }}
-              >
-                Back to results
-              </button>
-            </div>
-          )
-        ) : selectedInvestigatorName ? (
-          <InvestigatorPage
-            investigatorName={selectedInvestigatorName}
-            loading={investigatorLoading}
-            error={investigatorError}
-            results={investigatorResults}
-            visibleTotal={investigatorVisibleTotal}
-            total={investigatorTotal}
-            currentPage={investigatorPage}
-            totalPages={investigatorTotalPages}
-            pageNumbers={investigatorPageNumbers}
-            onOpenDetails={handleOpenDetails}
-            onOpenInvestigator={handleOpenInvestigator}
-            onPageChange={setInvestigatorPage}
-            onBack={() => navigate("/")}
-          />
-        ) : (
-          <>
-            <Filters
-              searchSlot={<SearchBar onSearch={handleSearch} initialQuery={query} />}
-              icNames={searchFilterCatalog?.icNames ?? []}
-              activityCodes={searchFilterCatalog?.activityCodes ?? []}
-              states={searchFilterCatalog?.states ?? []}
-              fiscalYearOptions={searchFilterCatalog?.fiscalYearOptions}
-              selectedPI={selectedPI}
-              selectedIC={selectedIC}
-              selectedActivity={selectedActivity}
-              selectedState={selectedState}
-              fyMin={fyMin}
-              fyMax={fyMax}
-              onApply={handleApplyFilters}
-              onClear={handleClearFilters}
-            />
-
-            <TermCloud onSearch={handleTermCloudSearch} />
-
-            <div className="results-header">
-              <div className="results-meta">
-                {loading ? (
-                  <span>Searching…</span>
-                ) : (
-                  <span>
-                    <strong>{visibleTotal.toLocaleString()}</strong> results
-                    {total > visibleTotal ? ` out of ${total.toLocaleString()}` : ""}
-                    {query ? ` for "${query}"` : ""}
-                    {projectTermFilters.length > 0 && (
-                      <span className="results-meta__term-filters">
-                        {" — "}
-                        {projectTermFilters.map((term) => (
-                          <span key={term} className="results-meta__term-chip">
-                            {term}
+                <div className="flex items-center justify-between pt-2 pl-1 gap-4 max-[900px]:flex-col max-[900px]:items-start max-[900px]:gap-2">
+                  <div className="text-text-secondary text-sm pt-[0.35rem]">
+                    {loading ? (
+                      <span>Searching…</span>
+                    ) : (
+                      <span>
+                        <strong className="text-text-primary font-medium">{visibleTotal.toLocaleString()}</strong> results
+                        {total > visibleTotal ? ` out of ${total.toLocaleString()}` : ""}
+                        {activeSearchLabel ? ` for "${activeSearchLabel}"` : ""}
+                        {(projectTermFilters.length > 0 || excludeProjectTermFilters.length > 0) && (
+                          <span className="inline-flex flex-wrap items-center gap-[0.3rem] align-middle">
+                            {" — "}
+                            {projectTermFilters.map((term) => (
+                              <span key={`include-${term}`} className="inline-flex items-center gap-[0.2rem] px-[0.5rem] py-[0.2rem] rounded-md border border-accent-text/25 bg-accent-light text-accent-text text-[0.78rem] font-medium dark:border-accent/45">
+                                {term}
+                                <button
+                                  type="button"
+                                  className="bg-transparent border-none text-accent-text cursor-pointer text-[0.85rem] px-[0.15rem] py-0 leading-none opacity-70 hover:opacity-100"
+                                  onClick={() =>
+                                    setProjectTermFilters((prev) => prev.filter((t) => t !== term))
+                                  }
+                                  aria-label={`Remove ${term} filter`}
+                                >
+                                  ×
+                                </button>
+                              </span>
+                            ))}
+                            {excludeProjectTermFilters.map((term) => (
+                              <span key={`exclude-${term}`} className="inline-flex items-center px-[0.5rem] py-[0.2rem] rounded-md border border-red-200/90 bg-red-50 text-red-700 text-[0.78rem] font-medium dark:border-red-900/50 dark:bg-red-950/45 dark:text-red-300">
+                                NOT {term}
+                                <button
+                                  type="button"
+                                  className="bg-transparent border-none text-red-700 dark:text-red-300 cursor-pointer text-[0.85rem] px-[0.15rem] py-0 leading-none opacity-70 hover:opacity-100"
+                                  onClick={() =>
+                                    setExcludeProjectTermFilters((prev) => prev.filter((t) => t !== term))
+                                  }
+                                  aria-label={`Remove NOT ${term} filter`}
+                                >
+                                  ×
+                                </button>
+                              </span>
+                            ))}
                             <button
                               type="button"
-                              className="results-meta__term-chip-x"
-                              onClick={() =>
-                                setProjectTermFilters((prev) => prev.filter((t) => t !== term))
-                              }
-                              aria-label={`Remove ${term} filter`}
+                              className="bg-transparent border-none text-accent-text cursor-pointer text-[0.78rem] underline px-[0.25rem] py-[0.15rem]"
+                              onClick={handleClearFilters}
                             >
-                              ×
+                              Clear all
                             </button>
                           </span>
-                        ))}
-                        <button
-                          type="button"
-                          className="results-meta__clear-terms"
-                          onClick={() => setProjectTermFilters([])}
-                        >
-                          Clear all
-                        </button>
+                        )}
+                        {currentPage > 1 ? ` — page ${currentPage} of ${totalPages}` : ""}
                       </span>
                     )}
-                    {currentPage > 1 ? ` — page ${currentPage} of ${totalPages}` : ""}
-                  </span>
-                )}
-              </div>
+                  </div>
 
+                  <div className="flex items-center gap-4 pb-[0.15rem] max-[900px]:w-full max-[900px]:justify-between max-[900px]:flex-wrap">
+                    <div className="w-full min-w-0">
+                      <button
+                        type="button"
+                        className={cn(
+                          "box-border w-full min-h-[2rem] rounded-sm border-2 border-border-input bg-bg px-[1rem] py-[0.5rem] font-sans text-[12px] leading-[1.35] text-text-primary outline-none transition-[border-color] duration-150",
+                          "inline-flex items-center justify-center gap-[0.35rem] cursor-pointer hover:border-border-strong focus:border-accent",
+                          "disabled:cursor-not-allowed disabled:opacity-50",
+                        )}
+                        onClick={() => void handleDownloadCsv()}
+                        disabled={loading || exportingCsv || visibleTotal === 0}
+                        title="Download up to 10,000 matching rows with all original columns"
+                        aria-label={exportingCsv ? "Preparing CSV download" : "Download search results as CSV"}
+                        aria-busy={exportingCsv}
+                      >
+                        {exportingCsv && (
+                          <span
+                            className="inline-block size-3 border-2 border-current border-t-transparent rounded-full animate-spin shrink-0"
+                            aria-hidden="true"
+                          />
+                        )}
+                        {exportingCsv ? "Preparing CSV…" : "Download CSV"}
+                      </button>
+                    </div>
+                    <div className="min-w-[19.5rem] w-full flex items-center gap-3">
+                      <FilterSelect
+                        compact
+                        includeEmptyOption={false}
+                        value={sortOption}
+                        onChange={handleSortOptionChange}
+                        options={SORT_SELECT_OPTIONS}
+                        placeholder="Sort"
+                        ariaLabel="Sort results"
+                      />
+                      <FilterSelect
+                        compact
+                        includeEmptyOption={false}
+                        value={String(resultsPerPage)}
+                        onChange={handlePerPageChange}
+                        options={PER_PAGE_SELECT_OPTIONS}
+                        placeholder="Per page"
+                        ariaLabel="Results per page"
+                      />
+                    </div>
+                  </div>
+                </div>
 
-              <div className="results-controls">
-                <select
-                  className="per-page-select"
-                  value={sortOption}
-                  onChange={(e) => setSortOption(e.target.value as SortOption)}
-                  aria-label="Sort results"
-                >
-                  <option value="relevant">Most Relevant</option>
-                  <option value="alphaAsc">Title: A to Z</option>
-                  <option value="alphaDesc">Title: Z to A</option>
-                </select>
-                <select
-                  className="per-page-select"
-                  value={resultsPerPage}
-                  onChange={handlePerPageChange}
-                >
-                  {[10, 25, 50, 100].map((n) => (
-                    <option key={n} value={n}>{n} per page</option>
-                  ))}
-                </select>
-              </div>
-            </div>
-
-            <ResultsList
-              results={results}
-              primarySort={sortOption}
-              loading={loading}
-              onOpenDetails={handleOpenDetails}
-              onOpenInvestigator={handleOpenInvestigator}
-            />
-
-            {/* Pagination */}
-            {totalPages > 1 && (
-              <div className="pagination">
-                <button
-                  className="btn-page"
-                  onClick={() => setCurrentPage(1)}
-                  disabled={currentPage === 1}
-                  aria-label="Go to first page"
-                >
-                  «
-                </button>
-
-                <button
-                  className="btn-page"
-                  onClick={() => setCurrentPage((p) => Math.max(1, p - 1))}
-                  disabled={currentPage === 1}
-                >
-                  ←
-                </button>
-
-                {pageNumbers.map((item, index) =>
-                  item === "..." ? (
-                    <span key={`ellipsis-${index}`} className="page-ellipsis">…</span>
-                  ) : (
-                    <button
-                      key={item}
-                      className={`btn-page${item === currentPage ? " active" : ""}`}
-                      onClick={() => setCurrentPage(item as number)}
-                      disabled={item === currentPage}
-                    >
-                      {item}
-                    </button>
-                  ),
+                {exportCsvError && (
+                  <p className="text-[0.78rem] text-text-muted m-0 px-1" role="alert">
+                    {exportCsvError}
+                  </p>
                 )}
 
-                <button
-                  className="btn-page"
-                  onClick={() => setCurrentPage((p) => Math.min(totalPages, p + 1))}
-                  disabled={currentPage >= totalPages}
-                >
-                  →
-                </button>
-
-                
-
-                <form className="page-jump-form" onSubmit={handleJumpToPageSubmit}>
-                  <input
-                    className="page-jump-input"
-                    type="text"
-                    inputMode="numeric"
-                    pattern="[0-9]*"
-                    value={jumpToPageInput}
-                    onChange={(e) => setJumpToPageInput(e.target.value.replace(/\D/g, ""))}
-                    aria-label={`Jump to page between 1 and ${totalPages}`}
+                <div className="mt-1.75">
+                  <ResultsList
+                    results={results}
+                    primarySort={sortOption}
+                    loading={loading}
+                    showSimilarityScore={
+                      semanticSearchMode && semanticSearchCommitted
+                    }
+                    onOpenDetails={handleOpenDetails}
+                    onOpenInvestigator={handleOpenInvestigator}
+                    onOpenOrganization={handleOpenOrganization}
+                    onOpenInstitution={handleOpenInstitution}
+                    sort={columnSort}
+                    onSortChange={
+                      semanticSearchMode && semanticSearchCommitted
+                        ? undefined
+                        : handleColumnSortChange
+                    }
                   />
-                  <button className="btn-page btn-page-jump" type="submit">
-                    Go
+                </div>
+
+                {totalPages > 1 && (
+                  <Pagination
+                    currentPage={currentPage}
+                    totalPages={totalPages}
+                    pageNumbers={pageNumbers}
+                    onPageChange={setCurrentPage}
+                    jumpToPageInput={jumpToPageInput}
+                    onJumpToPageInputChange={setJumpToPageInput}
+                    onJumpToPageSubmit={handleJumpToPageSubmit}
+                  />
+                )}
+
+                {showScrollTop && (
+                  <button
+                    type="button"
+                    className="fixed right-8 bottom-6 border border-accent bg-accent text-white rounded-sm px-[0.92rem] py-[0.575rem] font-sans text-[15px] font-medium cursor-pointer shadow-md transition-[background,transform] duration-150 hover:bg-accent-hover hover:-translate-y-0.5 max-[900px]:right-4 max-[900px]:bottom-3"
+                    onClick={handleScrollToTop}
+                    aria-label="Scroll back to top"
+                  >
+                    ↑
                   </button>
-                </form>
+                )}
+              </>
+            ) : (
+              <div className="flex flex-col items-center justify-center px-6 py-16 text-center text-text-muted text-[0.92rem]" role="status">
+                <strong className="text-text-secondary text-[15px]">Page not found</strong>
+                <p className="mt-2 text-sm">The page you're looking for doesn't exist.</p>
+                <button
+                  type="button"
+                  className="mt-4 px-4 py-2 rounded-sm bg-accent text-white border-none font-sans text-sm font-medium cursor-pointer hover:bg-accent-hover transition-[background] duration-150"
+                  onClick={() => navigate("/")}
+                >
+                  Go to Dashboard
+                </button>
               </div>
             )}
-
-            {showScrollTop && (
-              <button
-                type="button"
-                className="scroll-top-btn"
-                onClick={handleScrollToTop}
-                aria-label="Scroll back to top"
-              >
-                ↑
-              </button>
-            )}
-          </>
-        )}
+          </Suspense>
+        </ErrorBoundary>
       </main>
     </div>
   );
