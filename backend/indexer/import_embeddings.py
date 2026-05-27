@@ -86,7 +86,7 @@ def import_file(client: object, index_name: str, ndjson_path: Path) -> tuple[int
   ):
     if ok:
       successes += 1
-      if successes % 1_000 == 0:
+      if successes % 5_000 == 0:
         print(f"  ...indexed {successes:,} records", flush=True)
     else:
       failures += 1
