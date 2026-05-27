@@ -6,7 +6,8 @@ import ResultsList from "../search/ResultsList";
 
 type SemanticSimilarProjectPageProps = {
   projectId: string;
-  onBackToLab: () => void;
+  onBack: () => void;
+  backButtonLabel?: string;
   onOpenFullProject: (projectId: string) => void;
   /** Optional; kept for callers that support chaining similarity from another grant. */
   onOpenSimilarFor?: (projectId: string) => void;
@@ -35,7 +36,8 @@ function formatUsd(n: number | undefined): string {
 
 export default function SemanticSimilarProjectPage({
   projectId,
-  onBackToLab,
+  onBack,
+  backButtonLabel = "Search results",
   onOpenFullProject,
   onOpenInvestigator,
   onOpenOrganization,
@@ -104,8 +106,8 @@ export default function SemanticSimilarProjectPage({
   return (
     <div className="w-full max-w-none m-0 pt-[0.35rem] pb-10">
       <div className="mb-3">
-        <button type="button" className="inline-block p-0 border-none bg-transparent text-accent font-sans text-[15.5px] cursor-pointer hover:underline" onClick={onBackToLab}>
-          ← Search results
+        <button type="button" className="inline-block p-0 border-none bg-transparent text-accent font-sans text-[15.5px] cursor-pointer hover:underline" onClick={onBack}>
+          ← {backButtonLabel}
         </button>
       </div>
 

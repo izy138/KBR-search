@@ -61,7 +61,9 @@ import {
   getListReturnForProjectNavigation,
   navigateBackToList,
   navigateToProject,
+  readReturnTo,
 } from "./utils/navigationState";
+import { buildDashboardUrlParams, buildSearchUrlParams, searchParamsToString } from "./utils/searchUrlParams";
 
 const Dashboard = lazy(() => import("./components/dashboard/Dashboard"));
 const ProjectDetailsPage = lazy(() => import("./components/project/ProjectDetailsPage"));
@@ -646,6 +648,115 @@ export default function App() {
   };
 
   const isDashboardVisible = view === "dashboard" && !isSemanticRoute;
+  const semanticReturnTo = useMemo(() => readReturnTo(location), [location]);
+  const semanticBackIsProjectDetails = useMemo(
+    () =>
+      Boolean(
+        semanticReturnTo?.pathname
+        && matchPath("/projects/:projectId", semanticReturnTo.pathname),
+      ),
+    [semanticReturnTo],
+  );
+  const semanticBackLabel = semanticBackIsProjectDetails
+    ? "Back to Project Details"
+    : "Search results";
+  const handleSemanticBack = useCallback(() => {
+    if (semanticReturnTo) {
+      navigate({
+        pathname: semanticReturnTo.pathname,
+        search: semanticReturnTo.search || undefined,
+      });
+      return;
+    }
+    navigate("/semantic");
+  }, [navigate, semanticReturnTo]);
+
+  const lastDashboardSearchRef = useRef(
+    isDashboardRoute ? location.search : "",
+  );
+  const lastSearchSearchRef = useRef(
+    isSearchRoute ? location.search : "",
+  );
+
+  useEffect(() => {
+    if (isDashboardRoute) {
+      lastDashboardSearchRef.current = location.search;
+      return;
+    }
+    if (isSearchRoute) {
+      lastSearchSearchRef.current = location.search;
+    }
+  }, [isDashboardRoute, isSearchRoute, location.search]);
+
+  const handleNavigateToDashboard = useCallback(() => {
+    const fallbackSearch = searchParamsToString(
+      buildDashboardUrlParams({
+        q: searchQuery,
+        pi: selectedPI,
+        ic: selectedIC,
+        org: selectedOrg,
+        activity: selectedActivity,
+        state: selectedState,
+        fyMin,
+        fyMax,
+        semantic: semanticSearchMode && semanticSearchCommitted,
+      }),
+    );
+    const search = lastDashboardSearchRef.current || fallbackSearch;
+    navigate({ pathname: "/", search });
+  }, [
+    navigate,
+    searchQuery,
+    selectedPI,
+    selectedIC,
+    selectedOrg,
+    selectedActivity,
+    selectedState,
+    fyMin,
+    fyMax,
+    semanticSearchMode,
+    semanticSearchCommitted,
+  ]);
+
+  const handleNavigateToSearchTopNav = useCallback(() => {
+    const fallbackSearch = searchParamsToString(
+      buildSearchUrlParams({
+        q: searchQuery,
+        page: currentPage,
+        limit: resultsPerPage,
+        pi: selectedPI,
+        ic: selectedIC,
+        org: selectedOrg,
+        activity: selectedActivity,
+        state: selectedState,
+        fyMin,
+        fyMax,
+        projectTerms: projectTermFilters,
+        sortBy,
+        sortOrder,
+        semantic: semanticSearchMode && semanticSearchCommitted,
+      }),
+    );
+    const search = lastSearchSearchRef.current || fallbackSearch;
+    navigate({ pathname: "/search", search });
+  }, [
+    navigate,
+    searchQuery,
+    currentPage,
+    resultsPerPage,
+    selectedPI,
+    selectedIC,
+    selectedOrg,
+    selectedActivity,
+    selectedState,
+    fyMin,
+    fyMax,
+    projectTermFilters,
+    sortBy,
+    sortOrder,
+    semanticSearchMode,
+    semanticSearchCommitted,
+  ]);
 
   return (
     <div className="grid grid-rows-[auto_minmax(0,1fr)] h-full overflow-hidden font-sans">
@@ -653,7 +764,7 @@ export default function App() {
         <button
           type="button"
           className="flex items-center gap-[0.4rem] font-semibold text-[15px] text-text-primary bg-transparent border-none cursor-pointer tracking-[0.01em] shrink-0 justify-self-start hover:text-accent focus-visible:outline-2 focus-visible:outline-accent focus-visible:outline-offset-2"
-          onClick={() => navigate("/")}
+          onClick={handleNavigateToDashboard}
           aria-label="Return to dashboard"
         >
           <div className="w-[9px] h-[9px] rounded-full bg-accent" />
@@ -668,7 +779,7 @@ export default function App() {
                 ? " text-accent-text bg-accent-light"
                 : " bg-transparent text-text-muted")
             }
-            onClick={() => navigate("/")}
+            onClick={handleNavigateToDashboard}
           >
             Dashboard
           </button>
@@ -684,7 +795,7 @@ export default function App() {
                 ? " text-accent-text bg-accent-light"
                 : " bg-transparent text-text-muted")
             }
-            onClick={() => navigateToSearch()}
+            onClick={handleNavigateToSearchTopNav}
           >
             Search
           </button>
@@ -768,7 +879,8 @@ export default function App() {
             ) : semanticSimilarProjectId ? (
               <SemanticSimilarProjectPage
                 projectId={decodeURIComponent(semanticSimilarProjectId)}
-                onBackToLab={() => navigate("/semantic")}
+                onBack={handleSemanticBack}
+                backButtonLabel={semanticBackLabel}
                 onOpenFullProject={(id) =>
                   navigateToProject(
                     navigate,
@@ -808,6 +920,8 @@ export default function App() {
                   similarError={similarError}
                   onBack={handleBackToList}
                   onOpenInvestigator={handleOpenInvestigator}
+                  onOpenOrganization={handleOpenOrganization}
+                  onOpenInstitution={handleOpenInstitution}
                   onOpenDetails={handleOpenDetails}
                   onSearchWithProjectTerms={handleSearchFromProjectTerms}
                 />

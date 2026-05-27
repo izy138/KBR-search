@@ -36,6 +36,8 @@ type ProjectDetailsPageProps = {
   similarError: string;
   onBack: () => void;
   onOpenInvestigator?: (name: string) => void;
+  onOpenOrganization?: (name: string) => void;
+  onOpenInstitution?: (name: string) => void;
   onOpenDetails?: (item: SearchResultRecord) => void;
   onSearchWithProjectTerms?: (payload: ProjectSearchTermsPayload) => void;
 };
@@ -43,6 +45,30 @@ type ProjectDetailsPageProps = {
 const ABSTRACT_PREVIEW_LENGTH = 1500;
 
 const CLS_SECTION_H2 = "text-[0.86rem] uppercase tracking-[0.05em] text-text-secondary mb-[0.35rem]";
+const CLS_DETAIL_LINK_BTN =
+  "p-0 border-none bg-transparent text-accent font-[inherit] text-left cursor-pointer hover:underline";
+const CLS_METADATA_ROW = "grid grid-cols-1 sm:grid-cols-3 gap-x-6 gap-y-4";
+const CLS_METADATA_ROW_TWO = "grid grid-cols-1 sm:grid-cols-2 gap-x-6 gap-y-4";
+
+function DetailLinkValue({
+  value,
+  onActivate,
+}: {
+  value: string | undefined;
+  onActivate?: (name: string) => void;
+}) {
+  const label = value?.trim() || "—";
+  if (label === "—" || !onActivate) {
+    return <p className="text-text-primary">{label}</p>;
+  }
+  return (
+    <p className="text-text-primary m-0">
+      <button type="button" className={CLS_DETAIL_LINK_BTN} onClick={() => onActivate(label)}>
+        {label}
+      </button>
+    </p>
+  );
+}
 
 function KeywordTag({ mode, onClick, children }: {
   mode: TermFilterMode | null;
@@ -319,6 +345,8 @@ export default function ProjectDetailsPage({
   similarError,
   onBack,
   onOpenInvestigator,
+  onOpenOrganization,
+  onOpenInstitution,
   onOpenDetails,
   onSearchWithProjectTerms,
 }: ProjectDetailsPageProps) {
@@ -492,6 +520,19 @@ export default function ProjectDetailsPage({
     });
   };
 
+  const handleOpenSimilarProjectsPage = (): void => {
+    if (!projectId) return;
+    const encodedProjectId = encodeURIComponent(projectId);
+    navigate(`/semantic/similar/${encodedProjectId}`, {
+      state: {
+        returnTo: {
+          pathname: `/projects/${encodedProjectId}`,
+          search: "",
+        },
+      },
+    });
+  };
+
   return (
     <div className="grid grid-cols-[2fr_1fr] gap-[1.25rem] items-start w-full max-[960px]:grid-cols-1">
     <div className="flex flex-col gap-[1.25rem] min-w-0 w-full">
@@ -547,68 +588,74 @@ export default function ProjectDetailsPage({
         )}
       </section>
 
-      <section className="grid grid-cols-[repeat(auto-fit,minmax(240px,1fr))] gap-x-6 gap-y-4">
-        <div>
-          <h2 className={CLS_SECTION_H2}>Principal Investigator Names</h2>
-          {piNames.length > 0 ? (
-            <ul className="list-disc pl-4">
-              {piNames.map((name) => (
-                <li key={name}>
-                  {onOpenInvestigator ? (
-                    <button
-                      type="button"
-                      className="p-0 border-none bg-transparent text-accent font-[inherit] cursor-pointer hover:underline"
-                      onClick={() => onOpenInvestigator(name)}
-                    >
-                      {name}
-                    </button>
-                  ) : (
-                    name
-                  )}
-                </li>
-              ))}
-            </ul>
-          ) : (
-            <p className="text-text-primary">—</p>
-          )}
+      <section className="flex flex-col gap-4">
+        <div className={CLS_METADATA_ROW}>
+          <div>
+            <h2 className={CLS_SECTION_H2}>Principal Investigator Names</h2>
+            {piNames.length > 0 ? (
+              <ul className="list-disc pl-4">
+                {piNames.map((name) => (
+                  <li key={name}>
+                    {onOpenInvestigator ? (
+                      <button
+                        type="button"
+                        className={CLS_DETAIL_LINK_BTN}
+                        onClick={() => onOpenInvestigator(name)}
+                      >
+                        {name}
+                      </button>
+                    ) : (
+                      name
+                    )}
+                  </li>
+                ))}
+              </ul>
+            ) : (
+              <p className="text-text-primary">—</p>
+            )}
+          </div>
+
+          <div>
+            <h2 className={CLS_SECTION_H2}>NIH Institute or Center</h2>
+            <DetailLinkValue value={item.IC_NAME} onActivate={onOpenInstitution} />
+          </div>
+
+          <div>
+            <h2 className={CLS_SECTION_H2}>Funded Organization</h2>
+            <DetailLinkValue value={item.ORG_NAME} onActivate={onOpenOrganization} />
+          </div>
+        </div>
+
+        <div className={CLS_METADATA_ROW}>
+          <div>
+            <h2 className={CLS_SECTION_H2}>Activity Code</h2>
+            <p className="text-text-primary">{item.ACTIVITY ?? "—"}</p>
+          </div>
+
+          <div>
+            <h2 className={CLS_SECTION_H2}>Fiscal Year(s)</h2>
+            <p className="text-text-primary">{fiscalYears}</p>
+          </div>
+
+          <div>
+            <h2 className={CLS_SECTION_H2}>Project Start/End</h2>
+            <p className="text-text-primary">{projectDates}</p>
+          </div>
+        </div>
+
+        <div className={CLS_METADATA_ROW_TWO}>
+          <div>
+            <h2 className={CLS_SECTION_H2}>Award Amount</h2>
+            <p className="text-text-primary">{formatDollarsFull(item.TOTAL_COST)}</p>
+          </div>
+
+          <div>
+            <h2 className={CLS_SECTION_H2}>Funded Location</h2>
+            <p className="text-text-primary">{formatLocation(item)}</p>
+          </div>
         </div>
 
         <div>
-          <h2 className={CLS_SECTION_H2}>Funded Organization</h2>
-          <p className="text-text-primary">{item.ORG_NAME ?? "—"}</p>
-        </div>
-
-        <div>
-          <h2 className={CLS_SECTION_H2}>Funded Location</h2>
-          <p className="text-text-primary">{formatLocation(item)}</p>
-        </div>
-
-        <div>
-          <h2 className={CLS_SECTION_H2}>NIH Institute or Center</h2>
-          <p className="text-text-primary">{item.IC_NAME ?? "—"}</p>
-        </div>
-
-        <div>
-          <h2 className={CLS_SECTION_H2}>Fiscal Year(s)</h2>
-          <p className="text-text-primary">{fiscalYears}</p>
-        </div>
-
-        <div>
-          <h2 className={CLS_SECTION_H2}>Project Start/End</h2>
-          <p className="text-text-primary">{projectDates}</p>
-        </div>
-
-        <div>
-          <h2 className={CLS_SECTION_H2}>Award Amount</h2>
-          <p className="text-text-primary">{formatDollarsFull(item.TOTAL_COST)}</p>
-        </div>
-
-        <div>
-          <h2 className={CLS_SECTION_H2}>Activity Code</h2>
-          <p className="text-text-primary">{item.ACTIVITY ?? "—"}</p>
-        </div>
-
-        <div className="col-span-full">
           <div className="mb-[0.35rem] flex items-center gap-2">
             <h2 className={cn(CLS_SECTION_H2, "mb-0")}>Keywords or Research Terms</h2>
             {onSearchWithProjectTerms ? (
@@ -724,7 +771,7 @@ export default function ProjectDetailsPage({
           <button
             type="button"
             className={CLS_LINK_BTN}
-            onClick={() => navigate(`/semantic/similar/${encodeURIComponent(projectId)}`)}
+            onClick={handleOpenSimilarProjectsPage}
           >
             See more similar projects
           </button>
@@ -850,7 +897,7 @@ export default function ProjectDetailsPage({
           <button
             type="button"
             className={CLS_LINK_BTN}
-            onClick={() => navigate(`/semantic/similar/${encodeURIComponent(projectId)}`)}
+            onClick={handleOpenSimilarProjectsPage}
           >
             Show more similar projects
           </button>
