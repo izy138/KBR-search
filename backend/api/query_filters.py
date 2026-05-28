@@ -10,7 +10,7 @@ from fastapi import HTTPException, Query
 SEARCH_FIELDS = [
   "PROJECT_TITLE^4",
   "PROJECT_TERMS^2",
-  "ABSTRACT_TEXT",
+  "ABSTRACT_TEXT^2",
   "PI_NAMEs^2",
   "ORG_NAME",
   "IC_NAME",
