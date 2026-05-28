@@ -155,6 +155,9 @@ const SearchBar: FC<SearchBarProps> = ({
 
   const handleAdvancedClick = () => {
     if (advancedToggleDisabled) return;
+    if (semanticMode && onSemanticModeChange != null) {
+      onSemanticModeChange(false);
+    }
     if (advancedActive) {
       setAdvancedEnabled(false);
       return;
@@ -164,6 +167,9 @@ const SearchBar: FC<SearchBarProps> = ({
 
   const handleSemanticClick = () => {
     if (semanticToggleDisabled || onSemanticModeChange == null) return;
+    if (!semanticMode && hasAdvancedInBar) {
+      setAdvancedEnabled(false);
+    }
     onSemanticModeChange(!semanticMode);
   };
 
@@ -173,8 +179,8 @@ const SearchBar: FC<SearchBarProps> = ({
   })();
 
   const useExpandedLayout = showAdvancedToggle || showSemanticToggle;
-  const advancedToggleDisabled = semanticMode;
-  const semanticToggleDisabled = hasAdvancedInBar;
+  const advancedToggleDisabled = semanticMode && onSemanticModeChange == null;
+  const semanticToggleDisabled = hasAdvancedInBar && !showAdvancedToggle;
   const advancedActive = hasAdvancedInBar || advancedOpen;
 
   const advancedControl = showAdvancedToggle ? (
