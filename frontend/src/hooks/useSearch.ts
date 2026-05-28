@@ -127,7 +127,20 @@ export function useSearch({
             setVisibleTotal(0);
             return;
           }
-          const payload = await searchSimilarByText(trimmed, SEMANTIC_SEARCH_MAX_K, signal);
+          const payload = await searchSimilarByText(
+            trimmed,
+            SEMANTIC_SEARCH_MAX_K,
+            {
+              pi: ctx.selectedPI,
+              ic: ctx.selectedIC,
+              org: ctx.selectedOrg,
+              activity: ctx.selectedActivity,
+              state: ctx.selectedState,
+              fyMin: ctx.fyMin,
+              fyMax: ctx.fyMax,
+            },
+            signal,
+          );
           const allResults = payload.results ?? [];
           const start = (page - 1) * limit;
           setResults(allResults.slice(start, start + limit));

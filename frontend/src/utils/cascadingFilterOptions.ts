@@ -12,6 +12,9 @@ export function buildCascadingSelectOptions(
   matchKey: (value: string) => string = (value) => value,
 ): FilterSelectOption[] {
   const items = sortItems ? [...catalogItems].sort(localeSort) : [...catalogItems];
+  if (selected.trim() && !items.includes(selected)) {
+    items.unshift(selected);
+  }
   if (!available) {
     return items.map((value) => ({ value, label: formatLabel(value) }));
   }

@@ -855,6 +855,13 @@ def _format_knn_hits(
 def search_similar(
     q: str = Query(..., min_length=1, description="Free-text query to embed"),
     k: int = Query(default=SIMILAR_DEFAULT_K, ge=1, le=SIMILAR_MAX_K),
+    pi: str = Query(default="", description="Filter by PI_NAMEs"),
+    ic: str = Query(default="", description="Filter by IC_NAME"),
+    org: str = Query(default="", description="Filter by ORG_NAME"),
+    activity: str = Query(default="", description="Filter by ACTIVITY"),
+    state: str = Query(default="", description="Filter by ORG_STATE"),
+    fy_min: int | None = Query(default=None, description="Minimum fiscal year"),
+    fy_max: int | None = Query(default=None, description="Maximum fiscal year"),
 ) -> dict[str, object]:
     """Semantic search: find projects whose embedding is closest to the query."""
     if len(q) > MAX_QUERY_LENGTH:
@@ -863,12 +870,24 @@ def search_similar(
     client = get_client()
     _require_matching_embedding_dimension(client)
     query_vector = embed_query(q)
+    filters = build_project_filters(
+        pi=pi,
+        ic=ic,
+        org=org,
+        activity=activity,
+        state=state,
+        fy_min=fy_min,
+        fy_max=fy_max,
+    )
+    knn_clause: dict[str, object] = {"vector": query_vector, "k": k}
+    if filters:
+        knn_clause["filter"] = {"bool": {"filter": filters}}
     response = client.search(
         index=INDEX_NAME,
         body={
             "size": k,
             "_source": {"excludes": [EMBEDDING_FIELD]},
-            "query": {"knn": {EMBEDDING_FIELD: {"vector": query_vector, "k": k}}},
+            "query": {"knn": {EMBEDDING_FIELD: knn_clause}},
         },
     )
     hits = response.get("hits", {}).get("hits", [])
