@@ -632,7 +632,7 @@ def analytics_by_ic(
 @router.get("/by-org")
 def analytics_by_org(
   scope: Annotated[AnalyticsScope, Depends(analytics_scope)],
-  limit: int = Query(default=100, ge=1, le=500, description="Max organizations to return"),
+  limit: int = Query(default=10000, ge=1, le=10000, description="Max organizations to return"),
   min_projects: int = Query(
     default=5001,
     ge=1,

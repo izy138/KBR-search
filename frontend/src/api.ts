@@ -597,7 +597,9 @@ export function getOrgData(options?: {
   signal?: AbortSignal;
 }): Promise<OrgCatalogDataPoint[]> {
   const params = new URLSearchParams();
-  params.set("limit", String(options?.limit ?? 200));
+  if (options?.limit != null) {
+    params.set("limit", String(options.limit));
+  }
   params.set("min_projects", String(options?.minProjects ?? 500));
   appendAnalyticsFilters(params, options?.filters);
   const qs = params.toString();
