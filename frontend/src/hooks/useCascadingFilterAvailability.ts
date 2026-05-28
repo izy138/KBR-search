@@ -8,7 +8,6 @@ export type CascadingFacetKey = "ic" | "org" | "activity" | "state";
 export type CascadingAvailability = Record<CascadingFacetKey, Set<string>>;
 
 const ACTIVITY_CATALOG_LIMIT = 80;
-const ORG_CATALOG_LIMIT = 100;
 const CASCADE_DEBOUNCE_MS = 200;
 
 export function normalizeStateFacetKey(state: string): string {
@@ -77,7 +76,6 @@ export function useCascadingFilterAvailability(draft: FilterValues): CascadingAv
       void Promise.all([
         getIcData(undefined, omitFacet(draft, "ic"), controller.signal),
         getOrgData({
-          limit: ORG_CATALOG_LIMIT,
           minProjects: 1,
           filters: omitFacet(draft, "org"),
           signal: controller.signal,
