@@ -4,7 +4,8 @@
 .env.*.local
 
 # Data (large; obtain separately or use symlink)
-backend/indexer/data/
+backend/indexer/data/*
+backend/indexer/OGdata/*
 
 # Node / frontend
 node_modules/
@@ -32,5 +33,5 @@ htmlcov/
 .DS_Store
 .idea/
 
-isa.md
-docs/*
+
+

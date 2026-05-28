@@ -51,12 +51,17 @@ Place files in the **`backend/`** directory (same level as `api/` and `indexer/`
 KBR-Internship/
 └── backend/
     └── indexer/
-        └── data/
+        └── data/       <- For Index and Semantic search 
             ├── 2020_data.csv
             ├── 2020_data_embedded.ndjson
             ├── …
             ├── 2025_data.csv
             └── 2025_data_embedded.ndjson
+
+        └── OGdata/     <- For Download CSV functionality
+            ├── 2020_PROJECT.csv
+            ├── ...
+            ├── 2025_PROJECT.csv
 ```
 
 Inside the backend container they appear as `/app/<filename>` (the whole `backend/` folder is mounted at `/app`).
