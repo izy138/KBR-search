@@ -734,6 +734,16 @@ export interface SimilarSearchResponse {
   results: SearchResultRecord[];
 }
 
+export type SimilarSearchOptions = {
+  pi?: string;
+  ic?: string;
+  org?: string;
+  activity?: string;
+  state?: string;
+  fyMin?: string;
+  fyMax?: string;
+};
+
 export interface SimilarToProjectResponse {
   project_id: string;
   k: number;
@@ -778,11 +788,28 @@ async function readErrorDetail(response: Response): Promise<string> {
 export async function searchSimilarByText(
   query: string,
   k = 10,
+  options: SimilarSearchOptions = {},
   signal?: AbortSignal,
 ): Promise<SimilarSearchResponse> {
+  const {
+    pi = "",
+    ic = "",
+    org = "",
+    activity = "",
+    state = "",
+    fyMin = "",
+    fyMax = "",
+  } = options;
   const url = new URL(`${API_BASE_URL}/search/similar`);
   url.searchParams.set("q", query);
   url.searchParams.set("k", String(k));
+  if (pi) url.searchParams.set("pi", pi);
+  if (ic) url.searchParams.set("ic", ic);
+  if (org) url.searchParams.set("org", org);
+  if (activity) url.searchParams.set("activity", activity);
+  if (state) url.searchParams.set("state", state);
+  if (fyMin) url.searchParams.set("fy_min", fyMin);
+  if (fyMax) url.searchParams.set("fy_max", fyMax);
   const response = await fetch(url.toString(), signal ? { signal } : undefined);
   if (!response.ok) {
     throw new Error(await readErrorDetail(response));
