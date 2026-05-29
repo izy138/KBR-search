@@ -21,7 +21,7 @@ A full-stack application for searching and analyzing NIH research grant data (20
 
 ```bash
 # 1. Clone and start all services
-git clone <repo-url>
+git clone https://github.com/izy138/KBR-search
 cd KBR-Internship
 docker compose up --build
 ```
